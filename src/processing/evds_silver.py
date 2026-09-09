@@ -61,7 +61,11 @@ def parse_series(series_code: str) -> bool:
         return False
 
     raw = pd.read_csv(bronze_path, encoding="utf-8")
-    date_col, value_col = raw.columns[0], raw.columns[1]  # 'Tarih', '<SERIES_CODE>'
+    # 'Tarih' is always first; the value column is always last - some EVDS
+    # series (e.g. weekly TP.KKHARTUT.*) insert an extra 'YEARWEEK'-style
+    # column in between, which the old raw.columns[1] assumption silently
+    # treated as the value and produced an all-NaN, 0-row series.
+    date_col, value_col = raw.columns[0], raw.columns[-1]
 
     freq = _detect_frequency(raw[date_col])
 

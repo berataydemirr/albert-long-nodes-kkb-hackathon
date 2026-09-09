@@ -44,4 +44,28 @@ SERIES: list[dict] = [
         "label": "Industrial Production Index - Total Industry (Seasonally/Calendar Adjusted)",
         "category": "economic_activity",
     },
+    # Added in a later pass, same rule as above (no guessed codes) - found via:
+    #   python -m src.collectors.evds --discover --search "mevduat faiz"
+    #   python -m src.collectors.evds --discover --search "kredi kartı"
+    #   python -m src.collectors.evds --discover --search "reel kesim"
+    # then confirmed with client.get_series(datagroup_code). Chosen to widen
+    # the gold layer beyond the housing-loan demo scenario: a deposit rate
+    # (loan rate's natural counterpart), a real-economy spending proxy, and
+    # a leading-indicator confidence index - all plausible Causality/Anomaly
+    # Tool inputs beyond the single worked example in the hackathon brief.
+    {
+        "code": "TP.MT210AGS.TRY.MT06",
+        "label": "TRY Deposit Interest Rate (Stock, Total excl. Demand Deposits, %)",
+        "category": "interest_rate",
+    },
+    {
+        "code": "TP.KKHARTUT.KT1",
+        "label": "Credit/Debit Card Spending, Total (Flow)",
+        "category": "consumption",
+    },
+    {
+        "code": "TP.GY1.N2",
+        "label": "Real Sector Confidence Index",
+        "category": "sentiment",
+    },
 ]
