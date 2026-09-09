@@ -8,6 +8,7 @@ __pycache__/
 logs/*.log
 data/bronze/
 data/debug/
+data/gold/*.duckdb
 
 # Keep the folder skeleton (.gitkeep)
 !logs/.gitkeep
