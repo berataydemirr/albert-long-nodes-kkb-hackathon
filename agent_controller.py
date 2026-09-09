@@ -59,8 +59,16 @@ def run_module(module_path: str, extra_args: list) -> bool:
                 line = line.strip()
                 if line:
                     print(line)
-                    upper_line = line.upper()
-                    if any(keyword in upper_line for keyword in ["ERROR", "EXCEPTION", "WARNING", " 500 "]):
+                    # Match the logger's own level marker (see logging_setup.py's
+                    # "%(asctime)s - [%(name)s] - %(levelname)s - %(message)s"),
+                    # not a bare keyword search - a keyword search flags summary
+                    # lines that merely MENTION errors, e.g. bddk_finturk's own
+                    # "Errors / failures : 0" (0 failures, still contains
+                    # "Errors"), which was previously causing pointless retries
+                    # of runs that had already succeeded. "Traceback" is kept as
+                    # a separate signal since an unhandled Python exception never
+                    # goes through the logger format at all.
+                    if " - WARNING - " in line or " - ERROR - " in line or line.startswith("Traceback"):
                         error_found = True
                         error_summary = line
                         logger.warning(f"Detected error/warning in subprocess: {error_summary}")
@@ -87,19 +95,54 @@ def run_module(module_path: str, extra_args: list) -> bool:
 def parse_args():
     parser = argparse.ArgumentParser(description="Top-level orchestrator that runs collectors in sequence")
     parser.add_argument("--mode", choices=["test", "full"], default="test",
-                         help="Forwarded to child collectors. Defaults to 'test' to avoid accidentally triggering a multi-hour full scan.")
+                         help="Forwarded to child collectors that support --mode. Defaults to 'test' to avoid accidentally triggering a multi-hour full scan.")
     return parser.parse_args()
+
+
+def build_pipeline(mode: str) -> list[tuple[str, list]]:
+    """Full bronze -> silver -> gold pipeline, in dependency order. Not
+    every module takes the same CLI - EVDS/TUIK collectors and every
+    silver/gold module either take no --mode (they always process
+    whatever is configured/already in bronze) or no args at all, so
+    --mode is forwarded only to the modules that actually accept it."""
+    mode_args = ["--mode", mode]
+    return [
+        # Bronze (network) then its matching silver (network-free) step,
+        # source by source - keeps a source's own data self-contained if
+        # only part of the pipeline needs re-running.
+        ("src.collectors.bddk_monthly", mode_args),
+        ("src.processing.bddk_monthly_silver", mode_args),
+        ("src.collectors.bddk_weekly", mode_args),
+        ("src.processing.bddk_weekly_silver", mode_args),
+        ("src.collectors.bddk_finturk", mode_args),
+        ("src.processing.bddk_finturk_silver", mode_args),
+        ("src.collectors.evds", []),          # no --mode: always (re)fetches every series in config/evds_series.py
+        ("src.processing.evds_silver", []),
+        ("src.collectors.tuik", []),          # no --mode: always (re)fetches every series in config/tuik_series.py
+        ("src.processing.tuik_silver", []),
+        # Gold depends on every silver source above being present; each
+        # gold_* builder degrades gracefully (returns an empty frame) if
+        # a given source is missing, rather than crashing - see build_gold.py.
+        ("src.gold.scan_cumulative", []),
+        ("src.gold.build_gold", []),
+    ]
 
 
 if __name__ == "__main__":
     args = parse_args()
+    pipeline = build_pipeline(args.mode)
 
-    modules = [
-        ("src.collectors.bddk_monthly", ["--mode", args.mode]),
-        ("src.processing.bddk_monthly_silver", ["--mode", args.mode]),
-    ]
+    logger.info(f"Starting orchestrator (mode={args.mode}, {len(pipeline)} steps)...")
+    results = []
+    for module_path, extra_args in pipeline:
+        results.append((module_path, run_module(module_path, extra_args)))
 
-    logger.info(f"Starting orchestrator (mode={args.mode})...")
-    for module_path, extra_args in modules:
-        run_module(module_path, extra_args)
-    logger.info("All tasks finished.")
+    failed = [name for name, ok in results if not ok]
+    logger.info("=" * 50)
+    logger.info("PIPELINE SUMMARY")
+    for name, ok in results:
+        logger.info(f"  {'OK  ' if ok else 'FAIL'} - {name}")
+    logger.info(f"{len(results) - len(failed)}/{len(results)} steps succeeded.")
+    logger.info("=" * 50)
+    if failed:
+        raise SystemExit(1)
