@@ -68,4 +68,36 @@ SERIES: list[dict] = [
         "label": "Real Sector Confidence Index",
         "category": "sentiment",
     },
+    # Third pass, same rule (no guessed codes), found via:
+    #   python -m src.collectors.evds --discover --search "altin"
+    #   python -m src.collectors.evds --discover --search "para arzi"
+    #   python -m src.collectors.evds --discover --search "faiz oran"
+    # then confirmed with client.get_series(datagroup_code). Gold price
+    # directly matches the hackathon brief's own second worked example
+    # (Borsa Istanbul precious metals, see slide 13); M2 and the broad
+    # consumer loan rate widen the macro picture beyond the single
+    # housing-only interest rate already in the registry.
+    # DATA QUALITY WARNING - collected but NOT wired into the gold layer:
+    # only 207 irregular observations over 2021-2026 (gaps up to 28 days,
+    # zero rows in 2026 at all - last observation 2025-11-24). This looks
+    # like ad-hoc/spot reporting, not a routine daily series, so treating
+    # it as monthly (forward-filling the gaps) would fabricate data. Kept
+    # here for reference; the brief's own demo (slide 13) points at
+    # sourcing Borsa Istanbul gold prices live via the Web URL Agent Tool
+    # instead, which is the more honest fit for this specific need.
+    {
+        "code": "TP.ALTINPIYASA.KAP05",
+        "label": "Gold Closing Price (Borsa Istanbul, TRY/gram) - SPARSE, see comment above",
+        "category": "commodity_price",
+    },
+    {
+        "code": "TP.HPBITABLO1.11",
+        "label": "M2 Money Supply",
+        "category": "money_supply",
+    },
+    {
+        "code": "TP.BKR.TRY.KTFTUK",
+        "label": "Consumer Loan Interest Rate, Combined Personal+Auto+Housing (TL, Stock, %)",
+        "category": "interest_rate",
+    },
 ]

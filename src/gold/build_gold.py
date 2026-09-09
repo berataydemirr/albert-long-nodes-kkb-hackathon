@@ -61,14 +61,19 @@ EVDS_SERIES_LABELS = {
     "TP.TSANAYMT2021.BCD": "Sanayi Uretim Endeksi (Mevsim/Takvim Etkisinden Arindirilmis)",
     "TP.MT210AGS.TRY.MT06": "TL Mevduat Faiz Orani (Vadesiz Haric, Stok, %)",
     "TP.GY1.N2": "Reel Kesim Guven Endeksi",
+    "TP.BKR.TRY.KTFTUK": "Tuketici Kredisi Faiz Orani, Ihtiyac+Tasit+Konut Birlikte (TL, Stok, %)",
+    # TP.ALTINPIYASA.KAP05 (gold price) deliberately NOT included here -
+    # see the data-quality warning next to it in config/evds_series.py.
 }
 
 # Weekly-dated EVDS series that need downsampling before joining the
 # monthly fact table - 'how' picked per series semantics (see align.py):
 # a spending FLOW is meaningfully averaged over the weeks in a month,
-# not just read off the last week like a stock/rate would be.
+# not just read off the last week like a stock/rate would be; M2 (a
+# stock) uses the last observation of the month instead.
 EVDS_WEEKLY_SERIES = {
     "TP.KKHARTUT.KT1": ("Kredi/Banka Karti Harcamasi, Toplam (Haftalik, Aylik Ortalama)", None, "flow", "mean"),
+    "TP.HPBITABLO1.11": ("M2 Para Arzi (Ay Sonu)", None, "stock", "last"),
 }
 
 
