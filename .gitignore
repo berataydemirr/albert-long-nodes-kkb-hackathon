@@ -1,0 +1,18 @@
+.env
+venv/
+__pycache__/
+*.pyc
+.claude/
+
+# Runtime output - regeneratable, ignored so the repo doesn't bloat
+logs/*.log
+data/bronze/
+data/debug/
+
+# Keep the folder skeleton (.gitkeep)
+!logs/.gitkeep
+!data/gold/.gitkeep
+
+# Local-only reference material, not part of the public repo
+CONTRIBUTING.md
+archive/
