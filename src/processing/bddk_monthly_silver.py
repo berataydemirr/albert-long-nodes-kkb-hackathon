@@ -66,7 +66,7 @@ def parse_table(year: int, month: int, table_id: int) -> bool:
 
     records = rows_to_records(col_names, all_rows)
     df = pd.DataFrame(records)
-    df.to_csv(get_silver_path(year, month, table_id), index=False)
+    df.to_csv(get_silver_path(year, month, table_id), index=False, encoding="utf-8")
     return True
 
 

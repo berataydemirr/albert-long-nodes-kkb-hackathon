@@ -92,7 +92,7 @@ def parse_table(donem_id: int, table_id: int) -> bool:
         return False
 
     df = pd.DataFrame(records)
-    df.to_csv(get_silver_path(donem_id, table_id), index=False)
+    df.to_csv(get_silver_path(donem_id, table_id), index=False, encoding="utf-8")
     return True
 
 

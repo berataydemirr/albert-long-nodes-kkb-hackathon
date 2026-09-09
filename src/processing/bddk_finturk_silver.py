@@ -53,7 +53,7 @@ def parse_table(donem: str, table_id: int) -> bool:
 
     records = rows_to_records(col_names, rows)
     df = pd.DataFrame(records)
-    df.to_csv(get_silver_path(donem, table_id), index=False)
+    df.to_csv(get_silver_path(donem, table_id), index=False, encoding="utf-8")
     return True
 
 
