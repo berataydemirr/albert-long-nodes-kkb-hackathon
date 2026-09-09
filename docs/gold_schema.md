@@ -41,14 +41,18 @@ Genel amaçlı, doğal-dil→SQL tool'unun asıl hedefleneceği tablo.
 | `Tip` | `stock` (dönem sonu seviye) / `flow` (aya ait akış) / `flow_quarter_ffill` (çeyrek sonundan ay'a forward-fill edilmiş, gerçek aylık gözlem değil) |
 | `Kaynak_Dosya` | İzlenebilirlik: hangi silver dosyasından geldi |
 
-**13 seri, 858 satır** (2021-01 → 2026-06). Kaynaklara göre:
+**15 seri, 990 satır** (2021-01 → 2026-06), 15/15 seri tam dolu
+(66/66 dönem, sıfır null - `gold_fact_long` üzerinde her build'de
+kontrol ediliyor). Kaynaklara göre:
 
-- **EVDS (9 seri):** konut fiyat endeksi, konut kredisi faiz oranı,
+- **EVDS (11 seri):** konut fiyat endeksi, konut kredisi faiz oranı,
   TCMB politika faizi, TÜFE, sanayi üretim endeksi, USD/TRY,
-  **TL mevduat faiz oranı** (yeni), **kredi/banka kartı harcaması**
-  (yeni, haftalıktan aylığa ortalanmış), **reel kesim güven endeksi**
-  (yeni). Son 3'ü `--discover` ile gerçek verilerden bulundu, kod
-  uydurulmadı (bkz. `config/evds_series.py` yorumları).
+  TL mevduat faiz oranı, kredi/banka kartı harcaması (haftalıktan
+  aylığa ortalanmış), reel kesim güven endeksi, **M2 para arzı**
+  (yeni, haftalıktan aylığa), **birleşik tüketici kredisi faiz oranı**
+  (yeni, ihtiyaç+taşıt+konut birlikte). Hepsi `--discover` ile gerçek
+  verilerden bulundu, kod uydurulmadı (bkz. `config/evds_series.py`
+  yorumları).
 - **TUIK (1 seri):** işsizlik oranı.
 - **BDDK Aylık (1 seri):** konut kredisi (stok, tablo_4).
 - **BDDK Haftalık (1 seri):** konut kredisi haftalık yeni kullandırım
@@ -97,6 +101,16 @@ büyümüyor - bu, bir bakiye değil, **o hafta açılan yeni konut kredisi**
 etiketi netleştirildi ("Haftalik Yeni Kullandirim Toplami (Bilgi: stok
 DEGIL)"). Kesin resmi tanım BDDK'nın tablo dokümantasyonundan/Slack'ten
 teyit edilebilir ama davranışsal kanıt güçlü.
+
+## Bilinçli olarak dışarıda bırakılan veri — altın fiyatı (EVDS)
+
+`TP.ALTINPIYASA.KAP05` (Borsa İstanbul altın kapanış fiyatı, TL/gr)
+toplandı ve silver'a işlendi ama **gold'a dahil edilmedi**: sadece 207
+düzensiz gözlem (28 güne varan boşluklar), ve **2026'da hiç veri yok**
+(son gözlem 2025-11-24). Bunu aylığa zorlamak (forward-fill) veri
+uydurmak olurdu. Hackathon brifinginin kendi demo senaryosu zaten bu
+ihtiyacı Web URL Agent Tool ile Borsa İstanbul'un kendi sayfasından
+canlı çekmeyi öngörüyor (slayt 13) - daha doğru kaynak o.
 
 ## Bilinen sınırlama — kümülatif tespiti oran (%) tablolarında
 
