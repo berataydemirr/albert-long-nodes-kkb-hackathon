@@ -1,7 +1,7 @@
 # Gold Katmanı — Şema Notu
 
 `python -m src.gold.build_gold` çalıştırıldığında `data/gold/lakehouse.duckdb`
-içine 3 tablo yazılır. Lakehouse Tool bu tabloları sorgulayacak.
+içine 4 tablo yazılır. Lakehouse Tool bu tabloları sorgulayacak.
 
 ## ⚠️ Kritik: CSV okuma/yazmada her zaman `encoding="utf-8"`
 
@@ -16,25 +16,45 @@ jüri önünde bozuk metin olarak ortaya çıkabilecek türden bir hata.
 encoding="utf-8")` ve `df.to_csv(path, encoding="utf-8")` kullanmalı.**
 Mevcut `src/processing/*.py` ve `src/gold/*.py` script'leri düzeltildi.
 
+Not: terminalde/log çıktısında yine de `�` görebilirsiniz (ör. `İSTANBUL`
+konsolda `�STANBUL` gibi görünür) - bu SADECE konsolun kod sayfası
+sorunu, `repr()` / hex codepoint ile kontrol edilince veri doğru
+(`0x130` = `İ`). Konsol çıktısına bakıp veri bozuk sanmayın; asıl kontrol
+dosyanın/DB'nin byte'larında.
+
 ## Tablolar
 
 ### `gold_fact_long`
-Tüm kaynaklardan (EVDS, TUIK, BDDK Aylık, BDDK Haftalık) ortak aylık
-eksende tek satır = tek gözlem şeklinde uzun format. Genel amaçlı,
-doğal-dil→SQL tool'unun asıl hedefleneceği tablo.
+Tüm kaynaklardan (EVDS, TUIK, BDDK Aylık, BDDK Haftalık, BDDK FinTürk-
+ulusal) ortak aylık eksende tek satır = tek gözlem şeklinde uzun format.
+Genel amaçlı, doğal-dil→SQL tool'unun asıl hedefleneceği tablo.
 
 | Kolon | Açıklama |
 |---|---|
 | `Period` | `YYYY-MM` |
-| `Kaynak` | `evds` / `tuik` / `bddk_monthly` / `bddk_weekly` |
+| `Bolge` | `TR` (ülke geneli) - il bazlı veri için `gold_finturk_regional_quarterly`'e bkz. |
+| `Kaynak` | `evds` / `tuik` / `bddk_monthly` / `bddk_weekly` / `bddk_finturk` |
 | `Seri_Kod` | Kaynağa özgü seri/tablo kodu (ör. `TP.KFE.TR`, `tablo_4.konut_kredisi`) |
 | `Seri_Adi` | İnsan-okunur açıklama (LLM'e prompt'ta bu isim verilecek) |
 | `Deger` | Sayısal değer |
 | `Birim` | `%`, `Bin TL`, `TRY`, boş=endeks |
-| `Tip` | `stock` (dönem sonu seviye) / `flow` (aya ait akış) |
+| `Tip` | `stock` (dönem sonu seviye) / `flow` (aya ait akış) / `flow_quarter_ffill` (çeyrek sonundan ay'a forward-fill edilmiş, gerçek aylık gözlem değil) |
 | `Kaynak_Dosya` | İzlenebilirlik: hangi silver dosyasından geldi |
 
-9 seri, 594 satır (2021-01 → 2026-06).
+**13 seri, 858 satır** (2021-01 → 2026-06). Kaynaklara göre:
+
+- **EVDS (9 seri):** konut fiyat endeksi, konut kredisi faiz oranı,
+  TCMB politika faizi, TÜFE, sanayi üretim endeksi, USD/TRY,
+  **TL mevduat faiz oranı** (yeni), **kredi/banka kartı harcaması**
+  (yeni, haftalıktan aylığa ortalanmış), **reel kesim güven endeksi**
+  (yeni). Son 3'ü `--discover` ile gerçek verilerden bulundu, kod
+  uydurulmadı (bkz. `config/evds_series.py` yorumları).
+- **TUIK (1 seri):** işsizlik oranı.
+- **BDDK Aylık (1 seri):** konut kredisi (stok, tablo_4).
+- **BDDK Haftalık (1 seri):** konut kredisi haftalık yeni kullandırım
+  (akış, tablo_289 - aşağıya bkz., aylığa toplanarak).
+- **BDDK FinTürk (1 seri):** toplam nakdi kredi, Türkiye geneli
+  (82 il/yurtdışı toplamı, çeyreklikten aylığa forward-fill).
 
 ### `gold_bddk_net_profit_monthly`
 Faz A2'nin somut çıktısı: BDDK Aylık `tablo_2` içindeki "DÖNEM NET KARI
@@ -54,19 +74,29 @@ enflasyondan arındırılmış hali aynı dönemde ~3'te 1'e küçülmüş
 (276.785 → 99.416 "2021-01 fiyatlarıyla" bin TL). Bu, Causality
 Tool'un vitrin örneği için hazır, gerçek bir hikaye.
 
-## Bilinen açık soru — kapatılmadı, kapatılmış gibi gösterilmedi
+### `gold_finturk_regional_quarterly` (yeni)
+BDDK FinTürk `tablo_1` (Krediler), **il bazında**, kendi doğal
+çeyreklik çözünürlüğünde tutuluyor - 81 il × yurt dışı, aylığa
+zorlanmadı (81 il × aylık forward-fill, gerçek bilgi katmadan satır
+sayısını 3 katına çıkarırdı). Gold katmanındaki ilk bölgesel (`Bolge`)
+boyut. Kolonlar: `Period` (`YYYY-Q`, Q∈{3,6,9,12}), `Bolge` (il adı),
+`Toplam_Nakdi_Kredi_Bin_TL`, `Takipteki_Alacak_Bin_TL`,
+`NPL_Orani_Yaklasik`. 1804 satır (82 bölge × 22 çeyrek). Ulusal toplamla
+çapraz kontrol edildi: `gold_fact_long`'daki `tablo_1.toplam_nakdi_kredi_ulusal`
+== bu tablonun 82 ilin toplamı (2021-Q1 için doğrulandı, tam eşleşiyor).
+
+## Çözülen bulgu — haftalık "Konut" satırı stok değil, akış
 
 BDDK Haftalık bülten `tablo_289` ("Loans") / "a) Konut" satırı ile BDDK
-Aylık `tablo_4` / "Tüketici Kredileri - Konut" satırı **aynı ay için
-uyuşmuyor** (ör. 2024-01: haftalık 14.515 bin TL vs aylık 436.688 bin
-TL — ne 1000 ne 10 kat fark, temiz bir birim dönüşümü değil). İkisi
-muhtemelen farklı şeyi ölçüyor (ör. haftalık bültendeki panel farklı
-bankaları kapsıyor olabilir, ya da "a) Konut" o hafta açılan yeni
-kredi olabilir, stok değil). `gold_fact_long`'da ikisi de ayrı
-`Seri_Kod` olarak duruyor, birbirinin yerine geçmiyor - kimse ikisini
-karıştırıp yanlışlıkla toplamasın diye bilerek burada not edildi.
-Slack'te BDDK'ya sorulabilir ya da tablo dokümantasyonundan
-netleştirilebilir.
+Aylık `tablo_4` / "Tüketici Kredileri - Konut" satırı aynı ay için
+uyuşmuyordu (ör. 2024-01: haftalık 14.515 bin TL vs aylık 436.688 bin
+TL). Sebebi bulundu: haftalık rakam hafta hafta düz/dalgalı seyrediyor
+(38091 → 37319 → 37621 → 38075 → 39452 ...), aylık stok gibi düzgün
+büyümüyor - bu, bir bakiye değil, **o hafta açılan yeni konut kredisi**
+(akış) imzası. `build_gold.py`'da `Tip='flow'` olarak düzeltildi ve
+etiketi netleştirildi ("Haftalik Yeni Kullandirim Toplami (Bilgi: stok
+DEGIL)"). Kesin resmi tanım BDDK'nın tablo dokümantasyonundan/Slack'ten
+teyit edilebilir ama davranışsal kanıt güçlü.
 
 ## Bilinen sınırlama — kümülatif tespiti oran (%) tablolarında
 
@@ -80,10 +110,13 @@ rasyo tabloları bilinçli olarak dışarıda bırakıldı.
 ## Sıradaki adımlar (Faz A'nın kalanı)
 
 1. Diğer 16 BDDK Aylık tablosundan + BDDK Haftalık'tan ihtiyaç
-   duyulan başka satırları `gold_fact_long`'a ekle (şu an sadece
-   konut kredisi çekildi - şema hazır, satır eklemek ucuz).
-2. FinTürk (çeyreklik, il bazlı) henüz `gold_fact_long`'a dahil değil
-   - `src/gold/align.upsample_quarterly_to_monthly()` yazıldı ama
-     henüz `build_gold.py`'da kullanılmadı.
-3. Haftalık/aylık konut uyuşmazlığını netleştir (yukarıya bkz.).
-4. Yeni veri ekleme fikirleri için bkz. ekip sohbetindeki not.
+   duyulan başka satırları `gold_fact_long`'a ekle (şema hazır, satır
+   eklemek ucuz - bkz. `build_bddk_monthly_konut_facts()` deseni).
+2. FinTürk'ün diğer 6 tablosu (Mevduat, Bireysel Bankacılık, Seçilmiş
+   Sektörel Krediler, Rasyolar, Şube/Nüfus, Altın) henüz eklenmedi -
+   sadece tablo_1 (Krediler) işlendi.
+3. Yeni EVDS/TUIK seri eklemek için: ASLA kod uydurma - önce
+   `python -m src.collectors.evds --discover --search <kelime>` (ya da
+   TUIK için ilgili discover akışı) ile gerçek kodu bul,
+   `client.get_series(datagroup_code)` ile SERIE_CODE'u doğrula, sonra
+   `config/evds_series.py`'ye ekle. Bugün böyle 3 yeni seri eklendi.
