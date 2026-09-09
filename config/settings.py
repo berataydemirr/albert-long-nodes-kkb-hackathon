@@ -50,6 +50,38 @@ BDDK_TABLE_IDS = list(range(1, 18))  # tables 1-17
 BDDK_TARAF_SEKTOR = "10001"          # "Sektor" = whole banking sector aggregate (not a single bank) - confirmed
 BDDK_PARA_BIRIMI_DEFAULT = "TL"
 
+# BDDK Monthly Bulletin's own table names/units, straight from the
+# "caption" field the bronze JSON already carries (e.g.
+# data/bronze/bddk_monthly/2021/01/tablo_4_p1.json ->
+# Json.caption == "Tuketici Kredileri (milyon TL), Donem:2021/1") -
+# not guessed. IMPORTANT: units differ per table (most are "milyon TL",
+# tablo_5 is "bin TL", tablo_15/16/17 have none - they're ratios/counts)
+# - a table without a name/unit mapping here should NOT be assumed to
+# share another table's unit. Weekly/FinTurk tables don't expose a
+# caption the same way (checked: FinTurk's JSON has no such field, and
+# the Weekly HTML page doesn't state a unit in its visible text either)
+# - their units in BDDK_WEEKLY_TABLES/BDDK_FINTURK_TABLES below are
+# unconfirmed, unlike this dict.
+BDDK_MONTHLY_TABLES = {
+    1: {"name": "Bilanço", "unit": "milyon TL"},
+    2: {"name": "Kar Zarar", "unit": "milyon TL"},
+    3: {"name": "Krediler", "unit": "milyon TL"},
+    4: {"name": "Tüketici Kredileri", "unit": "milyon TL"},
+    5: {"name": "Sektörel Kredi Dağılımı", "unit": "bin TL"},
+    6: {"name": "KOBİ Kredileri", "unit": "milyon TL"},
+    7: {"name": "Sendikasyon Seküritizasyon Kredileri", "unit": "milyon TL"},
+    8: {"name": "Menkul Kıymetler", "unit": "milyon TL"},
+    9: {"name": "Mevduat Türler İtibarıyla", "unit": "milyon TL"},
+    10: {"name": "Mevduat Vade İtibarıyla", "unit": "milyon TL"},
+    11: {"name": "Likidite Durumu", "unit": "milyon TL"},
+    12: {"name": "Sermaye Yeterliliği", "unit": "milyon TL"},
+    13: {"name": "Yabancı Para Pozisyonu", "unit": "milyon TL"},
+    14: {"name": "Bilanço Dışı İşlemler", "unit": "milyon TL"},
+    15: {"name": "Rasyolar", "unit": None},
+    16: {"name": "Diğer Bilgiler", "unit": None},
+    17: {"name": "Yurt Dışı Şube Rasyoları", "unit": None},
+}
+
 # --- WAF-friendly delay (random pause between requests) ---
 WAF_SLEEP_MIN_SEC = 1.5
 WAF_SLEEP_MAX_SEC = 3.0

@@ -200,18 +200,15 @@ full list):
 - Most BDDK Monthly (16 of 17 tables), BDDK Weekly (8 of 9 tables), and
   BDDK FinTurk (6 of 7 tables) line items haven't been pulled into the
   gold layer yet - only the housing-credit theme has been processed
-  end to end so far.
-- BDDK Monthly's 17 tables have no human-readable name mapping (unlike
-  `BDDK_WEEKLY_TABLES`/`BDDK_FINTURK_TABLES` in `config/settings.py`) -
-  worth adding for readability.
+  end to end so far. (Every BDDK Monthly table now has a real name/unit
+  in `BDDK_MONTHLY_TABLES`, pulled from the bronze JSON's own `caption`
+  field rather than guessed - the remaining work is wiring specific
+  line items into `gold_fact_long`, not naming them.)
 - Cumulative-series scanning (`scan_cumulative.py`) has only run against
   BDDK Monthly; BDDK Weekly and FinTurk haven't been checked.
-- No automated tests yet for the network-free, pure-function modules
-  (`src/gold/align.py`, `src/gold/cumulative.py`) that would catch a
-  regression without a manual re-check.
-- `agent_controller.py` only orchestrates BDDK Monthly's collector +
-  silver step - it hasn't been extended to the other 4 sources or the
-  gold build.
+- Test coverage is limited to the network-free pure functions in
+  `src/gold/` (`pytest tests/ -v`, also run in CI) - the collectors,
+  silver converters and `build_gold.py`'s own I/O aren't covered.
 - Health-data source (to demonstrate the "not just finance" requirement)
   - not yet researched.
 - The agentic engine itself (Cloudeks/LLM integration, tool routing,
