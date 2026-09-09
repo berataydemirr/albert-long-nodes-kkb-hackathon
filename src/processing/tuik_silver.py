@@ -51,7 +51,7 @@ def parse_series(series_code: str) -> bool:
     end_key = f"{FULL_END_YEAR}-{FULL_END_MONTH:02d}"
     df = df[(df["Period"] >= start_key) & (df["Period"] <= end_key)].reset_index(drop=True)
 
-    df.to_csv(get_silver_path(series_code), index=False)
+    df.to_csv(get_silver_path(series_code), index=False, encoding="utf-8")
     return True
 
 

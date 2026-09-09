@@ -97,7 +97,7 @@ def collect_series(series_code: str, start_date: str, end_date: str, force: bool
     df = pd.concat(parts, ignore_index=True).drop_duplicates()
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(output_path, index=False)
+    df.to_csv(output_path, index=False, encoding="utf-8")
     logger.info(f"Saved: {output_path} ({len(df)} rows)")
     return True
 
