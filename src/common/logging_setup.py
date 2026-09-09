@@ -41,3 +41,28 @@ def get_logger(name: str, console_level: int = logging.INFO, file_level: int = l
 
     logger.debug(f"Log file: {log_file}")
     return logger
+
+
+# Human-readable labels for the stats dict keys every silver script uses
+# (some use all three, some only 'parsed'/'empty_or_missing' - see
+# log_stats_summary below).
+_STATS_LABELS = {
+    "parsed": "Newly parsed",
+    "skipped_exists": "Already existed",
+    "empty_or_missing": "Empty/missing",
+}
+
+
+def log_stats_summary(logger: logging.Logger, title: str, stats: dict) -> None:
+    """Logs the "===\\nSILVER PARSE SUMMARY (...)\\n...\\n===" block every
+    src/processing/*_silver.py script ends its run() with. Extracted
+    here because all 5 of them had this block copy-pasted with only the
+    title and (sometimes) one stat key differing - a change to the
+    format previously had to be repeated in 5 places by hand."""
+    logger.info("=" * 50)
+    logger.info(f"SILVER PARSE SUMMARY ({title})")
+    label_width = max((len(_STATS_LABELS.get(k, k)) for k in stats), default=0)
+    for key, value in stats.items():
+        label = _STATS_LABELS.get(key, key)
+        logger.info(f"{label.ljust(label_width)} : {value}")
+    logger.info("=" * 50)

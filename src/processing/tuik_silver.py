@@ -10,7 +10,7 @@ import pandas as pd
 
 from config.settings import TUIK_BRONZE_DIR, TUIK_SILVER_DIR, FULL_START_YEAR, FULL_START_MONTH, FULL_END_YEAR, FULL_END_MONTH
 from config.tuik_series import SERIES
-from src.common.logging_setup import get_logger
+from src.common.logging_setup import get_logger, log_stats_summary
 
 logger = get_logger("tuik_silver")
 
@@ -66,11 +66,7 @@ def run() -> dict:
             logger.warning(f"Series empty or bronze missing: {code}")
             stats["empty_or_missing"] += 1
 
-    logger.info("=" * 50)
-    logger.info("SILVER PARSE SUMMARY (tuik)")
-    logger.info(f"Newly parsed  : {stats['parsed']}")
-    logger.info(f"Empty/missing : {stats['empty_or_missing']}")
-    logger.info("=" * 50)
+    log_stats_summary(logger, "tuik", stats)
     return stats
 
 

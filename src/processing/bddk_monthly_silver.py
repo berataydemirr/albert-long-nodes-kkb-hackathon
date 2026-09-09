@@ -21,7 +21,7 @@ from config.settings import (
     TEST_YEAR, TEST_MONTH, TEST_TABLE_IDS,
     month_range,
 )
-from src.common.logging_setup import get_logger
+from src.common.logging_setup import get_logger, log_stats_summary
 from src.common.jqgrid import get_columns_and_rows, get_total_pages, rows_to_records
 
 logger = get_logger("bddk_monthly_silver")
@@ -87,12 +87,7 @@ def run(years_months, table_ids: list) -> dict:
                 logger.warning(f"Table empty or bronze missing: Y{year}-M{month}-T{table_id}")
                 stats["empty_or_missing"] += 1
 
-    logger.info("=" * 50)
-    logger.info("SILVER PARSE SUMMARY (bddk_monthly)")
-    logger.info(f"Newly parsed      : {stats['parsed']}")
-    logger.info(f"Already existed   : {stats['skipped_exists']}")
-    logger.info(f"Empty/missing     : {stats['empty_or_missing']}")
-    logger.info("=" * 50)
+    log_stats_summary(logger, "bddk_monthly", stats)
     return stats
 
 

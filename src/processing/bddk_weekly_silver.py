@@ -30,7 +30,7 @@ from config.settings import (
     BDDK_WEEKLY_DONEM_START, BDDK_WEEKLY_DONEM_END,
     TEST_DONEM_ID, TEST_WEEKLY_TABLE_IDS,
 )
-from src.common.logging_setup import get_logger
+from src.common.logging_setup import get_logger, log_stats_summary
 
 logger = get_logger("bddk_weekly_silver")
 
@@ -113,12 +113,7 @@ def run(donem_ids, table_ids: list) -> dict:
                 logger.warning(f"Table empty or bronze missing: Period{donem_id}-T{table_id}")
                 stats["empty_or_missing"] += 1
 
-    logger.info("=" * 50)
-    logger.info("SILVER PARSE SUMMARY (bddk_weekly)")
-    logger.info(f"Newly parsed      : {stats['parsed']}")
-    logger.info(f"Already existed   : {stats['skipped_exists']}")
-    logger.info(f"Empty/missing     : {stats['empty_or_missing']}")
-    logger.info("=" * 50)
+    log_stats_summary(logger, "bddk_weekly", stats)
     return stats
 
 
