@@ -1,0 +1,506 @@
+tablo,item,is_cumulative,monotonic_ratio,reset_ratio,n_obs,year_boundaries_checked,reason
+tablo_1,Bankalar Mevduatı (Katılım Fonu)*****,False,0.767,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Bankalara Borçlar,False,0.917,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Bankalara Kullandırılan Krediler*****,False,0.7,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Bankalardan Alacaklar,False,0.6,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Beklenen Zarar Karşılıkları (-),False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Diğer Aktifler,False,0.767,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Diğer Pasifler,False,0.717,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Dönem Karı (Zararı),True,1.0,1.0,66,5,monotonic+resets
+tablo_1,Elden Çıkarılacak Kıymetler (Net),False,0.85,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Faiz (Kar Payı) ve Gelir Tah. Reeskontları,False,0.783,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Faiz (Kar Payı) ve Gider Reeskontları,False,0.65,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Finansal Kiralama Alacakları,False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Fonlar,False,0.617,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,GUD Farkı Diğer Kapsamlı Gelire Yan. Menk. Değ.,False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Gayrinakdi Kredi ve Yükümlülükler,False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Gerçeğe Uygun Değer Farkı K/Z Yan. Menk. Değ.,False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Geçmiş Yıllar Karı (Zararı),False,0.35,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Karşılıklar****,False,0.633,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Kiralama İşlemlerinden Yükümlülükler (Net),False,0.95,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Krediler*,False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Menkul Değerler Değerleme Farkları,False,0.6,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Menkul Kıymet Ödünç Piyasasına Borçlar,False,0.933,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Menkul Kıymet Ödünç Piyasasından Alacaklar,False,0.583,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Mevduat (Katılım Fonu)***,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Nakit Değerler,False,0.65,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Para Piyasalarına Borçlar,False,0.5,0.2,66,5,fails_monotonic_or_reset_test
+tablo_1,Para Piyasalarından Alacaklar,False,0.583,0.2,66,5,fails_monotonic_or_reset_test
+tablo_1,Repo İşlemlerinden Sağlanan Fonlar,False,0.6,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Sabit Kıymet Yeniden Değerleme Farkları,False,0.933,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Sabit Kıymetler (Net),False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Sermaye Hesaplamasına Dahil Edilecek Borçlanma Araçları (Net),False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,T.C. Merkez Bankasına Borçlar,False,0.7,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,T.C. Merkez Bankasından Alacaklar,False,0.717,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,TOPLAM AKTİFLER,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,TOPLAM PASİFLER,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,TOPLAM YABANCI KAYNAKLAR,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,TOPLAM ÖZKAYNAKLAR,False,0.95,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Taahhütler (59+60),False,0.85,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Takipteki Alacaklar,False,0.833,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Ters Repo Alacakları,False,0.633,0.4,66,5,fails_monotonic_or_reset_test
+tablo_1,Yedek Akçeler,False,0.933,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Zorunlu Karşılıklar,False,0.767,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,a) 12 Ay Beklenen Zarar Karşılığı (Birinci Aşama)**,False,0.8,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,a) Kredi Faiz (Kar Payı) ve Gelir Tah. Reeskontları,False,0.667,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,a) Mevduat (Katılım Fonu) Faiz (Kar Payı) Reeskontları,False,0.667,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,a) Tahviller ve Bonolar,False,0.8,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,a) Türev Finansal Araçlar,False,0.867,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,a) Vadesiz Mevduat,False,0.85,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,b) Diğer Faiz (Kar Payı) ve Gider Reeskontları,False,0.583,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,b) Diğer Taahhütler,False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,b) Kredi Riskinde Önemli Artış (İkinci Aşama)**,False,0.833,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,b) Menkul Değerler Faiz Reeskontları,False,0.833,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,b) V.D.M.K. ve Diğer İhraç Edilen Menkul Kıymetler,False,0.75,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,b) Vadeli Mevduat,False,0.95,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,c) Diğer Faiz (Kar Payı) ve Gelir Reeskontları,False,0.55,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,c) Temerrüt - Özel Karşılık (Üçüncü Aşama),False,0.883,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,"Ödenecek Vergi, Resim, Harç ve Primler",False,0.617,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Ödenmiş Sermaye,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,Ödenmiş Sermaye Enflasyon Düzeltme Farkı,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,İhraç Edilen Menkul Kıymetler (Net) (37+38),False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,İtfa Edilmiş Maliyeti Üzerinden Değerlenen Menkul Değerler,False,0.967,0.0,66,5,fails_monotonic_or_reset_test
+tablo_1,"İştirakler,  Bağlı  ve Birlikte Kontrol Edilen Ort.",False,0.95,0.0,66,5,fails_monotonic_or_reset_test
+tablo_2,Aktiflerimizin Satışından Elde Edilen Gelirler,True,0.983,1.0,66,5,monotonic+resets
+tablo_2,Alınan Kar Payları,True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Amortisman Giderleri,True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Bankacılık Hizmetleri Gelirleri,True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Bankalara Verilen Faizler (Giderler),True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Bankalardan Alınan Faizler (Gelirler),True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Diğer Faiz Dışı  (Kar Payı Dışındaki) Giderler,True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Diğer Faiz Dışı (Kar Payı Dışındaki) Gelirler,True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Diğer Faiz ve Faiz Benzeri Gelirler (Diğer Gelirler),True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Diğer Faiz ve Faiz Benzeri Giderler (Diğer Giderler),True,0.983,1.0,66,5,monotonic+resets
+tablo_2,Diğer Provizyonlar,True,0.983,1.0,66,5,monotonic+resets
+tablo_2,DÖNEM NET KARI (ZARARI) (51-52),True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Finansal Kiralama Gelirleri,True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Finansal Kiralama Giderleri,True,1.0,1.0,66,5,monotonic+resets
+tablo_2,GUD Farkı Diğer Kapsamlı Gelire Yansıtılan Menkul Değerlerden Alınan Faizler,True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Genel Karşılık Provizyonu,True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Gerçeğe Uygun Değer Farkı K/Z Yan. Menk. Değ. Alınan Faizler,True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Kambiyo Karları (Zararları) (Net),False,0.6,0.8,66,5,fails_monotonic_or_reset_test
+tablo_2,Kredilerden Alınan Faizler (Kar Payları),True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Kredilerden Alınan Ücret ve Komisyonlar,True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Kıdem Tazminatı Provizyonu,True,0.917,1.0,66,5,monotonic+resets
+tablo_2,Menkul Değerler Değer Azalma Provizyonu,False,0.567,0.2,66,5,fails_monotonic_or_reset_test
+tablo_2,Mevduata Verilen Faizler (Katılım Fonlarına Ödenen Kar Payları),True,1.0,1.0,66,5,monotonic+resets
+tablo_2,NET FAİZ (KAR PAYI) GELİRİ (GİDERİ) (15-23),True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Net Parasal Pozisyon Karı (Zararı),False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_2,Olağanüstü Gelirler (Giderler) (Net),False,0.55,0.2,66,5,fails_monotonic_or_reset_test
+tablo_2,PROV.SONRASI NET FAİZ  (KAR PAYI) GELİRİ (GİDERİ)  (24-25),True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Para Piy. İşl. Alınan Faizler,True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Para Piy.İşl.Verilen Faizler,True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Personel Giderleri,True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Repo İşlemlerine Verilen Faizler,True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Sermaye Piyasası İşlemleri Karları (Zararları) (Net),False,0.45,0.4,66,5,fails_monotonic_or_reset_test
+tablo_2,Takipteki Alacaklar Özel Provizyonu,True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Takipteki Alacaklardan Alınan Faizler (Kar Payları),True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Ters Repo İşlemlerinden Alınan Faizler,True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Toplam Diğer Faiz Dışı (Kar Payı Dışındaki) Gelirler (Giderler) (46+47+48+49),False,0.433,0.4,66,5,fails_monotonic_or_reset_test
+tablo_2,Toplam Faiz (Kar Payı) Gelirleri (1+...+14)-(2+3+4+5),True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Toplam Faiz (Kar Payı) Giderleri (16+...+22),True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Toplam Faiz Dışı (Kar Payı Dışındaki) Gelirler (27+30+31+32+33),True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Toplam Faiz Dışı (Kar Payı Dışındaki) Giderler  (35+…+44),True,1.0,1.0,66,5,monotonic+resets
+tablo_2,VERGİ ÖNCESİ KAR (ZARAR) [(26+34+50)-45],True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Vergi Provizyonu,True,0.983,1.0,66,5,monotonic+resets
+tablo_2,"Vergi, Resim, Harç ve Fonlar",True,1.0,1.0,66,5,monotonic+resets
+tablo_2,Verilen Ücret ve Komisyonlar,True,1.0,1.0,66,5,monotonic+resets
+tablo_2,a) Nakdi Kredilerden Alınan Ücret ve Komisyonlar,True,1.0,1.0,66,5,monotonic+resets
+tablo_2,a) Tüketici Kredilerinden Alınan Faizler (Kar Payları),True,1.0,1.0,66,5,monotonic+resets
+tablo_2,b) Gayrinakdi Kredilerden Alınan Ücret ve Komisyonlar,True,1.0,1.0,66,5,monotonic+resets
+tablo_2,b) Kredi Kartlarından Alınan Faizler (Kar Payları),True,1.0,1.0,66,5,monotonic+resets
+tablo_2,c) Taksitli Ticari Kredilerden Alınan Faizler (Kar Payları),True,1.0,1.0,66,5,monotonic+resets
+tablo_2,d) Diğer Kredilerden Alınan Faizler (Kar Payları),True,1.0,1.0,66,5,monotonic+resets
+tablo_2,İhraç Edilen Menkul Kıymetlere Verilen Faizler (Ödenen Kar Payları),True,1.0,1.0,66,5,monotonic+resets
+tablo_2,İtfa Edilmiş Maliyeti Üzerinden Değerlenen Menkul Değerlerden Alınan Faizler,True,1.0,1.0,66,5,monotonic+resets
+tablo_2,"İştirakler, Bağlı ve Birl. Kont. Ed. Ort. Değ. Azalma Proviz.",True,0.967,0.8,66,5,monotonic+resets
+tablo_3,Diğer Krediler,False,0.95,0.0,66,5,fails_monotonic_or_reset_test
+tablo_3,Diğer Yatırım Kredileri,False,0.933,0.0,66,5,fails_monotonic_or_reset_test
+tablo_3,Faktoring İşlemlerinden Alacaklar,False,0.7,0.0,66,5,fails_monotonic_or_reset_test
+tablo_3,Fon Kaynaklı Krediler,False,0.65,0.0,66,5,fails_monotonic_or_reset_test
+tablo_3,Kredi Kartları,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_3,Kıymetli Maden Kredileri,False,0.733,0.0,66,5,fails_monotonic_or_reset_test
+tablo_3,Mal Karşılığı Vesaikin Finansmanı,False,1.0,0.0,12,0,fails_monotonic_or_reset_test
+tablo_3,Mali Kesime (Banka Dışı) Kullandırılan Krediler,False,0.796,0.0,54,4,fails_monotonic_or_reset_test
+tablo_3,Müşteri Adına Menkul Değer Alım Kredileri,False,0.633,0.2,66,5,fails_monotonic_or_reset_test
+tablo_3,Ortaklık Finansmanı,False,0.727,0.0,12,0,fails_monotonic_or_reset_test
+tablo_3,Ortaklık Finansmanı*,False,0.694,0.0,54,4,fails_monotonic_or_reset_test
+tablo_3,Taksitli Ticari Krediler,False,0.967,0.0,66,5,fails_monotonic_or_reset_test
+tablo_3,Toplam Krediler,False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_3,Tüketici Kredileri,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_3,Vadeli Ticaretin Finansmanından Alacaklar*,False,0.673,0.0,54,4,fails_monotonic_or_reset_test
+tablo_3,Yurt Dışı Yerleşiklere Kullandırılan Krediler,False,0.918,0.0,54,4,fails_monotonic_or_reset_test
+tablo_3,İhracat Garantili Yatırım Kredileri,False,0.75,0.0,66,5,fails_monotonic_or_reset_test
+tablo_3,İhracat Kredileri,False,0.967,0.0,66,5,fails_monotonic_or_reset_test
+tablo_3,İhtisas Kredileri,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_3,İskontolu İşlemlerden Alacaklar,False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_3,İthalat Kredileri,False,0.783,0.0,66,5,fails_monotonic_or_reset_test
+tablo_3,İşletme Kredileri,False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Bireysel Kredi Kartları (10+11),False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Bireysel Kredi Kartları - Taksitli,False,0.9,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Bireysel Kredi Kartları - Taksitsiz,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Diğer Kredi Kartlarından Borçlar,False,0.867,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Kredi Kartlarından Alacaklar***,False,0.767,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Kredi Kartlarından Borçlar***,False,0.917,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Kurumsal Kredi Kartları (28+29)**,False,0.95,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Kurumsal Kredi Kartları - Taksitli,False,0.767,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Kurumsal Kredi Kartları - Taksitsiz,False,0.967,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Takipteki Bireysel Kredi Kartları,False,0.9,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Takipteki Konut Kredileri,False,0.55,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Takipteki Kurumsal Kredi Kartları,False,0.867,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Takipteki Taksitli Tic.  Krd. ve Kurumsal Kredi Kartları Toplamı (31+35),False,0.617,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Takipteki Taksitli Ticari Krd. (32+33+34),False,0.583,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Takipteki Taksitli Ticari Krediler - Taşıt,False,0.75,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Takipteki Taksitli Ticari Krediler - İhtiyaç,False,0.567,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Takipteki Taksitli Ticari Krediler - İşyeri,False,0.467,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Takipteki Taşıt Kredileri,False,0.717,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Takipteki Tüketici Krd. (14+15+16),False,0.9,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Takipteki İhtiyaç Kredileri,False,0.9,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Taksitli Kredi Kartlarından Borçlar,False,0.917,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Taksitli Tic. Krd. - Döv. End. (24+25+26)*,False,0.083,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Taksitli Ticari Krediler (20+21+22)*,False,0.967,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Taksitli Ticari Krediler - Taşıt,False,0.95,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Taksitli Ticari Krediler - Taşıt (Dövize Endeksli),False,0.733,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Taksitli Ticari Krediler - İhtiyaç,False,0.95,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Taksitli Ticari Krediler - İhtiyaç (Dövize Endeksli),False,0.083,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Taksitli Ticari Krediler - İşyeri,False,0.867,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Taksitli Ticari Krediler - İşyeri (Dövize Endeksli),False,0.35,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Taksitsiz Kredi Kartlarından Borçlar,False,0.8,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Toplam - Takipteki Tük. Krd. ve Takipteki Bireysel Kredi Kartları (13+17),False,0.917,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Toplam - Taksitli Tic. Krd.(Dövize End. Dahil) ve Kurumsal Kredi Kartları (19+23+27),False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Toplam - Tük. Krd. (Dövize End. Dahil) ve Bireysel Kredi Kartları (1+5+9),False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Tüketici Kredileri (2+3+4),False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Tüketici Kredileri - Döv. End. (6+7+8),False,0.483,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Tüketici Kredileri - Konut,False,0.967,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Tüketici Kredileri - Konut (Dövize Endeksli),False,0.483,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Tüketici Kredileri - Taşıt,False,0.517,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Tüketici Kredileri - Taşıt (Dövize Endeksli),False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Tüketici Kredileri - İhtiyaç,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_4,Tüketici Kredileri - İhtiyaç (Dövize Endeksli),False,0.967,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Araştırma Danışmanlık Reklam ve Diğer Faaliyetler,False,0.933,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Avcılık,False,0.6,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Ağaç ve Ağaç Ürünleri San.,False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Balıkçılık,False,0.717,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Bankalara Kullandırılan Krediler*,False,0.833,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Başka Yerlerde Sınıflandırılmamış İmalat San.,False,0.9,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Bilgisayar ve İlgili Faaliyetler,False,0.933,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Demiryolu Taşımacılığı,False,0.783,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Deniz Taşımacılığı,False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Deri ve Deri Ürünleri San.,False,0.8,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Diğer,False,0.717,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Diğer Bireysel Hizmetler,False,0.95,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,"Diğer Finansal Aracılar (Aracı Kurumlar, MKYO, GYO, RSYO)",False,0.733,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Diğer Finansal Aracılık,False,0.75,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Diğer Hizmetler (59+60+61+62),False,0.967,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Diğer Metal Dışı Madenler San.,False,0.933,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Diğer Taşımacılık Faaliyetleri ve Depolama,False,0.783,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Diğer Turizm,False,0.767,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,"Elektrik, Gaz ve Su Kaynakları Ürt. Dağt. San.",False,0.883,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Elektrikli ve Optik Aletler San.,False,0.917,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,"Emlak Kom., Kiralama ve İşletmecilik Faal. (51+52+53+54)",False,0.967,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Emlak Komisyonculuğu,False,0.9,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Enerji Üreten Madenlerin Çıkarılması,False,0.6,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Enerji Üretmeyen Madenlerin Çıkarılması,False,0.783,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Eğitim,False,0.9,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Ferdi Kredi Diğer,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Ferdi Kredi Konut,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Ferdi Kredi Otomobil,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Finansal Aracılık (45+47+48+49),False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,"Gıda, Meşrubat ve Tütün San.",False,0.95,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Haberleşme,False,0.883,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Hava Taşımacılığı,False,0.65,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Kanalizasyon ve Atıkların Tanzimi,False,0.833,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Karayolu Yolcu Taşımacılığı,False,0.867,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Karayolu Yük Taşımacılığı,False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Kauçuk ve Plastik Ürünler San.,False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Kağıt Hammaddesi ve Kağıt Ürünleri San.,False,0.85,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Kereste ve Orman Ürünleri,False,0.667,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Kimya Ürünleri San.,False,0.867,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,"Kiralama(Ulaşım Araç, Makina, Techizat)",False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Kredi Kartları**,False,0.967,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Kültür Eğlence ve Spor Faal.,False,0.867,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Madencilik ve Taşocakçılığı (7+8),False,0.833,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Makina ve Techizat San.,False,0.9,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Metal Ana San. ve İşlenmiş Maden Ürt. San.,False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Motorlu Araçlar ve Yakıtlarının Perakende Satışı,False,0.917,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,"Nükleer Yakıt, Petrol Rafineri ve Kok Kömür Ürt. San.",False,0.733,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Otel ve Restoranlar (Turizm) (33+34+35),False,0.85,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Oteller,False,0.883,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Parasal Kurumlar,False,0.9,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Perakende Ticaret ve Kişisel Ürünler,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Restoranlar,False,0.95,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Savunma ve Kamu Yönetimi ve Zorunlu Sosyal Güv. Kurumları,False,0.85,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Sağlık ve Sosyal Hizmetler,False,0.867,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,TOPLAM,False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Tarım,False,0.85,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,"Tarım, Avcılık ve Ormancılık (2+3+4)",False,0.833,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,"Taşımacılık, Depolama ve Haberleşme (37+38+...+43)",False,0.833,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Tekstil ve Tekstil Ürünleri San.,False,0.933,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Toptan Ticaret ve Komisyonculuk,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,"Toptan ve Perakende Ticaret, Motorlu Araçlar Servis Hizm. İle Kişisel ve Hane Halkı Ürünleri (29+30+31)",False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Ulaşım Araçları San.,False,0.883,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Uluslararası Örgüt ve Kuruluşlar,False,0.667,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,a) Gemi/Tekne Yapımı ve İmalatı,False,0.767,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,b) Motorlu ve Diğer Araçların İmalatı,False,0.867,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,Örgütsel Faaliyetler,False,0.8,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,İmalat Sanayi (10+...+22+25),False,0.933,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,İnşaat,False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,İsteğe Bağlı Sigorta ve Emeklilik Hizmetleri,False,0.9,0.0,66,5,fails_monotonic_or_reset_test
+tablo_5,İşçi Çalıştıran Özel Kişiler,False,0.717,0.0,66,5,fails_monotonic_or_reset_test
+tablo_6,Küçük İşletme Niteliğindeki Müşteri Sayısı (Adet),False,0.85,0.0,66,5,fails_monotonic_or_reset_test
+tablo_6,Küçük İşletmelere Kullandırılan Krediler,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_6,Mikro İşletme Niteliğindeki Müşteri Sayısı (Adet),False,0.85,0.0,66,5,fails_monotonic_or_reset_test
+tablo_6,Mikro İşletmelere Kullandırılan Krediler,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_6,Orta Büyüklükteki İşletme Niteliğindeki Müşteri Sayısı (Adet),False,0.8,0.0,66,5,fails_monotonic_or_reset_test
+tablo_6,Orta Büyüklükteki İşletmelere Kullandırılan Krediler,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_6,Toplam KOBİ Kredileri (2+3+4),False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_6,Toplam KOBİ Niteliğindeki Müşteri Sayısı (6+7+8) (Adet),False,0.883,0.0,66,5,fails_monotonic_or_reset_test
+tablo_7,Seküritizasyon Kredileri,False,0.783,0.0,66,5,fails_monotonic_or_reset_test
+tablo_7,Sendikasyon Kredileri (Dış Ticaret Finansmanı Amaçlı Olanlar),False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_7,Sendikasyon Kredileri (Dış Ticaret Finansmanı Amaçlı Olmayanlar),False,0.767,0.0,66,5,fails_monotonic_or_reset_test
+tablo_8,Altın Tahvili,False,0.683,0.0,46,4,fails_monotonic_or_reset_test
+tablo_8,Altına Dayalı Kira Sertifikası (Sukuk),False,0.659,0.0,46,4,fails_monotonic_or_reset_test
+tablo_8,Banka Bonoları ve Banka Garantili Bonolar,False,0.683,0.2,66,5,fails_monotonic_or_reset_test
+tablo_8,Devlet Tahvilleri,False,0.967,0.0,66,5,fails_monotonic_or_reset_test
+tablo_8,Diğer Kamu Sektörü Tahvil ve Bonoları,False,0.85,0.0,66,5,fails_monotonic_or_reset_test
+tablo_8,Diğer Menkul Kıymetler,False,0.65,0.0,66,5,fails_monotonic_or_reset_test
+tablo_8,Dövize Endeksli Kamu Borçlanma Senetleri,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_8,Finansman Bonoları,False,0.567,0.0,66,5,fails_monotonic_or_reset_test
+tablo_8,Gelir Ortaklığı Senetleri / Gelire Endeksli Senetler,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_8,Hazine Bonoları,False,0.867,0.0,66,5,fails_monotonic_or_reset_test
+tablo_8,Hazinece Yurt Dışında İhraç Edilen Diğer Borçlanma Senetleri,False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_8,Hazinece Yurt Dışında İhraç Edilen Eurobond ve Benz.Tahviller,False,0.917,0.0,66,5,fails_monotonic_or_reset_test
+tablo_8,Hazinece Yurt Dışında İhraç Edilen Kira Sertifikaları (Sukuk),False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_8,Hazinece Yurt İçinde İhraç Edilen Kira Sertifikaları (Sukuk),False,0.867,0.0,66,5,fails_monotonic_or_reset_test
+tablo_8,Hisse Senetleri,False,0.75,0.0,66,5,fails_monotonic_or_reset_test
+tablo_8,Krediye Bağlı Tahvil,False,0.933,0.0,66,5,fails_monotonic_or_reset_test
+tablo_8,Menkul Değerler (2 den 24'e),False,1.0,0.0,20,1,fails_monotonic_or_reset_test
+tablo_8,Menkul Değerler (2 den 26'ya),False,0.951,0.0,46,4,fails_monotonic_or_reset_test
+tablo_8,Merkez Bankasınca İhraç Edilen Likidite Senetleri,False,0.95,0.0,66,5,fails_monotonic_or_reset_test
+tablo_8,REPO KONUSU MENKUL DEĞERLER*,False,0.633,0.0,66,5,fails_monotonic_or_reset_test
+tablo_8,TEMİNATA VERİLEN MENKUL DEĞERLER*,False,0.633,0.0,66,5,fails_monotonic_or_reset_test
+tablo_8,TOPLAM MENKUL DEĞERLER (2 den 24'e),False,1.0,0.0,20,1,fails_monotonic_or_reset_test
+tablo_8,TOPLAM MENKUL DEĞERLER (2 den 26'ya),False,0.951,0.0,46,4,fails_monotonic_or_reset_test
+tablo_8,Varlığa Dayalı Menkul Kıymetler,False,0.55,0.0,66,5,fails_monotonic_or_reset_test
+tablo_8,Yabancı Dev.Tar.İhraç Edilen Tahvil ve Bonolar,False,0.633,0.0,66,5,fails_monotonic_or_reset_test
+tablo_8,Yabancı Özel Sektör Borçlanma Senetleri,False,0.617,0.0,66,5,fails_monotonic_or_reset_test
+tablo_8,Yatırım Fonu Katılma Belgeleri,False,0.767,0.0,66,5,fails_monotonic_or_reset_test
+tablo_8,Yurt Dışı Bankalar Tar.İhraç Edilen Tahvil ve Bonolar,False,0.617,0.0,66,5,fails_monotonic_or_reset_test
+tablo_8,Yurt İçi Bankalarca İhraç Edilen Tahviller,False,0.717,0.0,66,5,fails_monotonic_or_reset_test
+tablo_8,Özel Sektör Tahvilleri,False,0.683,0.0,66,5,fails_monotonic_or_reset_test
+tablo_8,Özel Sektör Tarafından İhraç Edilen Kira Sertifikaları (Sukuk),False,0.633,0.0,66,5,fails_monotonic_or_reset_test
+tablo_9,Döviz Tevdiat Hesabı / Katılım Fonları - Yurt Dışı Yerleşik,False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_9,Döviz Tevdiat Hesabı / Katılım Fonları - Yurt İçi Yerleşik,False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_9,Kıymetli Maden Depo Hesapları - Yurt Dışı Yerleşik,False,0.883,0.0,66,5,fails_monotonic_or_reset_test
+tablo_9,Kıymetli Maden Depo Hesapları - Yurt İçi Yerleşik,False,0.767,0.0,66,5,fails_monotonic_or_reset_test
+tablo_9,Mudi Sayısı - Yurt Dışı Yerleşik*,False,0.917,0.0,66,5,fails_monotonic_or_reset_test
+tablo_9,Mudi Sayısı - Yurt İçi Yerleşik*,False,0.933,0.0,66,5,fails_monotonic_or_reset_test
+tablo_9,TP Mevduat / Katılım Fonları - Yurt Dışı Yerleşik,False,0.85,0.0,66,5,fails_monotonic_or_reset_test
+tablo_9,TP Mevduat / Katılım Fonları - Yurt İçi Yerleşik,False,0.933,0.0,66,5,fails_monotonic_or_reset_test
+tablo_9,Toplam Mevduat,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_9,Toplam Mevduat - Yurt Dışı Yerleşik,False,0.95,0.0,66,5,fails_monotonic_or_reset_test
+tablo_9,Toplam Mevduat - Yurt İçi Yerleşik,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_9,a) Gerçek Kişiler,False,0.5,0.0,396,5,fails_monotonic_or_reset_test
+tablo_9,b) Resmi Kuruluşlar,False,0.432,0.2,198,5,fails_monotonic_or_reset_test
+tablo_9,b) Ticari ve Diğer Kuruluşlar,False,0.609,0.2,198,5,fails_monotonic_or_reset_test
+tablo_9,c) Ticari ve Diğer Kuruluşlar,False,0.51,0.2,198,5,fails_monotonic_or_reset_test
+tablo_10,Döviz Tevdiat Hesabı / Katılım Fonları - Yurt Dışı Yerleşik,False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_10,Döviz Tevdiat Hesabı / Katılım Fonları - Yurt İçi Yerleşik,False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_10,Kıymetli Maden Depo Hesapları - Yurt Dışı Yerleşik,False,0.883,0.0,66,5,fails_monotonic_or_reset_test
+tablo_10,Kıymetli Maden Depo Hesapları - Yurt İçi Yerleşik,False,0.767,0.0,66,5,fails_monotonic_or_reset_test
+tablo_10,TOPLAM MEVDUAT,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_10,TP Mevduat / Katılım Fonları - Yurt Dışı Yerleşik,False,0.85,0.0,66,5,fails_monotonic_or_reset_test
+tablo_10,TP Mevduat / Katılım Fonları - Yurt İçi Yerleşik,False,0.933,0.0,66,5,fails_monotonic_or_reset_test
+tablo_10,Toplam Mevduat - Yurt Dışı Yerleşik,False,0.95,0.0,66,5,fails_monotonic_or_reset_test
+tablo_10,Toplam Mevduat - Yurt İçi Yerleşik,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_10,a) Gerçek Kişiler,False,0.5,0.0,396,5,fails_monotonic_or_reset_test
+tablo_10,b) Resmi Kuruluşlar,False,0.432,0.2,198,5,fails_monotonic_or_reset_test
+tablo_10,b) Ticari ve Diğer Kuruluşlar,False,0.609,0.2,198,5,fails_monotonic_or_reset_test
+tablo_10,c) Ticari ve Diğer Kuruluşlar,False,0.51,0.2,198,5,fails_monotonic_or_reset_test
+tablo_11,"Bankalar, Yurt Dışı Merkez ve Şubeler (Varlık)",False,0.65,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,"Bankalar, Yurt Dışı Merkez ve Şubeler (Yükümlülük)",False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Bilanço Dışı İşlemler,False,0.95,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Diğer Borçlar,False,0.683,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Faktoring İşlemlerinden Borçlar,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Futures Alım İşlemleri,False,0.567,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Futures Satım İşlemleri,False,0.567,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Gayrinakdi Kredi Komisyonları,False,0.883,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Gerçeğe Uygun Değer Farkı K/Z Yans. ve Sat.H. M.D (Net),False,0.883,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Kamu Kurum ve Kuruluşlarına Borçlar,False,0.667,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Kiralama İşlemlerinden Alacaklar,False,0.95,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Kiralama İşlemlerinden Borçlar,False,0.9,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Kredi Kartı Ödemelerinden Borçlar,False,0.85,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Krediler,False,0.95,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Kullanılan Diğer Krediler,False,0.833,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Likidite Yeterlilik Oranı,False,0.667,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Menkul Kıymet Ödünç Piyasasına Borçlar,False,0.883,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Mevduat (Katılım Fonu),False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Müstakriz Fonları,False,0.75,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Nakit Değerler ve T.C. Merkez Bankası,False,0.717,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Opsiyon İşlemleri (Varlık),False,0.7,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Opsiyon İşlemleri (Yükümlülük),False,0.683,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Para Piyasalarına Borçlar,False,0.467,0.2,66,5,fails_monotonic_or_reset_test
+tablo_11,Para Piyasasından Alacaklar,False,0.567,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Repo İşlemlerinden Sağlanan Fonlar,False,0.633,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Sermaye Benzeri Krediler,False,0.75,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Swap Alım İşlemleri,False,0.75,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Swap Satım İşlemleri,False,0.783,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,TCMB`ye Borçlar,False,0.783,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,TOPLAM VARLIKLAR (1+...+11),False,0.967,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,TOPLAM YÜKÜMLÜLÜKLER  (19+….+35),False,0.933,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Ters Repo İşlemlerinden Alacaklar,False,0.6,0.2,66,5,fails_monotonic_or_reset_test
+tablo_11,Türev İşlemler (12+13+14+15+16+17),False,0.783,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Türev İşlemler (36+37+38+39+40+41),False,0.75,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Türev İşlemlerden Diğer Alacaklar,False,0.65,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Türev İşlemlerden Diğer Borçlar,False,0.717,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Vade Dilimlerine Göre Net Likidite Açığı / Fazlası,False,0.9,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Vadeli Alım İşlemleri,False,0.733,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Vadeli Satım İşlemleri,False,0.733,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Vadeye Kadar Elde Tutulacak Menkul Değerler (Net),False,0.833,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,Zorunlu Karşılıklar (Bloke),False,0.783,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,İhraç Edilen Menkul Kıymetler,False,0.833,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,İki Güne Kadar Valörlü Döviz Alımları,False,0.517,0.0,66,5,fails_monotonic_or_reset_test
+tablo_11,İki Güne Kadar Valörlü Döviz Satımları,False,0.5,0.0,66,5,fails_monotonic_or_reset_test
+tablo_12,Ana Sermaye Toplamı,False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_12,KDA Riskine Esas Tutar,False,0.52,0.0,56,5,fails_monotonic_or_reset_test
+tablo_12,Katkı Sermaye Toplamı,False,0.883,0.0,66,5,fails_monotonic_or_reset_test
+tablo_12,Kredi Riskine Esas Tutar (11+12+13)*,False,1.0,0.0,5,0,fails_monotonic_or_reset_test
+tablo_12,Kredi Riskine Esas Tutar (11+12+13+27+28)*,False,1.0,0.0,5,0,fails_monotonic_or_reset_test
+tablo_12,Kredi Riskine Esas Tutar (11+12+13+28)*,False,1.0,0.0,7,1,fails_monotonic_or_reset_test
+tablo_12,Kredi Riskine Esas Tutar (11+12+13+29)*,False,0.955,0.0,49,4,fails_monotonic_or_reset_test
+tablo_12,Operasyonel Riske Esas Tutar,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_12,Orana Esas Sermaye Toplamı (1+2),False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_12,Piyasa Riskine Esas Tutar,False,0.75,0.0,66,5,fails_monotonic_or_reset_test
+tablo_12,Risk Ağırlıklı Kalemler Toplamı (10+27+28),False,1.0,0.0,5,0,fails_monotonic_or_reset_test
+tablo_12,Risk Ağırlıklı Kalemler Toplamı (10+29+30),False,1.0,0.0,12,1,fails_monotonic_or_reset_test
+tablo_12,Risk Ağırlıklı Kalemler Toplamı (10+30+31),False,0.955,0.0,49,4,fails_monotonic_or_reset_test
+tablo_12,Risk Ağırlığı %0 Olan Kalemler Toplamı,False,0.867,0.0,66,5,fails_monotonic_or_reset_test
+tablo_12,Risk Ağırlığı %10 Olan Kalemler Toplamı,False,0.483,0.6,66,5,fails_monotonic_or_reset_test
+tablo_12,Risk Ağırlığı %100 Olan Kalemler Toplamı,False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_12,Risk Ağırlığı %1250 Olan Kalemler Toplamı,False,0.9,0.0,66,5,fails_monotonic_or_reset_test
+tablo_12,Risk Ağırlığı %150 Olan Kalemler Toplamı,False,0.75,0.0,66,5,fails_monotonic_or_reset_test
+tablo_12,Risk Ağırlığı %2 Olan Kalemler Toplamı,False,0.7,0.0,66,5,fails_monotonic_or_reset_test
+tablo_12,Risk Ağırlığı %20 Olan Kalemler Toplamı,False,0.683,0.0,66,5,fails_monotonic_or_reset_test
+tablo_12,Risk Ağırlığı %200 Olan Kalemler Toplamı,False,0.867,0.2,66,5,fails_monotonic_or_reset_test
+tablo_12,Risk Ağırlığı %25 Olan Kalemler Toplamı,False,1.0,0.0,56,5,fails_monotonic_or_reset_test
+tablo_12,Risk Ağırlığı %250 Olan Kalemler Toplamı,False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_12,Risk Ağırlığı %35 Olan Kalemler Toplamı (G.menkul İpoteği ile Teminatlandırılanlar),False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_12,Risk Ağırlığı %4 Olan Kalemler Toplamı,False,0.567,0.0,66,5,fails_monotonic_or_reset_test
+tablo_12,Risk Ağırlığı %50 Olan Kalemler Toplamı,False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_12,Risk Ağırlığı %500 Olan Kalemler Toplamı,False,0.591,0.0,49,4,fails_monotonic_or_reset_test
+tablo_12,Risk Ağırlığı %75 Olan Kalemler Toplamı,False,0.917,0.0,66,5,fails_monotonic_or_reset_test
+tablo_12,Sermaye Yeterliliği Standart Rasyosu ((5/7)*100) (YÜZDE),False,0.9,0.0,66,5,fails_monotonic_or_reset_test
+tablo_12,Sermayeden İndirilen Değerler Toplamı,False,0.533,0.2,66,5,fails_monotonic_or_reset_test
+tablo_12,Yasal Özkaynak (3-4),False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_12,a) Menkul Kıymetleştirme Pozis. Kayn. Kredi Riskine Esas Tutar,False,0.717,0.2,66,5,fails_monotonic_or_reset_test
+tablo_12,b) Takas Riski ve Ödemesiz Teslim Riski İçin Kredi Riskine Esas Tutar,False,0.533,0.4,66,5,fails_monotonic_or_reset_test
+tablo_12,c) Karşı Taraf Kredi Riski Dahil Kredi Riskine Esas Tutar (Standart Yaklaşım),False,0.967,0.0,66,5,fails_monotonic_or_reset_test
+tablo_12,d) Karşı Taraf Kredi Riski Dahil Kredi Riskine Esas Tutar (İçsel Derecelendirme Yaklaşımı),False,1.0,0.0,5,0,fails_monotonic_or_reset_test
+tablo_12,e) Ayarlama Tutarı,False,1.0,0.0,5,0,fails_monotonic_or_reset_test
+tablo_12,Çekirdek Sermaye,False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_12,Çekirdek Sermaye Yeterliliği Rasyosu ((6/7)*100) (YÜZDE),False,0.933,0.0,66,5,fails_monotonic_or_reset_test
+tablo_13,Bilanço Dışı Varlıklar,False,0.733,0.0,66,5,fails_monotonic_or_reset_test
+tablo_13,Bilanço Dışı Yükümlülükler,False,0.75,0.0,66,5,fails_monotonic_or_reset_test
+tablo_13,Bilanço İçi Varlıklar,False,0.833,0.0,66,5,fails_monotonic_or_reset_test
+tablo_13,Bilanço İçi Yükümlülükler,False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_13,Döviz Varlıkları Toplamı,False,0.867,0.0,66,5,fails_monotonic_or_reset_test
+tablo_13,Döviz Yükümlülükleri Toplamı,False,0.883,0.0,66,5,fails_monotonic_or_reset_test
+tablo_13,Dövize Endeksli Varlıklar,False,0.4,0.0,66,5,fails_monotonic_or_reset_test
+tablo_13,Dövize Endeksli Yükümlülükler,False,0.617,0.0,66,5,fails_monotonic_or_reset_test
+tablo_13,Yabancı Para Net Genel Pozisyon / Yasal Özkaynak Standart Oranı (Yüzde),False,0.733,0.4,66,5,fails_monotonic_or_reset_test
+tablo_13,Yabancı Para Net Genel Pozisyonu,False,0.617,0.4,66,5,fails_monotonic_or_reset_test
+tablo_13,Yasal Özkaynak,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Akreditifler(21+22),False,0.833,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Cayılabilir Kredi Tahsis Taahhütleri,False,0.767,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Cirolar,False,0.75,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Diğer Cayılabilir Taahhütler,False,0.767,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Diğer Cayılamaz Taahhütler,False,0.917,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Diğer Garanti ve Kefaletler,False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Diğer Taahhütler (40+…+51),False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Diğer Türev Alım,False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Diğer Türev Satım,False,0.767,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Faiz Swapları (35+36),False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,GAYRİNAKDİ KREDİ VE YÜKÜMLÜLÜKLER (2+17+20+23+24+25+26),False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Kabul Kredileri(18+19),False,0.8,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Kredi Kartları Harcama Limiti Taahhütleri,False,0.967,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Kullandırma Garantili Kredi Tahsis Taahhütleri,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Menkul Kıymet İhracında Satın Alma Garantileri,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Para Swapları (32+33),False,0.783,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Senet İhracına Aracılık Taahhütleri,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,TAAHHÜTLER (28+39),False,0.85,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,TOPLAM BİLANÇO DIŞI İŞLEMLER (1+27),False,0.883,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Teminat Mektupları (3+..+9),False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Teminat Mektupsuz Prefinansman Kredileri,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Teminatına göre Teminat Mektupları (11+...+16)*,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Türev Finansal Araçlar (29+30+31+34+37+38),False,0.867,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Vadeli Aktif Değerler Alım Taahhütleri,False,0.533,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Vadeli Aktif Değerler Satım Taahhütleri,False,0.517,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Vadeli Döviz Alım İşlemleri,False,0.717,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Vadeli Döviz Satım İşlemleri,False,0.717,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Vadeli Mevduat Alım-Satım Taahhütleri,False,0.433,0.4,66,5,fails_monotonic_or_reset_test
+tablo_14,Zorunlu Karşılıklar İçin Ödeme Taahhütleri,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,a) Açık Akreditifler,False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,a) Açık Kabul Kredileri,False,0.567,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,a) Açık Teminat Mektupları,False,0.95,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,a) Geçici Teminat Mektupları,False,0.7,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,a) Swap Faiz Alım,False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,a) Swap Para Alım,False,0.733,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,b) Kesin Teminat Mektupları,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,b) Nakit Karşılığı Teminat Mektupları,False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,b) Swap Faiz Satım,False,0.817,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,b) Swap Para  Satım,False,0.767,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,b) Teminatlı Akreditifler,False,0.767,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,b) Teminatlı Kabul Kredileri,False,0.85,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,c) Avans Teminat Mektupları,False,0.917,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,c) Kefalet Karşılığı Teminat Mektupları,False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,d) Diğer Tem. Karşılığı Teminat Mektupları,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,d) Gümrük Teminat Mektupları,False,0.9,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,e) Yurt İçi Bankalar Teminatı İle,False,0.883,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,e) İstihkak Kesintileri Teminat Mektupları,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,f) Prefinansman ile İlgili Teminat Mektupları,False,0.85,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,f) Yurt Dışı Bankalar Teminatı İle,False,0.883,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,g) Nakdi Kredilerin Teminatı İçin Verilen Teminat Mektupları,False,0.95,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,Çekler İçin Ödeme Taahhütleri,False,0.667,0.0,66,5,fails_monotonic_or_reset_test
+tablo_14,İşt.ve B.Ort. Sermayesine İşt. Taah.,False,0.467,0.0,66,5,fails_monotonic_or_reset_test
+tablo_15,(Bilanço Dışı Riskler - Türev Finansal Araçlar) / Toplam Aktifler (%),False,0.683,0.0,66,5,fails_monotonic_or_reset_test
+tablo_15,3 Aya Kadar Vadede Faize Duyarlı Aktifler / 3 Aya Kadar Vadede Faize Duyarlı Pasifler (%),False,0.65,0.0,66,5,fails_monotonic_or_reset_test
+tablo_15,Alım-Satım Amaçlı Menkul Değerlerin Ağırlıklı Ortalama Vadesi (Gün),False,0.45,0.0,66,5,fails_monotonic_or_reset_test
+tablo_15,Dönem Net Kârı (Zararı) / Ortalama Toplam Aktifler (%),True,1.0,1.0,66,5,monotonic+resets
+tablo_15,Dönem Net Kârı (Zararı) / Ortalama Özkaynaklar (%),True,1.0,1.0,66,5,monotonic+resets
+tablo_15,Faiz Dışı Gelirler / Faiz Dışı Giderler (%),False,0.967,0.0,66,5,fails_monotonic_or_reset_test
+tablo_15,Krediler / Ortalama Toplam Şube Sayısı (Bin TL),False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_15,Menkul Değerlerin Ağırlıklı Ortalama Vadesi (Gün),False,0.6,0.0,66,5,fails_monotonic_or_reset_test
+tablo_15,Net Faiz Geliri (Gideri) / Ortalama Toplam Aktifler (%),True,1.0,1.0,66,5,monotonic+resets
+tablo_15,Ortalama Toplam Aktifler / Ortalama Toplam Personel Sayısı (Bin TL),False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_15,Risk Ağırlıklı Kalemler Toplamı (Net) / Risk Ağırlıklı Kalemler Toplamı (Brüt) (%),False,0.7,0.0,66,5,fails_monotonic_or_reset_test
+tablo_15,Takipteki Alacaklar (Brüt) / Toplam Nakdi Krediler (%),False,0.483,0.0,66,5,fails_monotonic_or_reset_test
+tablo_15,Takipteki Alacaklar Karşılığı / Brüt Takipteki Alacaklar (%),False,0.767,0.0,66,5,fails_monotonic_or_reset_test
+tablo_15,Toplam Faiz Gelirleri / Faiz Getirili Aktifler Ortalaması (%),True,1.0,1.0,66,5,monotonic+resets
+tablo_15,Toplam Faiz Giderleri / Faiz Maliyetli Pasifler Ortalaması (%),True,1.0,1.0,66,5,monotonic+resets
+tablo_15,Toplam Menkul Değerler / Toplam Mevduat (%),False,0.483,0.0,66,5,fails_monotonic_or_reset_test
+tablo_15,Toplam Mevduat / Ortalama Toplam Personel Sayısı (Bin TL),False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_15,Toplam Mevduat / Ortalama Toplam Şube Sayısı (Bin TL),False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_15,Toplam Nakdi Krediler / Toplam Mevduat (%),False,0.617,0.0,66,5,fails_monotonic_or_reset_test
+tablo_15,Toplam Nakdi Krediler / Toplam Mevduat (Kalkınma ve Yatırım Bankaları Hariç) (%),False,0.617,0.0,66,5,fails_monotonic_or_reset_test
+tablo_15,Toplam Personel Sayısı / Toplam Şube Sayısı (Kişi),False,0.967,0.0,66,5,fails_monotonic_or_reset_test
+tablo_15,Türev Finansal Araçlar / Taahhütler (%),False,0.567,0.0,66,5,fails_monotonic_or_reset_test
+tablo_15,Vadesiz Mevduat / Toplam Mevduat (%),False,0.567,0.0,66,5,fails_monotonic_or_reset_test
+tablo_15,Vergi Öncesi Kar (Zarar) / Ortalama Toplam Aktifler (%),True,1.0,1.0,66,5,monotonic+resets
+tablo_15,Vergi Öncesi Kar (Zarar) / Ortalama Toplam Personel Sayısı (Bin TL),True,1.0,1.0,66,5,monotonic+resets
+tablo_15,Yabancı Kaynaklar / Toplam Özkaynaklar (%),False,0.533,0.0,66,5,fails_monotonic_or_reset_test
+tablo_15,Yasal Özkaynak / Risk Ağırlıklı Kalemler Toplamı (%),False,0.75,0.0,66,5,fails_monotonic_or_reset_test
+tablo_15,Yüksek Montanlı (1 Milyon TL ve Üzeri) Mevduat / Toplam Mevduat (%),False,0.95,0.0,66,5,fails_monotonic_or_reset_test
+tablo_15,"Ücret, Komisyon ve Bankacılık Hizmetleri Gelirleri / Ortalama Toplam Aktifler (%)",True,1.0,1.0,66,5,monotonic+resets
+tablo_15,"Ücret, Komisyon ve Bankacılık Hizmetleri Gelirleri / Toplam Gelirler (%)",False,0.833,0.0,66,5,fails_monotonic_or_reset_test
+tablo_15,"Ücret, Komisyon ve Bankacılık Hizmetleri Gelirleri / İşletme Giderleri (%)",False,0.8,0.0,66,5,fails_monotonic_or_reset_test
+tablo_15,İşletme Giderleri / Ortalama Toplam Aktifler (%),True,1.0,1.0,66,5,monotonic+resets
+tablo_16,ATM Sayısı,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
+tablo_16,Banka Sayısı,False,0.983,0.0,66,5,fails_monotonic_or_reset_test
+tablo_16,On-line Sistemine Dahil Şube Sayısı,False,0.917,0.0,66,5,fails_monotonic_or_reset_test
+tablo_16,Yurt Dışı Personel Sayısı,False,0.867,0.0,66,5,fails_monotonic_or_reset_test
+tablo_16,Yurt Dışı Şube Sayısı,False,0.95,0.0,66,5,fails_monotonic_or_reset_test
+tablo_16,Yurt İçi Personel Sayısı,False,0.967,0.0,66,5,fails_monotonic_or_reset_test
+tablo_16,Yurt İçi Şube Sayısı,False,0.95,0.0,66,5,fails_monotonic_or_reset_test
+tablo_17,Yurt Dışı Şubeler Aktifleri / Toplam Aktifler,False,0.517,0.0,66,5,fails_monotonic_or_reset_test
+tablo_17,Yurt Dışı Şubeler Kredileri / Toplam Krediler,False,0.417,0.0,66,5,fails_monotonic_or_reset_test
+tablo_17,Yurt Dışı Şubeler Mevduatı (Fon) / Toplam Mevduat (Fon),False,0.533,0.0,66,5,fails_monotonic_or_reset_test
