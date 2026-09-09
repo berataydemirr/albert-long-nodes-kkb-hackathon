@@ -40,7 +40,7 @@ import pandas as pd
 
 from config.settings import (
     BDDK_MONTHLY_SILVER_DIR, BDDK_WEEKLY_SILVER_DIR, BDDK_FINTURK_SILVER_DIR,
-    EVDS_SILVER_DIR, TUIK_SILVER_DIR, GOLD_DIR,
+    EVDS_SILVER_DIR, TUIK_SILVER_DIR, GOLD_DIR, BDDK_MONTHLY_TABLES,
 )
 from src.gold.align import donem_id_to_date, downsample_to_monthly, to_period, upsample_quarterly_to_monthly
 from src.gold.cumulative import decumulate
@@ -135,14 +135,22 @@ def build_tuik_facts() -> pd.DataFrame:
 
 def build_bddk_monthly_konut_facts() -> pd.DataFrame:
     """tablo_4 / 'Tuketici Kredileri - Konut': confirmed a STOCK figure
-    (no year-boundary reset, see cumulative_scan_report.csv) - used as-is."""
+    (no year-boundary reset, see cumulative_scan_report.csv) - used as-is.
+
+    Unit fixed from BDDK_MONTHLY_TABLES (the bronze JSON's own "caption"
+    field, e.g. "Tuketici Kredileri (milyon TL), Donem:2021/1" - see
+    config/settings.py) - it is MILYON TL, not "Bin TL" as this was
+    mislabeled in an earlier version of this function. The number itself
+    was never wrong, only its unit label - this changes what the figure
+    should be called/reported as, not any value in gold_fact_long."""
     tablo4_dir = BDDK_MONTHLY_SILVER_DIR / "tablo_4"
     long_df = load_table_long(tablo4_dir)
     item = long_df[long_df["Item"].str.contains("Konut", case=False, na=False)
                     & ~long_df["Item"].str.contains("Endeksli|Takip", case=False, na=False)]
+    unit = BDDK_MONTHLY_TABLES[4]["unit"]
     rows = [
         _fact_row(r["Period"], "bddk_monthly", "tablo_4.konut_kredisi", "Tuketici Kredileri - Konut (Toplam)",
-                   r["Value"], "Bin TL", "stock", "tablo_4/*.csv")
+                   r["Value"], unit, "stock", "tablo_4/*.csv")
         for _, r in item.iterrows()
     ]
     return pd.DataFrame(rows)
@@ -182,9 +190,13 @@ def build_bddk_weekly_konut_facts() -> pd.DataFrame:
     weekly_df["_period"] = weekly_df["Date"].apply(to_period)
     monthly = weekly_df.groupby("_period", as_index=False)["Value"].sum().rename(columns={"_period": "Period"})
 
+    # Unit intentionally None: unlike BDDK Monthly, the Weekly Bulletin's
+    # HTML page doesn't state a unit anywhere in its visible text
+    # (checked) - claiming "Bin TL" here would be a guess, not a
+    # confirmed fact like tablo_4's unit above is.
     return pd.DataFrame([
         _fact_row(r["Period"], "bddk_weekly", "tablo_289.konut", "Krediler - a) Konut, Haftalik Yeni Kullandirim Toplami (Bilgi: stok DEGIL)",
-                   r["Value"], "Bin TL", "flow", "tablo_289/donem_*.csv")
+                   r["Value"], None, "flow", "tablo_289/donem_*.csv")
         for _, r in monthly.iterrows()
     ])
 
@@ -219,12 +231,17 @@ def build_finturk_national_facts() -> pd.DataFrame:
 
     monthly = upsample_quarterly_to_monthly(national_quarterly, quarter_col="Donem", value_cols=["Value"])
 
+    # Unit "Bin TL" here comes from BDDK_FINTURK_TABLES in config/settings.py
+    # ("Loans (Thousand TRY)") - UNLIKE BDDK_MONTHLY_TABLES's units above,
+    # this one is NOT confirmed by a caption field (checked: FinTurk's
+    # bronze JSON has none) - carried over as an existing assumption, not
+    # independently verified in this pass. See docs/gold_schema.md.
     rows = []
     for _, r in monthly.iterrows():
         tip = "flow" if r["_period_type"] == "observed" else "flow_quarter_ffill"
         rows.append(_fact_row(r["Period"], "bddk_finturk", "tablo_1.toplam_nakdi_kredi_ulusal",
                                "Toplam Nakdi Krediler, Turkiye Geneli (81 il + Yurt Disi Toplami)",
-                               r["Value"], "Bin TL", tip, "tablo_1/*.csv", bolge="TR"))
+                               r["Value"], "Bin TL (dogrulanmadi)", tip, "tablo_1/*.csv", bolge="TR"))
     return pd.DataFrame(rows)
 
 
@@ -275,7 +292,11 @@ def build_konut_demo_wide(fact_long: pd.DataFrame) -> pd.DataFrame:
         s = fact_long[fact_long["Seri_Kod"] == seri_kod][["Period", "Deger"]]
         return s.rename(columns={"Deger": value_name})
 
-    konut = series("tablo_4.konut_kredisi", "Konut_Kredisi_Bin_TL")
+    # Column named _Milyon_TL, not _Bin_TL: BDDK's own bronze caption for
+    # tablo_4 says "(milyon TL)" (see BDDK_MONTHLY_TABLES in
+    # config/settings.py) - an earlier version of this table mislabeled
+    # the unit as "Bin TL". Fixed here; the underlying numbers never changed.
+    konut = series("tablo_4.konut_kredisi", "Konut_Kredisi_Milyon_TL")
     faiz = series("TP.BKR.TRY.18", "Konut_Kredisi_Faiz_Orani")
     endeks = series("TP.KFE.TR", "Konut_Fiyat_Endeksi")
     tufe = series("TP.GENENDEKS.T1", "TUFE_Endeksi")
@@ -286,7 +307,7 @@ def build_konut_demo_wide(fact_long: pd.DataFrame) -> pd.DataFrame:
                 .sort_values("Period").reset_index(drop=True)
 
     base_cpi = wide["TUFE_Endeksi"].iloc[0]
-    wide["Konut_Kredisi_Reel_Bin_TL"] = wide["Konut_Kredisi_Bin_TL"] * (base_cpi / wide["TUFE_Endeksi"])
+    wide["Konut_Kredisi_Reel_Milyon_TL"] = wide["Konut_Kredisi_Milyon_TL"] * (base_cpi / wide["TUFE_Endeksi"])
     wide["Reel_Baz_Donem"] = wide["Period"].iloc[0]
 
     return wide
