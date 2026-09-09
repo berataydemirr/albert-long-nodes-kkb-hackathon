@@ -1,0 +1,53 @@
+Column_0,Column_1,Column_2,BasitFont,TP,YP,Toplam
+Sektör,1,GAYRİNAKDİ KREDİ VE YÜKÜMLÜLÜKLER (2+17+20+23+24+25+26),bold,1940563,2030306,3970869
+Sektör,2,Teminat Mektupları (3+..+9),,1696190,1380342,3076532
+Sektör,3,a) Geçici Teminat Mektupları,italic,40921,18167,59089
+Sektör,4,b) Kesin Teminat Mektupları,italic,886140,619647,1505787
+Sektör,5,c) Avans Teminat Mektupları,italic,68216,319493,387709
+Sektör,6,d) Gümrük Teminat Mektupları,italic,72034,12241,84276
+Sektör,7,e) İstihkak Kesintileri Teminat Mektupları,italic,321513,96932,418445
+Sektör,8,f) Prefinansman ile İlgili Teminat Mektupları,italic,0,708,708
+Sektör,9,g) Nakdi Kredilerin Teminatı İçin Verilen Teminat Mektupları,italic,307365,313153,620518
+Sektör,10,Teminatına göre Teminat Mektupları (11+...+16)*,italic,1696190,1380358,3076548
+Sektör,11,a) Açık Teminat Mektupları,italic,360032,377640,737672
+Sektör,12,b) Nakit Karşılığı Teminat Mektupları,italic,70377,23109,93487
+Sektör,13,c) Kefalet Karşılığı Teminat Mektupları,italic,746986,598749,1345734
+Sektör,14,d) Diğer Tem. Karşılığı Teminat Mektupları,italic,512533,299123,811656
+Sektör,15,e) Yurt İçi Bankalar Teminatı İle,italic,1512,17933,19446
+Sektör,16,f) Yurt Dışı Bankalar Teminatı İle,italic,4749,63803,68553
+Sektör,17,Kabul Kredileri(18+19),,43271,42393,85664
+Sektör,18,a) Açık Kabul Kredileri,italic,5241,18421,23661
+Sektör,19,b) Teminatlı Kabul Kredileri,italic,38031,23972,62003
+Sektör,20,Akreditifler(21+22),,4437,484861,489299
+Sektör,21,a) Açık Akreditifler,italic,653,181303,181957
+Sektör,22,b) Teminatlı Akreditifler,italic,3784,303558,307342
+Sektör,23,Cirolar,,71599,644,72243
+Sektör,24,Teminat Mektupsuz Prefinansman Kredileri,,0,0,0
+Sektör,25,Menkul Kıymet İhracında Satın Alma Garantileri,,0,0,0
+Sektör,26,Diğer Garanti ve Kefaletler,,125065,122066,247131
+Sektör,27,TAAHHÜTLER (28+39),bold,7478874,10053181,17532055
+Sektör,28,Türev Finansal Araçlar (29+30+31+34+37+38),,3191381,8865610,12056992
+Sektör,29,Vadeli Döviz Alım İşlemleri,,356136,183813,539949
+Sektör,30,Vadeli Döviz Satım İşlemleri,,42322,476405,518727
+Sektör,31,Para Swapları (32+33),,1786383,4017665,5804048
+Sektör,32,a) Swap Para Alım,italic,97551,2667741,2765292
+Sektör,33,b) Swap Para  Satım,italic,1688832,1349924,3038756
+Sektör,34,Faiz Swapları (35+36),,828810,2679557,3508367
+Sektör,35,a) Swap Faiz Alım,italic,414405,1339778,1754183
+Sektör,36,b) Swap Faiz Satım,italic,414405,1339778,1754183
+Sektör,37,Diğer Türev Alım,,131489,899539,1031028
+Sektör,38,Diğer Türev Satım,,46241,608631,654872
+Sektör,39,Diğer Taahhütler (40+…+51),,4287492,1187571,5475063
+Sektör,40,Senet İhracına Aracılık Taahhütleri,,0,0,0
+Sektör,41,İşt.ve B.Ort. Sermayesine İşt. Taah.,,317,155,472
+Sektör,42,Kullandırma Garantili Kredi Tahsis Taahhütleri,,510532,41386,551919
+Sektör,43,Çekler İçin Ödeme Taahhütleri,italic,112796,0,112796
+Sektör,44,Kredi Kartları Harcama Limiti Taahhütleri,,2791407,13,2791420
+Sektör,45,Vadeli Aktif Değerler Alım Taahhütleri,,42510,230081,272590
+Sektör,46,Vadeli Aktif Değerler Satım Taahhütleri,,41074,230764,271838
+Sektör,47,Vadeli Mevduat Alım-Satım Taahhütleri,,29,13,43
+Sektör,48,Zorunlu Karşılıklar İçin Ödeme Taahhütleri,,0,0,0
+Sektör,49,Diğer Cayılamaz Taahhütler,,472727,57999,530726
+Sektör,50,Cayılabilir Kredi Tahsis Taahhütleri,,310322,586607,896929
+Sektör,51,Diğer Cayılabilir Taahhütler,,5778,40553,46331
+Sektör,52,TOPLAM BİLANÇO DIŞI İŞLEMLER (1+27),bold,9419436,12083487,21502923

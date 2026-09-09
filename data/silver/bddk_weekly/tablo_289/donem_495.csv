@@ -1,0 +1,23 @@
+Sequence,Item,TP,YP,TOPLAM
+1,Toplam Krediler (2+10),267538,128924,396463
+2,Tüketici Kredileri ve Bireysel Kredi Kartları (3+7),85690,80,85770
+3,Tüketici Kredileri (4+5+6),55240,5,55245
+4,a) Konut,17600,3,17603
+5,b) Taşıt,3304,0,3304
+6,c) İhtiyaç,34335,2,34337
+7,Bireysel Kredi Kartları (8+9),30449,74,30524
+8,a) Taksitli,15762,0,15762
+9,b) Taksitsiz,14687,74,14762
+10,Ticari ve Diğer Krediler,181848,128844,310693
+11,Taksitli Tic. Krd. ve Kurumsal Kredi Kartları (12+16) (Bilgi),45525,15071,60597
+12,Taksitli Ticari Krediler (13+14+15) (Bilgi),31944,15058,47003
+13,a) İşyeri,635,43,679
+14,b) Taşıt,4564,200,4765
+15,c) İhtiyaç,26743,14814,41558
+16,Kurumsal Kredi Kartları (17+18) (Bilgi),13581,12,13594
+17,a) Taksitli,7017,0,7017
+18,b) Taksitsiz,6563,12,6576
+19,KOBİ Kredileri (Bilgi),97497,15350,112848
+20,Döv. Endeksli Krediler (Bilgi),105,0,105
+21,Kredili Mevduat Hesapları-Tüketici Kredileri (Bilgi),4581,0,4581
+22,Kredili Mevduat Hesapları-Taksitli Ticari Krediler(Bilgi),4523,0,4523

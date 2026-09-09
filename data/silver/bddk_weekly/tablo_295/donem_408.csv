@@ -1,0 +1,46 @@
+Sequence,Item,TP,YP,TOPLAM
+1,Bankalarda Saklanan Menkul Değerler (Nominal) (2+24),25602,18744,44347
+2,Yurtiçi Yerleşikler Adına Saklanan (3+7+11+15+19),18957,17299,36257
+3,Gerçek Kişiler (4+5+6),3000,7405,10405
+4,a) Kamu Borçlanma Senetleri,139,1019,1159
+5,b) Eurobondlar,0,4192,4192
+6,c) Diğer,2860,2193,5054
+7,Sigorta Şirketleri (8+9+10),3087,1117,4205
+8,a) Kamu Borçlanma Senetleri,2234,9,2243
+9,b) Eurobondlar,0,822,822
+10,c) Diğer,853,284,1138
+11,Diğer Tüzel Kişiler (12+13+14),10506,5323,15830
+12,a) Kamu Borçlanma Senetleri,6478,414,6893
+13,b) Eurobondlar,0,2283,2283
+14,c) Diğer,4027,2625,6653
+15,Bankalar (16+17+18),217,365,582
+16,a) Kamu Borçlanma Senetleri,98,15,113
+17,b) Eurobondlar,0,200,200
+18,c) Diğer,119,149,268
+19,Diğer Mali Kuruluşlar (20+21+22),2145,3088,5233
+20,a) Kamu Borçlanma Senetleri,820,66,887
+21,b) Eurobondlar,0,556,556
+22,c) Diğer,1325,2465,3790
+23,Döv. End..KBS (Bilgi),0,0,0
+24,Yurtdışı Yerleşikler Adına Saklanan (25+29+33+37+41),6645,1445,8090
+25,Gerçek Kişiler (26+27+28),46,704,750
+26,a) Kamu Borçlanma Senetleri,11,24,35
+27,b) Eurobondlar,0,511,511
+28,c) Diğer,35,167,203
+29,Sigorta Şirketleri (30+31+32),1,1,2
+30,a) Kamu Borçlanma Senetleri,1,0,1
+31,b) Eurobondlar,0,0,0
+32,c) Diğer,0,1,1
+33,Diğer Tüzel Kişiler (34+35+36),393,16,410
+34,a) Kamu Borçlanma Senetleri,391,0,391
+35,b) Eurobondlar,0,10,10
+36,c) Diğer,2,6,9
+37,Bankalar (38+39+40),1878,722,2600
+38,a) Kamu Borçlanma Senetleri,1817,520,2337
+39,b) Eurobondlar,0,88,88
+40,c) Diğer,60,112,173
+41,Diğer Mali Kuruluşlar (42+43+44),4325,0,4325
+42,a) Kamu Borçlanma Senetleri,4283,0,4283
+43,b) Eurobondlar,0,0,0
+44,c) Diğer,41,0,42
+45,Döv. End..KBS (Bilgi),0,0,0

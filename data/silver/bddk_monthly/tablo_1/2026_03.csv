@@ -1,0 +1,63 @@
+Column_0,Column_1,Column_2,BasitFont,TP,YP,Toplam
+Sektör,1,Nakit Değerler,,71754,426592,498346
+Sektör,2,T.C. Merkez Bankasından Alacaklar,,1968436,1628779,3597216
+Sektör,3,Para Piyasalarından Alacaklar,,56345,391,56735
+Sektör,4,Bankalardan Alacaklar,,552018,1583447,2135465
+Sektör,5,Gerçeğe Uygun Değer Farkı K/Z Yan. Menk. Değ.,,265413,467821,733234
+Sektör,6,GUD Farkı Diğer Kapsamlı Gelire Yan. Menk. Değ.,,2371289,1917083,4288372
+Sektör,7,Zorunlu Karşılıklar,,1117410,2758550,3875961
+Sektör,8,Menkul Kıymet Ödünç Piyasasından Alacaklar,,7091,618,7709
+Sektör,9,Ters Repo Alacakları,,24643,111110,135753
+Sektör,10,Krediler*,,15840811,9066459,24907270
+Sektör,11,Takipteki Alacaklar,,670208,9075,679283
+Sektör,12,Beklenen Zarar Karşılıkları (-),,730345,162192,892537
+Sektör,13,a) 12 Ay Beklenen Zarar Karşılığı (Birinci Aşama)**,italic,87123,27038,114161
+Sektör,14,b) Kredi Riskinde Önemli Artış (İkinci Aşama)**,italic,135448,128386,263834
+Sektör,15,c) Temerrüt - Özel Karşılık (Üçüncü Aşama),italic,507774,6768,514541
+Sektör,16,Faiz (Kar Payı) ve Gelir Tah. Reeskontları,,2951388,386859,3338247
+Sektör,17,a) Kredi Faiz (Kar Payı) ve Gelir Tah. Reeskontları,italic,874678,172716,1047393
+Sektör,18,b) Menkul Değerler Faiz Reeskontları,italic,1682930,60832,1743763
+Sektör,19,c) Diğer Faiz (Kar Payı) ve Gelir Reeskontları,italic,393780,153311,547091
+Sektör,20,Finansal Kiralama Alacakları,,86979,206340,293319
+Sektör,21,"İştirakler,  Bağlı  ve Birlikte Kontrol Edilen Ort.",,785878,410486,1196365
+Sektör,22,İtfa Edilmiş Maliyeti Üzerinden Değerlenen Menkul Değerler,,1727651,715594,2443245
+Sektör,23,Elden Çıkarılacak Kıymetler (Net),,114337,0,114337
+Sektör,24,Sabit Kıymetler (Net),,607644,1861,609505
+Sektör,25,Diğer Aktifler,,1611414,105954,1717368
+Sektör,26,TOPLAM AKTİFLER,bold,30100365,19634829,49735194
+Sektör,27,Mevduat (Katılım Fonu)***,,16715711,11545595,28261306
+Sektör,28,a) Vadesiz Mevduat,italic,2733409,8067304,10800713
+Sektör,29,b) Vadeli Mevduat,italic,13982302,3478291,17460593
+Sektör,30,T.C. Merkez Bankasına Borçlar,,643653,161091,804743
+Sektör,31,Para Piyasalarına Borçlar,,15678,448,16126
+Sektör,32,Menkul Kıymet Ödünç Piyasasına Borçlar,,5948,75351,81299
+Sektör,33,Bankalara Borçlar,,697934,4587208,5285141
+Sektör,34,Repo İşlemlerinden Sağlanan Fonlar,,2224811,1118122,3342933
+Sektör,35,Fonlar,,95613,6315,101929
+Sektör,36,İhraç Edilen Menkul Kıymetler (Net) (37+38),,128256,1782425,1910681
+Sektör,37,a) Tahviller ve Bonolar,italic,120243,1782425,1902668
+Sektör,38,b) V.D.M.K. ve Diğer İhraç Edilen Menkul Kıymetler,italic,8013,0,8013
+Sektör,39,Kiralama İşlemlerinden Yükümlülükler (Net),,77583,2835,80418
+Sektör,40,"Ödenecek Vergi, Resim, Harç ve Primler",,185702,42,185744
+Sektör,41,Sermaye Hesaplamasına Dahil Edilecek Borçlanma Araçları (Net),,77124,1087029,1164153
+Sektör,42,Faiz (Kar Payı) ve Gider Reeskontları,,511662,388306,899968
+Sektör,43,a) Mevduat (Katılım Fonu) Faiz (Kar Payı) Reeskontları,italic,320867,6664,327531
+Sektör,44,b) Diğer Faiz (Kar Payı) ve Gider Reeskontları,italic,190794,381643,572437
+Sektör,45,Karşılıklar****,,390023,27415,417438
+Sektör,46,Diğer Pasifler,,2199587,664134,2863722
+Sektör,47,TOPLAM YABANCI KAYNAKLAR,bold,23969286,21446316,45415602
+Sektör,48,Ödenmiş Sermaye,,561491,0,561491
+Sektör,49,Yedek Akçeler,,2494576,449,2495024
+Sektör,50,Ödenmiş Sermaye Enflasyon Düzeltme Farkı,,0,0,0
+Sektör,51,Sabit Kıymet Yeniden Değerleme Farkları,,346614,155,346769
+Sektör,52,Menkul Değerler Değerleme Farkları,,174760,-7488,167272
+Sektör,53,Dönem Karı (Zararı),,288688,0,288688
+Sektör,54,Geçmiş Yıllar Karı (Zararı),,460347,0,460347
+Sektör,55,TOPLAM ÖZKAYNAKLAR,bold,4326476,-6884,4319592
+Sektör,56,TOPLAM PASİFLER,bold,28295762,21439431,49735194
+Sektör,57,Gayrinakdi Kredi ve Yükümlülükler,,5095332,4634614,9729946
+Sektör,58,Taahhütler (59+60),,25834505,25775701,51610206
+Sektör,59,a) Türev Finansal Araçlar,italic,7421135,22728966,30150101
+Sektör,60,b) Diğer Taahhütler,italic,18413370,3046734,21460105
+Sektör,61,Bankalara Kullandırılan Krediler*****,,96077,197315,293392
+Sektör,62,Bankalar Mevduatı (Katılım Fonu)*****,,445034,492390,937424

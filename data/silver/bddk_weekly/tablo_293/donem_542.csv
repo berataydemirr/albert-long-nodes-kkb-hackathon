@@ -1,0 +1,17 @@
+Sequence,Item,TP,YP,TOPLAM
+1,Nakit Değerler,1628,8201,9830
+2,T.C. Merkez Bankasından Alacaklar,26181,24971,51153
+3,Para Piyasalarından Alacaklar,7645,0,7645
+4,Zorunlu Karşılıklar,18992,49521,68513
+5,Bankalardan Alacaklar (5+6),7920,20435,28355
+6,a) Yurtiçi Bankalar,7331,6019,13350
+7,b) Yurtdışı Bankalar,589,14415,15005
+8,T.C. Merkez Bankasına Borçlar,9671,2215,11886
+9,Para Piyasalarına Borçlar,558,28,586
+10,Bankalara Borçlar (11+12),10848,92765,103614
+11,a) Yurtiçi Bankalar,7974,11322,19296
+12,b) Yurtdışı Bankalar,2874,81443,84317
+13,Repo İşl. Sağlanan Fonlar,14408,22753,37161
+14,İhraç Edilen Menkul Kıymetler (Net),1631,22124,23756
+15,Bankalara Kullandırılan Krediler (Bilgi),1279,3731,5010
+16,Bankalar Mevduatı (Bilgi),8037,13454,21491

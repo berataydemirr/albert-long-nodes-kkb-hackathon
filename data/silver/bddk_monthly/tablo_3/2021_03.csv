@@ -1,0 +1,19 @@
+Column_0,Column_1,Column_2,BasitFont,Kısa TP,Kısa YP,Kısa Toplam,Orta Uzun TP,Orta Uzun YP,Orta Uzun Toplam,Toplam TP,Toplam YP,Toplam
+Sektör,1,İskontolu İşlemlerden Alacaklar,,26420,135760,162180,0,0,0,26420,135760,162180
+Sektör,2,İhracat Kredileri,,35484,52923,88407,36684,84796,121480,72167,137719,209886
+Sektör,3,İthalat Kredileri,,2556,2881,5437,1139,1986,3125,3695,4867,8562
+Sektör,4,İhracat Garantili Yatırım Kredileri,,0,0,0,4612,20913,25524,4612,20913,25524
+Sektör,5,Diğer Yatırım Kredileri,,0,0,0,70523,286595,357119,70523,286595,357119
+Sektör,6,İşletme Kredileri,,184608,43214,227821,234686,245568,480254,419294,288782,708075
+Sektör,7,Taksitli Ticari Krediler,,42159,1035,43194,427065,140351,567415,469223,141386,610609
+Sektör,8,İhtisas Kredileri,,23647,114,23761,177043,11035,188078,200690,11149,211839
+Sektör,9,Fon Kaynaklı Krediler,,441,89,530,5599,769,6368,6040,858,6898
+Sektör,10,Tüketici Kredileri,,37692,1,37693,654315,73,654388,692008,73,692081
+Sektör,11,Kredi Kartları,,215689,212,215901,4387,0,4387,220076,212,220288
+Sektör,12,Müşteri Adına Menkul Değer Alım Kredileri,,1338,0,1338,123,169,292,1461,169,1630
+Sektör,13,Kıymetli Maden Kredileri,,0,4937,4937,0,1383,1383,0,6320,6320
+Sektör,14,Faktoring İşlemlerinden Alacaklar,,5547,1151,6698,0,0,0,5547,1151,6698
+Sektör,15,Mal Karşılığı Vesaikin Finansmanı,,0,0,0,0,0,0,0,0,0
+Sektör,16,Ortaklık Finansmanı,,2,0,2,2016,998,3014,2018,998,3016
+Sektör,17,Diğer Krediler,,172526,61750,234276,51647,258637,310284,224173,320387,544560
+Sektör,18,Toplam Krediler,bold,748107,304067,1052174,1669839,1053272,2723111,2417946,1357339,3775285

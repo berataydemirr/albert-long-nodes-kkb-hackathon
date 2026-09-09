@@ -1,0 +1,27 @@
+Column_0,Column_1,Column_2,BasitFont,On Bin TL'ye Kadar,On Bin-Elli Bin TL Arası,Elli Bin-İkiyüzelli Bin TL Arası,İkiyüzelli Bin -Bir Milyon  TL Arası,Bir Milyon TL Üzeri,Toplam
+Sektör,1,TP Mevduat / Katılım Fonları - Yurt İçi Yerleşik,bold,69635,131639,307445,314051,847096,1669866
+Sektör,2,a) Gerçek Kişiler,italic,63014,115506,269275,261213,287868,996876
+Sektör,3,b) Resmi Kuruluşlar,italic,155,408,1086,2446,84533,88628
+Sektör,4,c) Ticari ve Diğer Kuruluşlar,italic,6466,15724,37084,50392,474695,584361
+Sektör,5,Döviz Tevdiat Hesabı / Katılım Fonları - Yurt İçi Yerleşik,bold,8148,47375,172594,257697,1172004,1657818
+Sektör,6,a) Gerçek Kişiler,italic,7675,45041,159981,221009,516464,950171
+Sektör,7,b) Resmi Kuruluşlar,italic,3,21,116,361,16966,17466
+Sektör,8,c) Ticari ve Diğer Kuruluşlar,italic,470,2314,12497,36326,638574,690181
+Sektör,9,Kıymetli Maden Depo Hesapları - Yurt İçi Yerleşik,bold,7158,41285,109083,75107,64150,296782
+Sektör,10,a) Gerçek Kişiler,italic,6881,40851,106999,70993,50258,275982
+Sektör,11,b) Resmi Kuruluşlar,italic,0,1,1,0,12,13
+Sektör,12,c) Ticari ve Diğer Kuruluşlar,italic,276,434,2083,4114,13880,20787
+Sektör,13,Toplam Mevduat - Yurt İçi Yerleşik,bold,84941,220299,589122,646855,2083250,3624466
+Sektör,14,Mudi Sayısı - Yurt İçi Yerleşik*,bold,119371248,8353167,5085700,1340993,326357,124860784
+Sektör,15,TP Mevduat / Katılım Fonları - Yurt Dışı Yerleşik,bold,1512,5197,11456,12331,20891,51387
+Sektör,16,a) Gerçek Kişiler,italic,1486,5125,11279,12074,11044,41009
+Sektör,17,b) Ticari ve Diğer Kuruluşlar,italic,26,72,176,257,9846,10378
+Sektör,18,Döviz Tevdiat Hesabı / Katılım Fonları - Yurt Dışı Yerleşik,bold,651,3180,19505,44401,121302,189039
+Sektör,19,a) Gerçek Kişiler,italic,595,3095,19148,43392,85087,151316
+Sektör,20,b) Ticari ve Diğer Kuruluşlar,italic,57,85,357,1010,36215,37723
+Sektör,21,Kıymetli Maden Depo Hesapları - Yurt Dışı Yerleşik,bold,48,293,1190,1367,1657,4555
+Sektör,22,a) Gerçek Kişiler,italic,48,292,1188,1360,1590,4478
+Sektör,23,b) Ticari ve Diğer Kuruluşlar,italic,1,1,2,8,66,77
+Sektör,24,Toplam Mevduat - Yurt Dışı Yerleşik,bold,2212,8669,32151,58100,143849,244981
+Sektör,25,Mudi Sayısı - Yurt Dışı Yerleşik*,bold,1383014,317959,262517,116526,34857,1670232
+Sektör,26,Toplam Mevduat,bold,87153,228969,621272,704955,2227099,3869447

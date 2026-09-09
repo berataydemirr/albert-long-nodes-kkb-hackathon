@@ -1,0 +1,42 @@
+Column_0,Column_1,Column_2,BasitFont,TP,YP,Toplam
+Sektör,1,Tüketici Kredileri (2+3+4),bold,736417,87,736503
+Sektör,2,Tüketici Kredileri - Konut,,282762,69,282831
+Sektör,3,Tüketici Kredileri - Taşıt,,14347,0,14347
+Sektör,4,Tüketici Kredileri - İhtiyaç,,439307,18,439325
+Sektör,5,Tüketici Kredileri - Döv. End. (6+7+8),bold,30,0,30
+Sektör,6,Tüketici Kredileri - Konut (Dövize Endeksli),,30,0,30
+Sektör,7,Tüketici Kredileri - Taşıt (Dövize Endeksli),,0,0,0
+Sektör,8,Tüketici Kredileri - İhtiyaç (Dövize Endeksli),,0,0,0
+Sektör,9,Bireysel Kredi Kartları (10+11),bold,188469,313,188781
+Sektör,10,Bireysel Kredi Kartları - Taksitli,,76041,0,76041
+Sektör,11,Bireysel Kredi Kartları - Taksitsiz,,112428,313,112741
+Sektör,12,Toplam - Tük. Krd. (Dövize End. Dahil) ve Bireysel Kredi Kartları (1+5+9),bold,924916,399,925315
+Sektör,13,Takipteki Tüketici Krd. (14+15+16),bold,14110,1,14111
+Sektör,14,Takipteki Konut Kredileri,,763,1,763
+Sektör,15,Takipteki Taşıt Kredileri,,135,0,135
+Sektör,16,Takipteki İhtiyaç Kredileri,,13213,0,13213
+Sektör,17,Takipteki Bireysel Kredi Kartları,,4970,0,4970
+Sektör,18,Toplam - Takipteki Tük. Krd. ve Takipteki Bireysel Kredi Kartları (13+17),bold,19080,1,19081
+Sektör,19,Taksitli Ticari Krediler (20+21+22)*,bold,453287,153531,606818
+Sektör,20,Taksitli Ticari Krediler - İşyeri,,10385,794,11179
+Sektör,21,Taksitli Ticari Krediler - Taşıt,,43066,1367,44433
+Sektör,22,Taksitli Ticari Krediler - İhtiyaç,,399837,151370,551207
+Sektör,23,Taksitli Tic. Krd. - Döv. End. (24+25+26)*,bold,1303,0,1303
+Sektör,24,Taksitli Ticari Krediler - İşyeri (Dövize Endeksli),,75,0,75
+Sektör,25,Taksitli Ticari Krediler - Taşıt (Dövize Endeksli),,17,0,17
+Sektör,26,Taksitli Ticari Krediler - İhtiyaç (Dövize Endeksli),,1211,0,1211
+Sektör,27,Kurumsal Kredi Kartları (28+29)**,bold,82494,70,82563
+Sektör,28,Kurumsal Kredi Kartları - Taksitli,,38176,0,38176
+Sektör,29,Kurumsal Kredi Kartları - Taksitsiz,,44318,70,44387
+Sektör,30,Toplam - Taksitli Tic. Krd.(Dövize End. Dahil) ve Kurumsal Kredi Kartları (19+23+27),bold,537084,153601,690685
+Sektör,31,Takipteki Taksitli Ticari Krd. (32+33+34),bold,36028,4,36032
+Sektör,32,Takipteki Taksitli Ticari Krediler - İşyeri,,853,0,853
+Sektör,33,Takipteki Taksitli Ticari Krediler - Taşıt,,792,0,792
+Sektör,34,Takipteki Taksitli Ticari Krediler - İhtiyaç,,34383,4,34386
+Sektör,35,Takipteki Kurumsal Kredi Kartları,,1711,0,1711
+Sektör,36,Takipteki Taksitli Tic.  Krd. ve Kurumsal Kredi Kartları Toplamı (31+35),bold,37739,4,37743
+Sektör,37,Kredi Kartlarından Alacaklar***,,6787,546,7333
+Sektör,38,Kredi Kartlarından Borçlar***,,93961,714,94676
+Sektör,39,Taksitli Kredi Kartlarından Borçlar,,50340,55,50396
+Sektör,40,Taksitsiz Kredi Kartlarından Borçlar,,41453,565,42018
+Sektör,41,Diğer Kredi Kartlarından Borçlar,,2168,94,2262

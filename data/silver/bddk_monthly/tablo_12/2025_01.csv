@@ -1,0 +1,32 @@
+Column_0,Column_1,Column_2,BasitFont,Toplam
+Sektör,1,Ana Sermaye Toplamı,,3239951
+Sektör,2,Katkı Sermaye Toplamı,,533863
+Sektör,3,Orana Esas Sermaye Toplamı (1+2),,3773814
+Sektör,4,Sermayeden İndirilen Değerler Toplamı,,1037
+Sektör,5,Yasal Özkaynak (3-4),,3772777
+Sektör,6,Çekirdek Sermaye,,2983309
+Sektör,7,Risk Ağırlıklı Kalemler Toplamı (10+30+31),,21366176
+Sektör,8,Çekirdek Sermaye Yeterliliği Rasyosu ((6/7)*100) (YÜZDE),bold,14
+Sektör,9,Sermaye Yeterliliği Standart Rasyosu ((5/7)*100) (YÜZDE),bold,18
+Sektör,10,Kredi Riskine Esas Tutar (11+12+13+29)*,bold,18376423
+Sektör,11,a) Menkul Kıymetleştirme Pozis. Kayn. Kredi Riskine Esas Tutar,,969
+Sektör,12,b) Takas Riski ve Ödemesiz Teslim Riski İçin Kredi Riskine Esas Tutar,,1
+Sektör,13,c) Karşı Taraf Kredi Riski Dahil Kredi Riskine Esas Tutar (Standart Yaklaşım),,18641299
+Sektör,14,Risk Ağırlığı %0 Olan Kalemler Toplamı,italic,13830528
+Sektör,15,Risk Ağırlığı %2 Olan Kalemler Toplamı,italic,108296
+Sektör,16,Risk Ağırlığı %4 Olan Kalemler Toplamı,italic,16814
+Sektör,17,Risk Ağırlığı %10 Olan Kalemler Toplamı,italic,278
+Sektör,18,Risk Ağırlığı %20 Olan Kalemler Toplamı,italic,2113035
+Sektör,19,Risk Ağırlığı %25 Olan Kalemler Toplamı,italic,0
+Sektör,20,Risk Ağırlığı %35 Olan Kalemler Toplamı (G.menkul İpoteği ile Teminatlandırılanlar),italic,843705
+Sektör,21,Risk Ağırlığı %50 Olan Kalemler Toplamı,italic,2726083
+Sektör,22,Risk Ağırlığı %75 Olan Kalemler Toplamı,italic,5945996
+Sektör,23,Risk Ağırlığı %100 Olan Kalemler Toplamı,italic,11760123
+Sektör,24,Risk Ağırlığı %150 Olan Kalemler Toplamı,italic,119639
+Sektör,25,Risk Ağırlığı %200 Olan Kalemler Toplamı,italic,259
+Sektör,26,Risk Ağırlığı %250 Olan Kalemler Toplamı,italic,14635
+Sektör,27,Risk Ağırlığı %500 Olan Kalemler Toplamı,italic,13842
+Sektör,28,Risk Ağırlığı %1250 Olan Kalemler Toplamı,italic,228
+Sektör,29,KDA Riskine Esas Tutar,italic,48989
+Sektör,30,Piyasa Riskine Esas Tutar,bold,624309
+Sektör,31,Operasyonel Riske Esas Tutar,bold,2365444

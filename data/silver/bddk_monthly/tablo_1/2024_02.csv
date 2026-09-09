@@ -1,0 +1,63 @@
+Column_0,Column_1,Column_2,BasitFont,TP,YP,Toplam
+Sektör,1,Nakit Değerler,,44985,215714,260698
+Sektör,2,T.C. Merkez Bankasından Alacaklar,,655144,976811,1631955
+Sektör,3,Para Piyasalarından Alacaklar,,97529,1246,98775
+Sektör,4,Bankalardan Alacaklar,,274194,709279,983473
+Sektör,5,Gerçeğe Uygun Değer Farkı K/Z Yan. Menk. Değ.,,108137,157559,265696
+Sektör,6,GUD Farkı Diğer Kapsamlı Gelire Yan. Menk. Değ.,,960439,1043656,2004095
+Sektör,7,Zorunlu Karşılıklar,,399455,1482359,1881813
+Sektör,8,Menkul Kıymet Ödünç Piyasasından Alacaklar,,2379,0,2379
+Sektör,9,Ters Repo Alacakları,,41120,35127,76247
+Sektör,10,Krediler*,,8286674,4078845,12365518
+Sektör,11,Takipteki Alacaklar,,190738,5278,196016
+Sektör,12,Beklenen Zarar Karşılıkları (-),,324002,152604,476606
+Sektör,13,a) 12 Ay Beklenen Zarar Karşılığı (Birinci Aşama)**,italic,75360,28309,103669
+Sektör,14,b) Kredi Riskinde Önemli Artış (İkinci Aşama)**,italic,93534,119363,212897
+Sektör,15,c) Temerrüt - Özel Karşılık (Üçüncü Aşama),italic,155109,4931,160040
+Sektör,16,Faiz (Kar Payı) ve Gelir Tah. Reeskontları,,1450084,280022,1730105
+Sektör,17,a) Kredi Faiz (Kar Payı) ve Gelir Tah. Reeskontları,italic,396638,107811,504449
+Sektör,18,b) Menkul Değerler Faiz Reeskontları,italic,896812,68113,964925
+Sektör,19,c) Diğer Faiz (Kar Payı) ve Gelir Reeskontları,italic,156634,104097,260731
+Sektör,20,Finansal Kiralama Alacakları,,82327,39499,121826
+Sektör,21,"İştirakler,  Bağlı  ve Birlikte Kontrol Edilen Ort.",,318862,208000,526862
+Sektör,22,İtfa Edilmiş Maliyeti Üzerinden Değerlenen Menkul Değerler,,1341155,648349,1989504
+Sektör,23,Elden Çıkarılacak Kıymetler (Net),,47312,0,47312
+Sektör,24,Sabit Kıymetler (Net),,234025,605,234629
+Sektör,25,Diğer Aktifler,,669667,52048,721714
+Sektör,26,TOPLAM AKTİFLER,bold,14880222,9781791,24662013
+Sektör,27,Mevduat (Katılım Fonu)***,,8880983,6259399,15140382
+Sektör,28,a) Vadesiz Mevduat,italic,1450889,3860292,5311182
+Sektör,29,b) Vadeli Mevduat,italic,7430093,2399107,9829200
+Sektör,30,T.C. Merkez Bankasına Borçlar,,298011,85509,383519
+Sektör,31,Para Piyasalarına Borçlar,,16344,0,16344
+Sektör,32,Menkul Kıymet Ödünç Piyasasına Borçlar,,35366,5368,40733
+Sektör,33,Bankalara Borçlar,,279320,2272701,2552021
+Sektör,34,Repo İşlemlerinden Sağlanan Fonlar,,222977,610062,833039
+Sektör,35,Fonlar,,44614,1587,46201
+Sektör,36,İhraç Edilen Menkul Kıymetler (Net) (37+38),,41841,673402,715243
+Sektör,37,a) Tahviller ve Bonolar,italic,40441,673402,713843
+Sektör,38,b) V.D.M.K. ve Diğer İhraç Edilen Menkul Kıymetler,italic,1400,0,1400
+Sektör,39,Kiralama İşlemlerinden Yükümlülükler (Net),,32348,821,33169
+Sektör,40,"Ödenecek Vergi, Resim, Harç ve Primler",,37735,22,37758
+Sektör,41,Sermaye Hesaplamasına Dahil Edilecek Borçlanma Araçları (Net),,26181,435318,461499
+Sektör,42,Faiz (Kar Payı) ve Gider Reeskontları,,405489,142831,548320
+Sektör,43,a) Mevduat (Katılım Fonu) Faiz (Kar Payı) Reeskontları,italic,316249,14021,330271
+Sektör,44,b) Diğer Faiz (Kar Payı) ve Gider Reeskontları,italic,89239,128810,218049
+Sektör,45,Karşılıklar****,,286021,30297,316318
+Sektör,46,Diğer Pasifler,,878312,428154,1306466
+Sektör,47,TOPLAM YABANCI KAYNAKLAR,bold,11485541,10945471,22431012
+Sektör,48,Ödenmiş Sermaye,,299673,0,299673
+Sektör,49,Yedek Akçeler,,964273,1847,966120
+Sektör,50,Ödenmiş Sermaye Enflasyon Düzeltme Farkı,,0,0,0
+Sektör,51,Sabit Kıymet Yeniden Değerleme Farkları,,152990,67,153057
+Sektör,52,Menkul Değerler Değerleme Farkları,,132756,-7998,124759
+Sektör,53,Dönem Karı (Zararı),,74734,0,74734
+Sektör,54,Geçmiş Yıllar Karı (Zararı),,612658,0,612658
+Sektör,55,TOPLAM ÖZKAYNAKLAR,bold,2237084,-6083,2231001
+Sektör,56,TOPLAM PASİFLER,bold,13722625,10939388,24662013
+Sektör,57,Gayrinakdi Kredi ve Yükümlülükler,,2331053,2271694,4602747
+Sektör,58,Taahhütler (59+60),,9465494,11649184,21114678
+Sektör,59,a) Türev Finansal Araçlar,italic,3431082,10139121,13570203
+Sektör,60,b) Diğer Taahhütler,italic,6034412,1510063,7544475
+Sektör,61,Bankalara Kullandırılan Krediler*****,,42829,136157,178986
+Sektör,62,Bankalar Mevduatı (Katılım Fonu)*****,,244333,399876,644209

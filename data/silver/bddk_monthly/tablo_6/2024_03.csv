@@ -1,0 +1,9 @@
+Column_0,Column_1,Column_2,BasitFont,Nakdi Kredi TP,Nakdi Kredi YP,Toplam Nakdi Krediler,Takip Kredi TP,Takip Kredi YP,Toplam Takipteki Krediler,Gayri Nakdi Kredi TP,Gayri Nakdi Kredi YP,Toplam Gayri Nakdi Krediler,Müşteri Sayısı (Net)
+Sektör,1,Toplam KOBİ Kredileri (2+3+4),bold,3070632,533426,3604058,53184,2515,55699,1436263,340767,1777029,0
+Sektör,2,Mikro İşletmelere Kullandırılan Krediler,,1056212,46611,1102823,17760,118,17879,407207,25975,433182,0
+Sektör,3,Küçük İşletmelere Kullandırılan Krediler,,1005672,130804,1136476,16723,755,17478,440732,77401,518134,0
+Sektör,4,Orta Büyüklükteki İşletmelere Kullandırılan Krediler,,1008747,356011,1364759,18700,1642,20342,588323,237390,825713,0
+Sektör,5,Toplam KOBİ Niteliğindeki Müşteri Sayısı (6+7+8) (Adet),bold,4578471,25399,4603870,266294,118,266412,3629115,22269,3651384,5915714
+Sektör,6,Mikro İşletme Niteliğindeki Müşteri Sayısı (Adet),,3980603,5582,3986185,233976,19,233995,3002614,3450,3006064,5109240
+Sektör,7,Küçük İşletme Niteliğindeki Müşteri Sayısı (Adet),,471969,9575,481544,24776,56,24832,475434,8538,483972,616060
+Sektör,8,Orta Büyüklükteki İşletme Niteliğindeki Müşteri Sayısı (Adet),,125899,10242,136141,7542,43,7585,151067,10281,161348,190414

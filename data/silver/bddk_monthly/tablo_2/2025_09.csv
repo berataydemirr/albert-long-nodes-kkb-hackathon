@@ -1,0 +1,54 @@
+Column_0,Column_1,Column_2,BasitFont,TP,YP,Toplam
+Sektör,1,Kredilerden Alınan Faizler (Kar Payları),,3401768,404782,3806551
+Sektör,2,a) Tüketici Kredilerinden Alınan Faizler (Kar Payları),,517198,2,517200
+Sektör,3,b) Kredi Kartlarından Alınan Faizler (Kar Payları),,362921,17,362938
+Sektör,4,c) Taksitli Ticari Kredilerden Alınan Faizler (Kar Payları),,479106,20445,499551
+Sektör,5,d) Diğer Kredilerden Alınan Faizler (Kar Payları),,2042544,384317,2426861
+Sektör,6,Takipteki Alacaklardan Alınan Faizler (Kar Payları),,84305,445,84750
+Sektör,7,Bankalardan Alınan Faizler (Gelirler),,340072,25191,365262
+Sektör,8,Para Piy. İşl. Alınan Faizler,,73329,56,73385
+Sektör,9,Gerçeğe Uygun Değer Farkı K/Z Yan. Menk. Değ. Alınan Faizler,,24579,4102,28681
+Sektör,10,GUD Farkı Diğer Kapsamlı Gelire Yansıtılan Menkul Değerlerden Alınan Faizler,,575681,71565,647247
+Sektör,11,İtfa Edilmiş Maliyeti Üzerinden Değerlenen Menkul Değerlerden Alınan Faizler,,551992,26874,578866
+Sektör,12,Ters Repo İşlemlerinden Alınan Faizler,,10741,1271,12011
+Sektör,13,Finansal Kiralama Gelirleri,,22540,6965,29505
+Sektör,14,Diğer Faiz ve Faiz Benzeri Gelirler (Diğer Gelirler),,414428,6267,420695
+Sektör,15,Toplam Faiz (Kar Payı) Gelirleri (1+...+14)-(2+3+4+5),bold,5499435,547517,6046953
+Sektör,16,Mevduata Verilen Faizler (Katılım Fonlarına Ödenen Kar Payları),,3716009,45891,3761900
+Sektör,17,Bankalara Verilen Faizler (Giderler),,256710,155755,412464
+Sektör,18,Para Piy.İşl.Verilen Faizler,,9421,6,9427
+Sektör,19,İhraç Edilen Menkul Kıymetlere Verilen Faizler (Ödenen Kar Payları),,35740,95934,131674
+Sektör,20,Repo İşlemlerine Verilen Faizler,,499436,37966,537401
+Sektör,21,Finansal Kiralama Giderleri,,12211,63,12274
+Sektör,22,Diğer Faiz ve Faiz Benzeri Giderler (Diğer Giderler),,46188,4352,50540
+Sektör,23,Toplam Faiz (Kar Payı) Giderleri (16+...+22),bold,4575714,339966,4915680
+Sektör,24,NET FAİZ (KAR PAYI) GELİRİ (GİDERİ) (15-23),bold,923721,207552,1131273
+Sektör,25,Takipteki Alacaklar Özel Provizyonu,,238302,4623,242925
+Sektör,26,PROV.SONRASI NET FAİZ  (KAR PAYI) GELİRİ (GİDERİ)  (24-25),bold,685420,202929,888349
+Sektör,27,Kredilerden Alınan Ücret ve Komisyonlar,,60151,32725,92876
+Sektör,28,a) Nakdi Kredilerden Alınan Ücret ve Komisyonlar,,30043,11225,41268
+Sektör,29,b) Gayrinakdi Kredilerden Alınan Ücret ve Komisyonlar,,30108,21500,51608
+Sektör,30,Alınan Kar Payları,,38515,226,38741
+Sektör,31,Bankacılık Hizmetleri Gelirleri,,848119,39021,887141
+Sektör,32,Aktiflerimizin Satışından Elde Edilen Gelirler,,30823,10,30833
+Sektör,33,Diğer Faiz Dışı (Kar Payı Dışındaki) Gelirler,,272389,74143,346532
+Sektör,34,Toplam Faiz Dışı (Kar Payı Dışındaki) Gelirler (27+30+31+32+33),bold,1249997,146125,1396122
+Sektör,35,Personel Giderleri,,366641,1417,368058
+Sektör,36,Genel Karşılık Provizyonu,,120347,46401,166748
+Sektör,37,Kıdem Tazminatı Provizyonu,,9937,2,9938
+Sektör,38,Menkul Değerler Değer Azalma Provizyonu,,5809,991,6799
+Sektör,39,"İştirakler, Bağlı ve Birl. Kont. Ed. Ort. Değ. Azalma Proviz.",,0,0,0
+Sektör,40,Diğer Provizyonlar,,42305,2830,45135
+Sektör,41,Verilen Ücret ve Komisyonlar,,242204,46383,288587
+Sektör,42,Amortisman Giderleri,,44304,174,44479
+Sektör,43,"Vergi, Resim, Harç ve Fonlar",,71583,91,71675
+Sektör,44,Diğer Faiz Dışı  (Kar Payı Dışındaki) Giderler,,381230,22278,403508
+Sektör,45,Toplam Faiz Dışı (Kar Payı Dışındaki) Giderler  (35+…+44),bold,1284360,120567,1404927
+Sektör,46,Sermaye Piyasası İşlemleri Karları (Zararları) (Net),,-46272,34639,-11633
+Sektör,47,Kambiyo Karları (Zararları) (Net),,0,-47958,-47958
+Sektör,48,Olağanüstü Gelirler (Giderler) (Net),,-49,0,-49
+Sektör,49,Net Parasal Pozisyon Karı (Zararı),,0,0,0
+Sektör,50,Toplam Diğer Faiz Dışı (Kar Payı Dışındaki) Gelirler (Giderler) (46+47+48+49),bold,-46320,-13319,-59639
+Sektör,51,VERGİ ÖNCESİ KAR (ZARAR) [(26+34+50)-45],bold,604736,215168,819904
+Sektör,52,Vergi Provizyonu,,149360,869,150229
+Sektör,53,DÖNEM NET KARI (ZARARI) (51-52),bold,455376,214300,669676

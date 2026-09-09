@@ -1,0 +1,63 @@
+Column_0,Column_1,Column_2,BasitFont,TP,YP,Toplam
+Sektör,1,Nakit Değerler,,61393,289421,350814
+Sektör,2,T.C. Merkez Bankasından Alacaklar,,2020961,1013796,3034757
+Sektör,3,Para Piyasalarından Alacaklar,,282722,2433,285155
+Sektör,4,Bankalardan Alacaklar,,343911,724845,1068756
+Sektör,5,Gerçeğe Uygun Değer Farkı K/Z Yan. Menk. Değ.,,109061,286379,395440
+Sektör,6,GUD Farkı Diğer Kapsamlı Gelire Yan. Menk. Değ.,,1622901,1287199,2910100
+Sektör,7,Zorunlu Karşılıklar,,802994,1598881,2401875
+Sektör,8,Menkul Kıymet Ödünç Piyasasından Alacaklar,,402,2473,2876
+Sektör,9,Ters Repo Alacakları,,12669,59652,72321
+Sektör,10,Krediler*,,10258222,6116121,16374343
+Sektör,11,Takipteki Alacaklar,,311083,3936,315019
+Sektör,12,Beklenen Zarar Karşılıkları (-),,410749,148147,558896
+Sektör,13,a) 12 Ay Beklenen Zarar Karşılığı (Birinci Aşama)**,italic,66469,24547,91016
+Sektör,14,b) Kredi Riskinde Önemli Artış (İkinci Aşama)**,italic,107410,120169,227579
+Sektör,15,c) Temerrüt - Özel Karşılık (Üçüncü Aşama),italic,236871,3431,240301
+Sektör,16,Faiz (Kar Payı) ve Gelir Tah. Reeskontları,,2058469,283189,2341658
+Sektör,17,a) Kredi Faiz (Kar Payı) ve Gelir Tah. Reeskontları,italic,600447,113763,714210
+Sektör,18,b) Menkul Değerler Faiz Reeskontları,italic,1253913,63594,1317507
+Sektör,19,c) Diğer Faiz (Kar Payı) ve Gelir Reeskontları,italic,204109,105832,309941
+Sektör,20,Finansal Kiralama Alacakları,,67181,78411,145591
+Sektör,21,"İştirakler,  Bağlı  ve Birlikte Kontrol Edilen Ort.",,489999,261002,751001
+Sektör,22,İtfa Edilmiş Maliyeti Üzerinden Değerlenen Menkul Değerler,,1508284,523472,2031756
+Sektör,23,Elden Çıkarılacak Kıymetler (Net),,65777,0,65777
+Sektör,24,Sabit Kıymetler (Net),,377807,744,378551
+Sektör,25,Diğer Aktifler,,942706,56572,999278
+Sektör,26,TOPLAM AKTİFLER,bold,20925793,12440378,33366171
+Sektör,27,Mevduat (Katılım Fonu)***,,12320171,6726583,19046753
+Sektör,28,a) Vadesiz Mevduat,italic,1965260,4440194,6405454
+Sektör,29,b) Vadeli Mevduat,italic,10354910,2286389,12641299
+Sektör,30,T.C. Merkez Bankasına Borçlar,,348494,85664,434158
+Sektör,31,Para Piyasalarına Borçlar,,16727,62,16789
+Sektör,32,Menkul Kıymet Ödünç Piyasasına Borçlar,,0,60266,60266
+Sektör,33,Bankalara Borçlar,,734620,2961818,3696438
+Sektör,34,Repo İşlemlerinden Sağlanan Fonlar,,1485081,918363,2403445
+Sektör,35,Fonlar,,64335,5217,69552
+Sektör,36,İhraç Edilen Menkul Kıymetler (Net) (37+38),,58099,1019899,1077998
+Sektör,37,a) Tahviller ve Bonolar,italic,58099,1019899,1077998
+Sektör,38,b) V.D.M.K. ve Diğer İhraç Edilen Menkul Kıymetler,italic,1,0,1
+Sektör,39,Kiralama İşlemlerinden Yükümlülükler (Net),,49343,1492,50835
+Sektör,40,"Ödenecek Vergi, Resim, Harç ve Primler",,89188,28,89216
+Sektör,41,Sermaye Hesaplamasına Dahil Edilecek Borçlanma Araçları (Net),,75624,566185,641809
+Sektör,42,Faiz (Kar Payı) ve Gider Reeskontları,,529335,143444,672779
+Sektör,43,a) Mevduat (Katılım Fonu) Faiz (Kar Payı) Reeskontları,italic,407052,4875,411927
+Sektör,44,b) Diğer Faiz (Kar Payı) ve Gider Reeskontları,italic,122283,138570,260852
+Sektör,45,Karşılıklar****,,334317,23725,358042
+Sektör,46,Diğer Pasifler,,1313031,436964,1749994
+Sektör,47,TOPLAM YABANCI KAYNAKLAR,bold,17418365,12949710,30368075
+Sektör,48,Ödenmiş Sermaye,,389814,0,389814
+Sektör,49,Yedek Akçeler,,1512741,1068,1513809
+Sektör,50,Ödenmiş Sermaye Enflasyon Düzeltme Farkı,,0,0,0
+Sektör,51,Sabit Kıymet Yeniden Değerleme Farkları,,225596,84,225680
+Sektör,52,Menkul Değerler Değerleme Farkları,,154562,10810,165372
+Sektör,53,Dönem Karı (Zararı),,47347,0,47347
+Sektör,54,Geçmiş Yıllar Karı (Zararı),,656074,0,656074
+Sektör,55,TOPLAM ÖZKAYNAKLAR,bold,2986134,11962,2998096
+Sektör,56,TOPLAM PASİFLER,bold,20404499,12961672,33366171
+Sektör,57,Gayrinakdi Kredi ve Yükümlülükler,,3339339,2920376,6259715
+Sektör,58,Taahhütler (59+60),,14159080,14306601,28465681
+Sektör,59,a) Türev Finansal Araçlar,italic,4006988,12658833,16665821
+Sektör,60,b) Diğer Taahhütler,italic,10152092,1647769,11799860
+Sektör,61,Bankalara Kullandırılan Krediler*****,,39819,133979,173798
+Sektör,62,Bankalar Mevduatı (Katılım Fonu)*****,,320078,382202,702281

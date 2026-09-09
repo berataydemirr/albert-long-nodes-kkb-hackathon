@@ -1,0 +1,28 @@
+Column_0,Column_1,Column_2,BasitFont,TP,YP,Toplam
+Sektör,1,Menkul Değerler (2 den 24'e),bold,582078,431739,1013817
+Sektör,2,Devlet Tahvilleri,,515589,138009,653598
+Sektör,3,Hazine Bonoları,,0,0,0
+Sektör,4,Gelir Ortaklığı Senetleri / Gelire Endeksli Senetler,,0,0,0
+Sektör,5,Dövize Endeksli Kamu Borçlanma Senetleri,,0,0,0
+Sektör,6,Hazinece Yurt İçinde İhraç Edilen Kira Sertifikaları (Sukuk),,28639,23905,52545
+Sektör,7,Hazinece Yurt Dışında İhraç Edilen Kira Sertifikaları (Sukuk),,0,14333,14333
+Sektör,8,Diğer Kamu Sektörü Tahvil ve Bonoları,,0,0,0
+Sektör,9,Varlığa Dayalı Menkul Kıymetler,,3722,0,3722
+Sektör,10,Özel Sektör Tahvilleri,,299,2240,2539
+Sektör,11,Finansman Bonoları,,85,0,85
+Sektör,12,Banka Bonoları ve Banka Garantili Bonolar,,6,0,6
+Sektör,13,Yurt İçi Bankalarca İhraç Edilen Tahviller,,7,16888,16895
+Sektör,14,Hisse Senetleri,,2402,2840,5242
+Sektör,15,Yatırım Fonu Katılma Belgeleri,,4823,338,5161
+Sektör,16,Yabancı Dev.Tar.İhraç Edilen Tahvil ve Bonolar,,5,3426,3431
+Sektör,17,Yurt Dışı Bankalar Tar.İhraç Edilen Tahvil ve Bonolar,,1069,920,1989
+Sektör,18,Yabancı Özel Sektör Borçlanma Senetleri,,616,1419,2036
+Sektör,19,Hazinece Yurt Dışında İhraç Edilen Eurobond ve Benz.Tahviller,,0,211225,211225
+Sektör,20,Hazinece Yurt Dışında İhraç Edilen Diğer Borçlanma Senetleri,,0,0,0
+Sektör,21,Merkez Bankasınca İhraç Edilen Likidite Senetleri,,0,0,0
+Sektör,22,Krediye Bağlı Tahvil,,0,0,0
+Sektör,23,Özel Sektör Tarafından İhraç Edilen Kira Sertifikaları (Sukuk),,2688,810,3498
+Sektör,24,Diğer Menkul Kıymetler,,22129,15385,37514
+Sektör,25,REPO KONUSU MENKUL DEĞERLER*,,160461,111716,272177
+Sektör,26,TEMİNATA VERİLEN MENKUL DEĞERLER*,,186586,192859,379445
+Sektör,27,TOPLAM MENKUL DEĞERLER (2 den 24'e),bold,582078,431739,1013817

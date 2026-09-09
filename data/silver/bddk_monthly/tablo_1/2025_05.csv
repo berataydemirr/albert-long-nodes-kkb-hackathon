@@ -1,0 +1,63 @@
+Column_0,Column_1,Column_2,BasitFont,TP,YP,Toplam
+Sektör,1,Nakit Değerler,,75085,299894,374979
+Sektör,2,T.C. Merkez Bankasından Alacaklar,,1591825,1155528,2747353
+Sektör,3,Para Piyasalarından Alacaklar,,54591,859,55450
+Sektör,4,Bankalardan Alacaklar,,391352,935782,1327134
+Sektör,5,Gerçeğe Uygun Değer Farkı K/Z Yan. Menk. Değ.,,197957,333959,531915
+Sektör,6,GUD Farkı Diğer Kapsamlı Gelire Yan. Menk. Değ.,,1961046,1453820,3414866
+Sektör,7,Zorunlu Karşılıklar,,1079081,2218101,3297182
+Sektör,8,Menkul Kıymet Ödünç Piyasasından Alacaklar,,1759,2720,4480
+Sektör,9,Ters Repo Alacakları,,23482,45995,69477
+Sektör,10,Krediler*,,11651040,7292956,18943996
+Sektör,11,Takipteki Alacaklar,,400842,7224,408066
+Sektör,12,Beklenen Zarar Karşılıkları (-),,482471,155172,637642
+Sektör,13,a) 12 Ay Beklenen Zarar Karşılığı (Birinci Aşama)**,italic,74558,27734,102292
+Sektör,14,b) Kredi Riskinde Önemli Artış (İkinci Aşama)**,italic,106873,121925,228798
+Sektör,15,c) Temerrüt - Özel Karşılık (Üçüncü Aşama),italic,301040,5512,306552
+Sektör,16,Faiz (Kar Payı) ve Gelir Tah. Reeskontları,,2394299,285509,2679808
+Sektör,17,a) Kredi Faiz (Kar Payı) ve Gelir Tah. Reeskontları,italic,717179,132292,849470
+Sektör,18,b) Menkul Değerler Faiz Reeskontları,italic,1382769,54238,1437006
+Sektör,19,c) Diğer Faiz (Kar Payı) ve Gelir Reeskontları,italic,294352,98980,393331
+Sektör,20,Finansal Kiralama Alacakları,,78877,125281,204158
+Sektör,21,"İştirakler,  Bağlı  ve Birlikte Kontrol Edilen Ort.",,552317,319449,871766
+Sektör,22,İtfa Edilmiş Maliyeti Üzerinden Değerlenen Menkul Değerler,,1567835,593827,2161662
+Sektör,23,Elden Çıkarılacak Kıymetler (Net),,82042,0,82042
+Sektör,24,Sabit Kıymetler (Net),,407018,852,407870
+Sektör,25,Diğer Aktifler,,1044681,89905,1134586
+Sektör,26,TOPLAM AKTİFLER,bold,23072658,15006490,38079148
+Sektör,27,Mevduat (Katılım Fonu)***,,13558760,8541589,22100348
+Sektör,28,a) Vadesiz Mevduat,italic,2239113,5444895,7684008
+Sektör,29,b) Vadeli Mevduat,italic,11319647,3096693,14416340
+Sektör,30,T.C. Merkez Bankasına Borçlar,,385235,105139,490375
+Sektör,31,Para Piyasalarına Borçlar,,9603,71,9674
+Sektör,32,Menkul Kıymet Ödünç Piyasasına Borçlar,,0,66633,66633
+Sektör,33,Bankalara Borçlar,,566477,3650058,4216535
+Sektör,34,Repo İşlemlerinden Sağlanan Fonlar,,1706210,1012164,2718375
+Sektör,35,Fonlar,,68088,6872,74960
+Sektör,36,İhraç Edilen Menkul Kıymetler (Net) (37+38),,60938,1293948,1354886
+Sektör,37,a) Tahviller ve Bonolar,italic,60937,1293948,1354885
+Sektör,38,b) V.D.M.K. ve Diğer İhraç Edilen Menkul Kıymetler,italic,0,0,0
+Sektör,39,Kiralama İşlemlerinden Yükümlülükler (Net),,58405,1538,59942
+Sektör,40,"Ödenecek Vergi, Resim, Harç ve Primler",,116520,40,116560
+Sektör,41,Sermaye Hesaplamasına Dahil Edilecek Borçlanma Araçları (Net),,74874,658593,733467
+Sektör,42,Faiz (Kar Payı) ve Gider Reeskontları,,489688,178157,667845
+Sektör,43,a) Mevduat (Katılım Fonu) Faiz (Kar Payı) Reeskontları,italic,365651,6837,372488
+Sektör,44,b) Diğer Faiz (Kar Payı) ve Gider Reeskontları,italic,124037,171320,295357
+Sektör,45,Karşılıklar****,,279564,23453,303017
+Sektör,46,Diğer Pasifler,,1445294,506214,1951508
+Sektör,47,TOPLAM YABANCI KAYNAKLAR,bold,18819655,16044469,34864124
+Sektör,48,Ödenmiş Sermaye,,437609,0,437609
+Sektör,49,Yedek Akçeler,,2093776,1101,2094877
+Sektör,50,Ödenmiş Sermaye Enflasyon Düzeltme Farkı,,0,0,0
+Sektör,51,Sabit Kıymet Yeniden Değerleme Farkları,,229746,84,229830
+Sektör,52,Menkul Değerler Değerleme Farkları,,133424,-5792,127632
+Sektör,53,Dönem Karı (Zararı),,326834,0,326834
+Sektör,54,Geçmiş Yıllar Karı (Zararı),,-1759,0,-1759
+Sektör,55,TOPLAM ÖZKAYNAKLAR,bold,3219630,-4607,3215023
+Sektör,56,TOPLAM PASİFLER,bold,22039285,16039862,38079148
+Sektör,57,Gayrinakdi Kredi ve Yükümlülükler,,3826368,3492084,7318452
+Sektör,58,Taahhütler (59+60),,16823484,16909137,33732622
+Sektör,59,a) Türev Finansal Araçlar,italic,4288908,14699268,18988176
+Sektör,60,b) Diğer Taahhütler,italic,12534576,2209869,14744445
+Sektör,61,Bankalara Kullandırılan Krediler*****,,63218,127265,190483
+Sektör,62,Bankalar Mevduatı (Katılım Fonu)*****,,381127,447198,828325

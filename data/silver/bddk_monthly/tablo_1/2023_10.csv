@@ -1,0 +1,63 @@
+Column_0,Column_1,Column_2,BasitFont,TP,YP,Toplam
+Sektör,1,Nakit Değerler,,40902,210304,251206
+Sektör,2,T.C. Merkez Bankasından Alacaklar,,1093485,717950,1811436
+Sektör,3,Para Piyasalarından Alacaklar,,207268,914,208182
+Sektör,4,Bankalardan Alacaklar,,233628,576689,810317
+Sektör,5,Gerçeğe Uygun Değer Farkı K/Z Yan. Menk. Değ.,,123339,171421,294760
+Sektör,6,GUD Farkı Diğer Kapsamlı Gelire Yan. Menk. Değ.,,726286,878120,1604405
+Sektör,7,Zorunlu Karşılıklar,,1064,1284648,1285712
+Sektör,8,Menkul Kıymet Ödünç Piyasasından Alacaklar,,2233,0,2233
+Sektör,9,Ters Repo Alacakları,,67216,41821,109037
+Sektör,10,Krediler*,,7427511,3563642,10991153
+Sektör,11,Takipteki Alacaklar,,165687,7558,173245
+Sektör,12,Beklenen Zarar Karşılıkları (-),,299412,143975,443387
+Sektör,13,a) 12 Ay Beklenen Zarar Karşılığı (Birinci Aşama)**,italic,65977,28494,94471
+Sektör,14,b) Kredi Riskinde Önemli Artış (İkinci Aşama)**,italic,92683,109125,201808
+Sektör,15,c) Temerrüt - Özel Karşılık (Üçüncü Aşama),italic,140752,6356,147107
+Sektör,16,Faiz (Kar Payı) ve Gelir Tah. Reeskontları,,1259018,270710,1529728
+Sektör,17,a) Kredi Faiz (Kar Payı) ve Gelir Tah. Reeskontları,italic,254889,95466,350355
+Sektör,18,b) Menkul Değerler Faiz Reeskontları,italic,823088,45935,869022
+Sektör,19,c) Diğer Faiz (Kar Payı) ve Gelir Reeskontları,italic,181041,129309,310350
+Sektör,20,Finansal Kiralama Alacakları,,79583,32513,112096
+Sektör,21,"İştirakler,  Bağlı  ve Birlikte Kontrol Edilen Ort.",,246957,181177,428134
+Sektör,22,İtfa Edilmiş Maliyeti Üzerinden Değerlenen Menkul Değerler,,1210298,589597,1799894
+Sektör,23,Elden Çıkarılacak Kıymetler (Net),,40642,0,40642
+Sektör,24,Sabit Kıymetler (Net),,151294,474,151768
+Sektör,25,Diğer Aktifler,,540210,57878,598088
+Sektör,26,TOPLAM AKTİFLER,bold,13317208,8441441,21758649
+Sektör,27,Mevduat (Katılım Fonu)***,,8181775,5666366,13848142
+Sektör,28,a) Vadesiz Mevduat,italic,1329727,3410875,4740603
+Sektör,29,b) Vadeli Mevduat,italic,6852048,2255491,9107539
+Sektör,30,T.C. Merkez Bankasına Borçlar,,219208,87456,306664
+Sektör,31,Para Piyasalarına Borçlar,,6003,0,6003
+Sektör,32,Menkul Kıymet Ödünç Piyasasına Borçlar,,54871,4911,59782
+Sektör,33,Bankalara Borçlar,,243915,1945518,2189432
+Sektör,34,Repo İşlemlerinden Sağlanan Fonlar,,105375,494739,600114
+Sektör,35,Fonlar,,35103,1915,37017
+Sektör,36,İhraç Edilen Menkul Kıymetler (Net) (37+38),,40800,473977,514777
+Sektör,37,a) Tahviller ve Bonolar,italic,36250,473977,510227
+Sektör,38,b) V.D.M.K. ve Diğer İhraç Edilen Menkul Kıymetler,italic,4550,0,4550
+Sektör,39,Kiralama İşlemlerinden Yükümlülükler (Net),,27159,744,27903
+Sektör,40,"Ödenecek Vergi, Resim, Harç ve Primler",,25870,18,25888
+Sektör,41,Sermaye Hesaplamasına Dahil Edilecek Borçlanma Araçları (Net),,26181,390095,416276
+Sektör,42,Faiz (Kar Payı) ve Gider Reeskontları,,286658,133875,420533
+Sektör,43,a) Mevduat (Katılım Fonu) Faiz (Kar Payı) Reeskontları,italic,187500,12002,199502
+Sektör,44,b) Diğer Faiz (Kar Payı) ve Gider Reeskontları,italic,99159,121873,221032
+Sektör,45,Karşılıklar****,,246230,29316,275546
+Sektör,46,Diğer Pasifler,,737819,356730,1094549
+Sektör,47,TOPLAM YABANCI KAYNAKLAR,bold,10236965,9585662,19822627
+Sektör,48,Ödenmiş Sermaye,,269963,0,269963
+Sektör,49,Yedek Akçeler,,983796,1649,985445
+Sektör,50,Ödenmiş Sermaye Enflasyon Düzeltme Farkı,,0,0,0
+Sektör,51,Sabit Kıymet Yeniden Değerleme Farkları,,87128,36,87164
+Sektör,52,Menkul Değerler Değerleme Farkları,,153303,-36819,116484
+Sektör,53,Dönem Karı (Zararı),,486189,0,486189
+Sektör,54,Geçmiş Yıllar Karı (Zararı),,-9223,0,-9223
+Sektör,55,TOPLAM ÖZKAYNAKLAR,bold,1971156,-35134,1936022
+Sektör,56,TOPLAM PASİFLER,bold,12208121,9550528,21758649
+Sektör,57,Gayrinakdi Kredi ve Yükümlülükler,,1941070,2030808,3971878
+Sektör,58,Taahhütler (59+60),,7478874,10053181,17532055
+Sektör,59,a) Türev Finansal Araçlar,italic,3191381,8865610,12056992
+Sektör,60,b) Diğer Taahhütler,italic,4287492,1187571,5475063
+Sektör,61,Bankalara Kullandırılan Krediler*****,,44689,100736,145425
+Sektör,62,Bankalar Mevduatı (Katılım Fonu)*****,,211836,378233,590068

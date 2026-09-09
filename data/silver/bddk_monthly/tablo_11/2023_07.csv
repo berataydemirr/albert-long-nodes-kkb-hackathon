@@ -1,0 +1,45 @@
+Column_0,Column_1,Column_2,BasitFont,Yedi Gün,Bir Ay,Üç Ay,On İki Ay,Toplam
+Sektör,1,Nakit Değerler ve T.C. Merkez Bankası,,1398651,1453056,1453864,1453864,1453864
+Sektör,2,Gerçeğe Uygun Değer Farkı K/Z Yans. ve Sat.H. M.D (Net),,1115885,1186631,1259366,1466485,1751139
+Sektör,3,"Bankalar, Yurt Dışı Merkez ve Şubeler (Varlık)",,615967,641887,659798,663034,668661
+Sektör,4,Para Piyasasından Alacaklar,,83907,89856,92828,93012,93212
+Sektör,5,Ters Repo İşlemlerinden Alacaklar,,106375,159562,159822,166270,167084
+Sektör,6,Zorunlu Karşılıklar (Bloke),,1088757,1088757,1088757,1088757,1088757
+Sektör,7,Gayrinakdi Kredi Komisyonları,,2829,8671,20112,23542,30134
+Sektör,8,Krediler,,938746,1694067,2766567,5555962,9364227
+Sektör,9,Vadeye Kadar Elde Tutulacak Menkul Değerler (Net),,643624,671289,718419,811973,1253906
+Sektör,10,Kiralama İşlemlerinden Alacaklar,,13853,15955,23570,54067,106747
+Sektör,11,Türev İşlemler (12+13+14+15+16+17),,1145699,2058490,3057696,3462579,4059138
+Sektör,12,İki Güne Kadar Valörlü Döviz Alımları,,276097,276153,276296,276377,276883
+Sektör,13,Vadeli Alım İşlemleri,,90221,197585,393851,544399,563101
+Sektör,14,Swap Alım İşlemleri,,761196,1551599,2312881,2506962,2978053
+Sektör,15,Futures Alım İşlemleri,,6330,6330,24080,27746,30891
+Sektör,16,Opsiyon İşlemleri (Varlık),,7255,20175,35989,62906,74954
+Sektör,17,Türev İşlemlerden Diğer Alacaklar,,4599,6648,14600,44190,135256
+Sektör,18,TOPLAM VARLIKLAR (1+...+11),bold,7154292,9068222,11300799,14839545,20036868
+Sektör,19,Mevduat (Katılım Fonu),,2346751,3360096,4358782,4640454,4663607
+Sektör,20,Para Piyasalarına Borçlar,,4884,4934,6800,6809,6809
+Sektör,21,TCMB`ye Borçlar,,672,7506,23053,70901,243236
+Sektör,22,"Bankalar, Yurt Dışı Merkez ve Şubeler (Yükümlülük)",,99331,111616,156354,316853,555917
+Sektör,23,Sermaye Benzeri Krediler,,15822,15822,16950,97352,409388
+Sektör,24,Müstakriz Fonları,,7129,7408,8085,8854,8854
+Sektör,25,Kullanılan Diğer Krediler,,52009,90132,142271,479584,1046951
+Sektör,26,Repo İşlemlerinden Sağlanan Fonlar,,237878,303485,395186,485012,540849
+Sektör,27,Menkul Kıymet Ödünç Piyasasına Borçlar,,0,68,68,55599,55599
+Sektör,28,Kiralama İşlemlerinden Borçlar,,12964,13003,13311,14679,29773
+Sektör,29,Faktoring İşlemlerinden Borçlar,,0,0,0,0,0
+Sektör,30,Kamu Kurum ve Kuruluşlarına Borçlar,,1742,8356,9223,10370,10370
+Sektör,31,Kredi Kartı Ödemelerinden Borçlar,,129410,214748,244528,255108,255453
+Sektör,32,İhraç Edilen Menkul Kıymetler,,1169,8393,38699,110468,233094
+Sektör,33,Diğer Borçlar,,346276,385165,399506,450391,452202
+Sektör,34,Bilanço Dışı İşlemler,,431546,432450,435083,445126,452690
+Sektör,35,Türev İşlemler (36+37+38+39+40+41),,1117894,1986779,2937289,3315814,3852898
+Sektör,36,İki Güne Kadar Valörlü Döviz Satımları,,273548,273602,273741,274099,278241
+Sektör,37,Vadeli Satım İşlemleri,,74719,184113,384072,533206,551193
+Sektör,38,Swap Satım İşlemleri,,751153,1495613,2205500,2381831,2810317
+Sektör,39,Futures Satım İşlemleri,,6801,6801,26528,30027,31547
+Sektör,40,Opsiyon İşlemleri (Yükümlülük),,7035,20372,34519,58515,68929
+Sektör,41,Türev İşlemlerden Diğer Borçlar,,4638,6279,12930,38135,112672
+Sektör,42,TOPLAM YÜKÜMLÜLÜKLER  (19+….+35),bold,4805477,6949963,9185190,10763373,12817690
+Sektör,43,Vade Dilimlerine Göre Net Likidite Açığı / Fazlası,bold,2348815,2118259,2115609,4076172,7219178
+Sektör,44,Likidite Yeterlilik Oranı,bold,149,130,123,138,156
