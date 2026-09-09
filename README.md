@@ -73,6 +73,23 @@ pip install -r requirements.txt
 
 ## Usage
 
+### MIA Agent
+
+The agent layer uses the OpenAI-compatible MIA endpoint from Kloudeks and
+keeps execution of analytics tools local against DuckDB. Add `MIA_API_KEY`
+to `.env` (never commit the real key), then build the gold database and ask a
+question:
+
+```
+python -m src.gold.build_gold
+python agent.py "2021-2026 arasında konut kredileri ile faiz oranları nasıl değişti?"
+```
+
+The first agent iteration exposes read-only Lakehouse queries, robust anomaly
+detection, period-over-period change detection, and correlation analysis. A
+correlation is explicitly reported as correlation, not causality. Web URL/PDF
+and causality tools are planned next.
+
 ```
 # Single collector, safe/fast test mode (2021-01, tables 1-3):
 python -m src.collectors.bddk_monthly --mode test
