@@ -26,7 +26,7 @@ from config.settings import (
     FULL_START_YEAR, FULL_START_MONTH, FULL_END_YEAR, FULL_END_MONTH,
 )
 from config.evds_series import SERIES
-from src.common.logging_setup import get_logger
+from src.common.logging_setup import get_logger, log_stats_summary
 
 logger = get_logger("evds_silver")
 
@@ -102,11 +102,7 @@ def run() -> dict:
             logger.warning(f"Bronze missing, skipped: {code}")
             stats["empty_or_missing"] += 1
 
-    logger.info("=" * 50)
-    logger.info("SILVER PARSE SUMMARY (evds)")
-    logger.info(f"Newly parsed  : {stats['parsed']}")
-    logger.info(f"Empty/missing : {stats['empty_or_missing']}")
-    logger.info("=" * 50)
+    log_stats_summary(logger, "evds", stats)
     return stats
 
 

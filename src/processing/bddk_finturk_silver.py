@@ -23,7 +23,7 @@ from config.settings import (
     TEST_FINTURK_DONEM, TEST_FINTURK_TABLE_IDS,
     quarter_range,
 )
-from src.common.logging_setup import get_logger
+from src.common.logging_setup import get_logger, log_stats_summary
 from src.common.jqgrid import get_columns_and_rows, rows_to_records
 
 logger = get_logger("bddk_finturk_silver")
@@ -74,12 +74,7 @@ def run(donems, table_ids: list) -> dict:
                 logger.warning(f"Table empty or bronze missing: Period={donem} T{table_id}")
                 stats["empty_or_missing"] += 1
 
-    logger.info("=" * 50)
-    logger.info("SILVER PARSE SUMMARY (bddk_finturk)")
-    logger.info(f"Newly parsed      : {stats['parsed']}")
-    logger.info(f"Already existed   : {stats['skipped_exists']}")
-    logger.info(f"Empty/missing     : {stats['empty_or_missing']}")
-    logger.info("=" * 50)
+    log_stats_summary(logger, "bddk_finturk", stats)
     return stats
 
 
