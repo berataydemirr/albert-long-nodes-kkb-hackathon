@@ -1,12 +1,27 @@
 """Tool-calling conversation loop for the MIA hackathon agent.
 
-Every round is logged (model call, tool calls + results, round number)
-so a wrong/stuck answer can be traced back to which tool call caused it,
-without re-running the whole thing with print statements added by hand.
+Every round is logged (model call, tool calls + results, round number,
+token usage) so a wrong/stuck answer can be traced back to which tool
+call caused it, without re-running the whole thing with print
+statements added by hand.
+
+Robustness added on top of the first working version (see agentic-
+harness-berat branch history):
+  - retry with exponential backoff on transient API errors (429/5xx/
+    timeout/connection) - MIA is a shared hackathon endpoint and DOES
+    return these under load, confirmed by the openai SDK's own error
+    types being reachable here, not hypothetical.
+  - per-round token usage logged - lets you see context growth before
+    it silently hits the model's context limit.
+  - tool output size guard - a wide lakehouse_query result can be large
+    enough in JSON form to eat a big chunk of context across a few
+    rounds; truncated with a clear marker instead of growing unbounded.
 """
 
 import json
 import time
+
+import openai
 
 from config.settings import MIA_CHAT_MODEL
 from src.agent.mia_client import get_client
@@ -23,6 +38,43 @@ kaynak tablosunu, seriyi, dönemi ve gerekiyorsa forward-fill veya birim
 belirsizliğini açıkça belirt. Veri yetersizse uydurma; eksikliği söyle.
 Yanıtı Türkçe, kısa ama kanıtlı ver."""
 
+MODEL_CALL_MAX_ATTEMPTS = 3
+MODEL_CALL_BACKOFF_BASE_SEC = 2.0
+TOOL_OUTPUT_MAX_CHARS = 12_000
+RETRYABLE_ERRORS = (openai.RateLimitError, openai.APIConnectionError, openai.APITimeoutError, openai.InternalServerError)
+
+
+def _call_model(client, messages: list) -> "openai.types.chat.ChatCompletion":
+    """Model call with exponential backoff on transient errors. A 400
+    (bad request - e.g. a malformed tool schema) is NOT retried, since
+    retrying an malformed request just fails the same way 3 times slower;
+    only errors that are plausibly transient are."""
+    last_exc = None
+    for attempt in range(1, MODEL_CALL_MAX_ATTEMPTS + 1):
+        try:
+            return client.chat.completions.create(
+                model=MIA_CHAT_MODEL,
+                messages=messages,
+                tools=TOOL_SCHEMAS,
+                tool_choice="auto",
+                temperature=0.1,
+            )
+        except RETRYABLE_ERRORS as exc:
+            last_exc = exc
+            wait = MODEL_CALL_BACKOFF_BASE_SEC * (2 ** (attempt - 1))
+            logger.warning(f"_call_model: attempt {attempt}/{MODEL_CALL_MAX_ATTEMPTS} failed ({type(exc).__name__}: {exc}), retrying in {wait:.1f}s")
+            if attempt < MODEL_CALL_MAX_ATTEMPTS:
+                time.sleep(wait)
+    logger.error(f"_call_model: all {MODEL_CALL_MAX_ATTEMPTS} attempts failed")
+    raise last_exc
+
+
+def _truncate_tool_output(output: str, tool_name: str) -> str:
+    if len(output) <= TOOL_OUTPUT_MAX_CHARS:
+        return output
+    logger.warning(f"_truncate_tool_output: '{tool_name}' output {len(output)} chars > {TOOL_OUTPUT_MAX_CHARS}, truncating")
+    return output[:TOOL_OUTPUT_MAX_CHARS] + f'... [TRUNCATED: {len(output) - TOOL_OUTPUT_MAX_CHARS} more chars cut - narrow the query, e.g. add a WHERE/LIMIT]"}}'
+
 
 def ask(question: str, max_rounds: int = 8, return_trace: bool = False):
     """return_trace=True also returns the round-by-round tool-call trace
@@ -37,15 +89,10 @@ def ask(question: str, max_rounds: int = 8, return_trace: bool = False):
     for round_no in range(1, max_rounds + 1):
         logger.info(f"ask: round {round_no}/{max_rounds}, calling model={MIA_CHAT_MODEL}")
         t0 = time.monotonic()
-        response = client.chat.completions.create(
-            model=MIA_CHAT_MODEL,
-            messages=messages,
-            tools=TOOL_SCHEMAS,
-            tool_choice="auto",
-            temperature=0.1,
-        )
+        response = _call_model(client, messages)
         elapsed = time.monotonic() - t0
-        logger.info(f"ask: round {round_no} model call took {elapsed:.2f}s")
+        usage = getattr(response, "usage", None)
+        logger.info(f"ask: round {round_no} model call took {elapsed:.2f}s, tokens={usage}")
 
         message = response.choices[0].message
         messages.append(message.model_dump(exclude_none=True) if hasattr(message, "model_dump") else message)
@@ -61,6 +108,7 @@ def ask(question: str, max_rounds: int = 8, return_trace: bool = False):
             entry = {"round": round_no, "name": call.function.name, "arguments": call.function.arguments, "error": None}
             try:
                 output = execute_tool(call.function.name, call.function.arguments)
+                output = _truncate_tool_output(output, call.function.name)
             except Exception as exc:
                 logger.warning(f"ask: tool '{call.function.name}' failed: {exc}")
                 output = json.dumps({"error": str(exc)}, ensure_ascii=False)
