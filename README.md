@@ -92,6 +92,19 @@ not causality. Web URL/PDF and causality tools are planned next. Web search
 uses DuckDuckGo by default with no key; set `WEB_SEARCH_PROVIDER=tavily` and
 `TAVILY_API_KEY` in `.env` to use Tavily instead.
 
+### Browser UI
+
+With `MIA_API_KEY` configured in `.env`, run the local UI and open the URL
+printed by Uvicorn (normally `http://127.0.0.1:8000`):
+
+```
+uvicorn web_app:app --reload
+```
+
+Ask a current-information question such as “TCMB'nin güncel politika faizi
+nedir? Kaynaklarıyla ver.” The agent can select `web_search`; inspect the
+source URLs it returns. The UI is local-only and does not expose API keys.
+
 ```
 # Single collector, safe/fast test mode (2021-01, tables 1-3):
 python -m src.collectors.bddk_monthly --mode test
