@@ -105,8 +105,9 @@ python -m src.collectors.tuik
 python -m src.processing.tuik_silver
 
 # Gold layer (network-free, reads only from data/silver/):
-python -m src.gold.scan_cumulative   # which BDDK Monthly line items are YTD-cumulative (writes a report)
+python -m src.gold.scan_cumulative   # which line items (Monthly/Weekly/FinTurk) are YTD-cumulative (writes 3 reports)
 python -m src.gold.build_gold        # builds data/gold/lakehouse.duckdb
+python -m src.gold.check_freshness   # does gold coverage reach the target end date, any stale silver files
 ```
 
 ## Known Quirks
@@ -177,39 +178,41 @@ collector code**:
   A 12th (gold price) was found and collected but deliberately excluded
   from the gold layer for data-quality reasons - see `docs/gold_schema.md`.
 - TUIK SDMX API - authentication flow implemented per the official docs;
-  one labor-force/unemployment series added (no housing data available
-  in this catalog, confirmed).
+  labor-force/unemployment and life-expectancy series added (no housing
+  dataflow in this catalog, confirmed; no direct "saglik"/hospital
+  dataflow either, but life expectancy satisfies the "not just finance"
+  requirement - see `docs/gold_schema.md`).
 - A background full backfill (2021-2026, all BDDK sources) ran to
   completion with zero errors logged.
-- **Gold layer (first pass)**: frequency alignment (daily/weekly/
-  quarterly -> monthly), cumulative-series detection+correction, and a
-  DuckDB build (`data/gold/lakehouse.duckdb`) - see `docs/gold_schema.md`
-  for the full table reference, what's in it, and what's deliberately
-  left out. Currently covers: all 11 EVDS series, TUIK unemployment,
-  BDDK Monthly's housing-loan line, BDDK Weekly's housing-loan line
-  (reclassified from stock to flow after the data showed it doesn't
-  behave like a balance), and BDDK FinTurk's province-level loan data
-  (both a national total and the first regional dimension in the gold
-  layer). Verified end to end: the housing-credit demo scenario from
-  the hackathon brief's own worked example (slides 11-12) reproduces
-  correctly, including CPI-deflated ("enflasyondan arındırılmış")
-  values.
+- **Gold layer**: frequency alignment (daily/weekly/quarterly ->
+  monthly), cumulative-series detection+correction (now scanned across
+  all 3 BDDK sources - Monthly/Weekly/FinTurk, not just Monthly), a
+  data-freshness check (`src/gold/check_freshness.py`, wired into
+  `agent_controller.py`), and a DuckDB build - see `docs/gold_schema.md`
+  for the full table reference. Covers: all 11 EVDS series, TUIK
+  unemployment + life expectancy, 4 BDDK Monthly lines (housing credit,
+  total loans, total deposits, capital adequacy ratio), BDDK Weekly's
+  housing-loan line (reclassified stock -> flow after the data showed
+  it doesn't behave like a balance), and BDDK FinTurk's province-level
+  loan data (national total + first regional dimension). Verified end
+  to end: the housing-credit demo scenario from the hackathon brief's
+  own worked example (slides 11-12) reproduces correctly, including
+  CPI-deflated values.
 
 **Still pending** (see `docs/gold_schema.md` "Sıradaki adımlar" for the
 full list):
-- Most BDDK Monthly (16 of 17 tables), BDDK Weekly (8 of 9 tables), and
-  BDDK FinTurk (6 of 7 tables) line items haven't been pulled into the
-  gold layer yet - only the housing-credit theme has been processed
-  end to end so far. (Every BDDK Monthly table now has a real name/unit
-  in `BDDK_MONTHLY_TABLES`, pulled from the bronze JSON's own `caption`
-  field rather than guessed - the remaining work is wiring specific
-  line items into `gold_fact_long`, not naming them.)
-- Cumulative-series scanning (`scan_cumulative.py`) has only run against
-  BDDK Monthly; BDDK Weekly and FinTurk haven't been checked.
+- Most BDDK Monthly (13 of 17 tables), BDDK Weekly (8 of 9 tables), and
+  BDDK FinTurk (6 of 7 tables) line items still haven't been pulled into
+  the gold layer - which ones matter is a product decision, not an
+  engineering blocker (every table now has a real name/unit in
+  `BDDK_MONTHLY_TABLES`, and `build_bddk_monthly_item_facts()` makes
+  adding one a few lines of code).
+- A second health series (province-level crude birth rate,
+  `DF_DOGUM_KDH_C`) was investigated but not resolved - its 19-dimension
+  key needs one more dimension's real value, not a guessed one.
 - Test coverage is limited to the network-free pure functions in
-  `src/gold/` (`pytest tests/ -v`, also run in CI) - the collectors,
-  silver converters and `build_gold.py`'s own I/O aren't covered.
-- Health-data source (to demonstrate the "not just finance" requirement)
-  - not yet researched.
-- The agentic engine itself (Cloudeks/LLM integration, tool routing,
-  causality/anomaly/change-detection tools) - next phase.
+  `src/gold/` and `src/agent/tools.py` (`pytest tests/ -v`, also run in
+  CI) - the collectors, silver converters and `build_gold.py`'s own I/O
+  aren't covered.
+- The agentic engine (Cloudeks/LLM integration, tool routing) has a
+  first working version - see the `agentic-harness-berat` branch.
