@@ -14,6 +14,18 @@ from datetime import datetime
 
 from config.settings import LOGS_DIR
 
+# Windows' console defaults to a locale codepage (e.g. cp1254) that can't
+# encode every character a log line or print() might contain - hit live:
+# a model response with '->' (U+2192) crashed with UnicodeEncodeError,
+# losing the whole output, when called via a raw script that never
+# imported agent.py (whose own fix only covers its own entry point).
+# Fixed here instead, at the one import every module in this project
+# already goes through, so it applies regardless of entry point - the
+# console handler created below binds to this same (now-reconfigured)
+# sys.stdout object.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 
 def get_logger(name: str, console_level: int = logging.INFO, file_level: int = logging.DEBUG) -> logging.Logger:
     logger = logging.getLogger(name)

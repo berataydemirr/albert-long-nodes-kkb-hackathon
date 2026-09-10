@@ -25,6 +25,9 @@ SERIES_CATALOG_QUERY = """
 """
 
 FORBIDDEN_TOKENS = ("insert ", "update ", "delete ", "drop ", "alter ", "create ", "copy ", "attach ", "pragma ", "call ")
+MAX_ROWS = 200
+
+_SQL_COMMENT_RE = re.compile(r"--[^\n]*|/\*.*?\*/", re.DOTALL)
 
 
 def _db() -> duckdb.DuckDBPyConnection:
@@ -69,45 +72,72 @@ def _referenced_tables(sql: str) -> set[str]:
     return {m.group(1).strip('"') for m in re.finditer(r"\b(?:from|join)\s+([a-zA-Z_][a-zA-Z0-9_\"]*)", sql, re.IGNORECASE)}
 
 
+def _cte_names(sql: str) -> set[str]:
+    """Names a 'WITH x AS (...), y AS (...)' clause defines - these are
+    NOT real database tables, so _referenced_tables() correctly finds
+    them after a later FROM/JOIN, but the known-table guardrail must not
+    reject them as unknown just because they're not in SHOW TABLES."""
+    names = set()
+    with_match = re.search(r"^\s*with\s+([a-zA-Z_][a-zA-Z0-9_]*)\s+as\s*\(", sql, re.IGNORECASE)
+    if with_match:
+        names.add(with_match.group(1))
+    names.update(m.group(1) for m in re.finditer(r",\s*([a-zA-Z_][a-zA-Z0-9_]*)\s+as\s*\(", sql, re.IGNORECASE))
+    return names
+
+
 def lakehouse_query(sql: str) -> dict:
     """Execute one read-only SELECT query and return rows plus metadata.
 
-    Guardrail, in order:
+    Guardrail, in order (checked against the SQL with comments stripped
+    first - a '--'/'/* */' comment can't execute, so it must not be able
+    to either trigger a false rejection by containing a dangerous-looking
+    word, or hide a real second statement from the semicolon check):
       1. single statement only (no ';' other than an optional trailing one)
-      2. must start with SELECT, no DDL/DML keywords anywhere
+      2. must start with SELECT or WITH (a CTE), no DDL/DML keywords anywhere
       3. every referenced table must exist in the gold database (SHOW TABLES)
-      4. LIMIT 200 added if the query doesn't specify one
+      4. result is HARD-capped at MAX_ROWS regardless of what LIMIT (if
+         any) the query itself specifies - a resource/context-size
+         guarantee, not just a default for a query that forgot one
     Every rejection is logged with the reason and the original SQL, so a
     bad query from the model is traceable instead of a silent 'it just
     didn't answer'."""
     logger.info(f"lakehouse_query: received sql={sql!r}")
-    normalized = re.sub(r"\s+", " ", sql.strip()).lower()
+    if not isinstance(sql, str):
+        logger.warning(f"lakehouse_query: rejected (sql is not a string): {sql!r}")
+        raise ValueError("sql must be a string.")
+
+    stripped_of_comments = _SQL_COMMENT_RE.sub(" ", sql)
+    normalized = re.sub(r"\s+", " ", stripped_of_comments.strip()).lower()
 
     inner_sql = normalized[:-1] if normalized.endswith(";") else normalized
     if ";" in inner_sql:
         logger.warning(f"lakehouse_query: rejected (multiple statements): {sql!r}")
         raise ValueError("Lakehouse tool only permits a single SELECT statement (no ';' inside the query).")
 
-    if not normalized.startswith("select") or any(token in normalized for token in FORBIDDEN_TOKENS):
-        logger.warning(f"lakehouse_query: rejected (not a plain SELECT): {sql!r}")
-        raise ValueError("Lakehouse tool only permits read-only SELECT queries.")
+    if not (normalized.startswith("select") or normalized.startswith("with")) or any(token in normalized for token in FORBIDDEN_TOKENS):
+        logger.warning(f"lakehouse_query: rejected (not a plain SELECT/CTE): {sql!r}")
+        raise ValueError("Lakehouse tool only permits read-only SELECT queries (a leading WITH/CTE is fine).")
 
     con = _db()
     try:
         known_tables = {row[0] for row in con.execute("SHOW TABLES").fetchall()}
-        referenced = _referenced_tables(sql)
-        unknown = referenced - known_tables
+        referenced = _referenced_tables(stripped_of_comments)
+        unknown = referenced - known_tables - _cte_names(stripped_of_comments)
         if unknown:
             logger.warning(f"lakehouse_query: rejected (unknown table(s) {unknown}): {sql!r}")
             raise ValueError(f"Unknown table(s) referenced: {sorted(unknown)}. Known tables: {sorted(known_tables)}")
 
-        if " limit " not in f" {normalized} ":
-            sql = f"{sql.rstrip(';')} LIMIT 200"
-            logger.debug(f"lakehouse_query: no LIMIT given, appended -> {sql!r}")
-
         frame = con.execute(sql).fetchdf()
-        logger.info(f"lakehouse_query: success, row_count={len(frame)}, columns={list(frame.columns)}")
-        return {"columns": list(frame.columns), "rows": frame.where(frame.notna(), None).to_dict("records"), "row_count": len(frame)}
+        truncated = len(frame) > MAX_ROWS
+        if truncated:
+            logger.warning(f"lakehouse_query: result had {len(frame)} rows, hard-capping to {MAX_ROWS}")
+            frame = frame.head(MAX_ROWS)
+
+        logger.info(f"lakehouse_query: success, row_count={len(frame)}, truncated={truncated}, columns={list(frame.columns)}")
+        result = {"columns": list(frame.columns), "rows": frame.where(frame.notna(), None).to_dict("records"), "row_count": len(frame)}
+        if truncated:
+            result["truncated"] = True
+        return result
     except Exception:
         logger.exception(f"lakehouse_query: execution failed for sql={sql!r}")
         raise
@@ -156,22 +186,33 @@ def change_detection(periods: list[str], values: list[float]) -> dict:
 def correlation_analysis(x_periods: list[str], x_values: list[float], y_periods: list[str], y_values: list[float]) -> dict:
     """Measure aligned Pearson correlation; explicitly not a causal claim."""
     logger.info(f"correlation_analysis start: n_x={len(x_values)}, n_y={len(y_values)}")
-    left = pd.DataFrame({"period": x_periods, "x": x_values})
-    right = pd.DataFrame({"period": y_periods, "y": y_values})
-    joined = left.merge(right, on="period").dropna()
+    joined = _align_series(x_periods, x_values, y_periods, y_values)
     if len(joined) < 3:
         logger.error(f"correlation_analysis: only {len(joined)} shared periods")
         raise ValueError("At least 3 shared periods are required")
-    result = {"shared_periods": len(joined), "pearson_correlation": float(joined["x"].corr(joined["y"])), "warning": "Correlation is not proof of causality."}
+    corr = joined["x"].corr(joined["y"])
+    # A zero-variance (constant) series has an undefined correlation -
+    # pandas/numpy return NaN, and Python's json.dumps happily emits the
+    # non-standard 'NaN' token for it, which is not valid JSON and can
+    # break the model-facing tool response. None is the honest, JSON-safe
+    # way to say "undefined here".
+    pearson = None if pd.isna(corr) else float(corr)
+    result = {"shared_periods": len(joined), "pearson_correlation": pearson, "warning": "Correlation is not proof of causality."}
     logger.info(f"correlation_analysis done: {result}")
     return result
 
 
 def _align_series(x_periods: list[str], x_values: list[float], y_periods: list[str], y_values: list[float]) -> pd.DataFrame:
-    """Shared helper: joins two named series on Period, drops rows missing either side."""
+    """Shared helper: joins two named series on Period, drops rows missing
+    either side. Deduplicates each side on Period (keeping the first
+    occurrence) BEFORE merging - without this, a duplicate period on
+    either side turns a plain join into a many-to-many cross join
+    (2 x 2 duplicate periods silently becomes 4 merged rows for what
+    should be 2 real observations), inflating shared_periods and every
+    downstream statistic without raising any error."""
     logger.debug(f"_align_series input: len(x)={len(x_values)}, len(y)={len(y_values)}")
-    left = pd.DataFrame({"period": x_periods, "x": x_values})
-    right = pd.DataFrame({"period": y_periods, "y": y_values})
+    left = pd.DataFrame({"period": x_periods, "x": x_values}).drop_duplicates(subset="period", keep="first")
+    right = pd.DataFrame({"period": y_periods, "y": y_values}).drop_duplicates(subset="period", keep="first")
     joined = left.merge(right, on="period").dropna().sort_values("period").reset_index(drop=True)
     logger.debug(f"_align_series output: shared_periods={len(joined)}, first={joined['period'].iloc[0] if len(joined) else None}, last={joined['period'].iloc[-1] if len(joined) else None}")
     return joined
