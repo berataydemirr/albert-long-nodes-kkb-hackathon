@@ -107,6 +107,36 @@ Sonuc `benchmarks/last_run_report.json`'a yazilir. Iki farkli harness/model
 config'ini kiyaslamak icin: ayni soru setini ikisine de calistirip bu 6
 sayiyi karsilastirin.
 
+Tool'lar ayrica adversarial edge-case'lerle sinandi (`tests/test_agent_tools_stress.py`,
+`pytest tests/test_agent_tools_stress.py -v`): SQL injection varyantlari
+(sistem tablosu okuma, dosya okuma, stacked statement, yorum icine
+gizleme), NaN/sifir-varyans girdiler, tekrarli donem merge patlamalari.
+6 gercek bug bulunup duzeltildi - detaylar commit mesajinda.
+
+## Rapor & Dashboard (Faz D/E)
+
+```
+pip install -r requirements.txt   # streamlit + plotly eklendi
+streamlit run dashboard/app.py
+```
+
+Iki sekme:
+- **Soru Sor**: dogal dilde soru -> MIA agent -> cevap + kaynak gosterimi
+  (`src/report/citations.py`: hangi Seri_Kod/tablo kullanildi, tool basarisiz
+  oldu mu, model hic tool cagirmadan mi cevap verdi - "ungrounded" cevaplar
+  acikca isaretlenir) + ilgili seriler icin otomatik Plotly grafigi +
+  HTML rapor indirme (`src/report/export.py`, self-contained, tek dosya).
+- **Genel Bakis**: MIA API anahtari olmadan da calisan sabit KPI paneli -
+  konut kredisi nominal/reel, faiz->konut kredisi nedensellik testi
+  (lag grafik + Granger p-degerleri), secilebilir seri uzerinde anomali
+  taramasi, tam seri katalogu.
+
+`src/report/` de ayni sekilde hard-test edildi (`tests/test_report.py`,
+27 test): bos/eksik veri, HTML injection (model cevabinda `<script>` olsa
+bile rapora enjekte edilmiyor - `html.escape` ile kaciriliyor), tek
+noktali seri, uyusmayan uzunluklar - hicbiri crash etmiyor, hepsi
+"veri yok" placeholder'iyla gracefully devam ediyor.
+
 ## Usage
 
 ```

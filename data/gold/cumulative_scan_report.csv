@@ -300,10 +300,10 @@ tablo_9,TP Mevduat / Katılım Fonları - Yurt İçi Yerleşik,False,0.933,0.0,6
 tablo_9,Toplam Mevduat,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
 tablo_9,Toplam Mevduat - Yurt Dışı Yerleşik,False,0.95,0.0,66,5,fails_monotonic_or_reset_test
 tablo_9,Toplam Mevduat - Yurt İçi Yerleşik,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
-tablo_9,a) Gerçek Kişiler,False,0.5,0.0,396,5,fails_monotonic_or_reset_test
-tablo_9,b) Resmi Kuruluşlar,False,0.432,0.2,198,5,fails_monotonic_or_reset_test
-tablo_9,b) Ticari ve Diğer Kuruluşlar,False,0.609,0.2,198,5,fails_monotonic_or_reset_test
-tablo_9,c) Ticari ve Diğer Kuruluşlar,False,0.51,0.2,198,5,fails_monotonic_or_reset_test
+tablo_9,a) Gerçek Kişiler,False,0.374,0.0,396,5,fails_monotonic_or_reset_test
+tablo_9,b) Resmi Kuruluşlar,False,0.312,0.0,198,5,fails_monotonic_or_reset_test
+tablo_9,b) Ticari ve Diğer Kuruluşlar,False,0.656,0.0,198,5,fails_monotonic_or_reset_test
+tablo_9,c) Ticari ve Diğer Kuruluşlar,False,0.427,0.0,198,5,fails_monotonic_or_reset_test
 tablo_10,Döviz Tevdiat Hesabı / Katılım Fonları - Yurt Dışı Yerleşik,False,0.817,0.0,66,5,fails_monotonic_or_reset_test
 tablo_10,Döviz Tevdiat Hesabı / Katılım Fonları - Yurt İçi Yerleşik,False,0.817,0.0,66,5,fails_monotonic_or_reset_test
 tablo_10,Kıymetli Maden Depo Hesapları - Yurt Dışı Yerleşik,False,0.883,0.0,66,5,fails_monotonic_or_reset_test
@@ -313,10 +313,10 @@ tablo_10,TP Mevduat / Katılım Fonları - Yurt Dışı Yerleşik,False,0.85,0.0
 tablo_10,TP Mevduat / Katılım Fonları - Yurt İçi Yerleşik,False,0.933,0.0,66,5,fails_monotonic_or_reset_test
 tablo_10,Toplam Mevduat - Yurt Dışı Yerleşik,False,0.95,0.0,66,5,fails_monotonic_or_reset_test
 tablo_10,Toplam Mevduat - Yurt İçi Yerleşik,False,1.0,0.0,66,5,fails_monotonic_or_reset_test
-tablo_10,a) Gerçek Kişiler,False,0.5,0.0,396,5,fails_monotonic_or_reset_test
-tablo_10,b) Resmi Kuruluşlar,False,0.432,0.2,198,5,fails_monotonic_or_reset_test
-tablo_10,b) Ticari ve Diğer Kuruluşlar,False,0.609,0.2,198,5,fails_monotonic_or_reset_test
-tablo_10,c) Ticari ve Diğer Kuruluşlar,False,0.51,0.2,198,5,fails_monotonic_or_reset_test
+tablo_10,a) Gerçek Kişiler,False,0.374,0.0,396,5,fails_monotonic_or_reset_test
+tablo_10,b) Resmi Kuruluşlar,False,0.312,0.0,198,5,fails_monotonic_or_reset_test
+tablo_10,b) Ticari ve Diğer Kuruluşlar,False,0.656,0.0,198,5,fails_monotonic_or_reset_test
+tablo_10,c) Ticari ve Diğer Kuruluşlar,False,0.427,0.0,198,5,fails_monotonic_or_reset_test
 tablo_11,"Bankalar, Yurt Dışı Merkez ve Şubeler (Varlık)",False,0.65,0.0,66,5,fails_monotonic_or_reset_test
 tablo_11,"Bankalar, Yurt Dışı Merkez ve Şubeler (Yükümlülük)",False,0.817,0.0,66,5,fails_monotonic_or_reset_test
 tablo_11,Bilanço Dışı İşlemler,False,0.95,0.0,66,5,fails_monotonic_or_reset_test
