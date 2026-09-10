@@ -100,6 +100,15 @@ document. Images are OCR'd locally with Tesseract when available; set
 `WEB_URL_OCR_LANG=tur+eng` after installing Turkish language data. PDFs with
 no text layer are reported honestly as needing OCR.
 
+To test the agent in a local browser:
+
+```
+uvicorn web_app:app --reload
+```
+
+Open `http://127.0.0.1:8000`, then paste a public document URL into a
+question, for example: `https://example.org/report.pdf içeriğini özetle.`
+
 ```
 # Single collector, safe/fast test mode (2021-01, tables 1-3):
 python -m src.collectors.bddk_monthly --mode test
