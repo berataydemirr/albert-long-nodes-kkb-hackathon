@@ -25,6 +25,7 @@ import openai
 
 from config.settings import MIA_CHAT_MODEL
 from src.agent.mia_client import get_client
+from src.agent.router import Route, route_question
 from src.agent.tools import TOOL_SCHEMAS, execute_tool
 from src.common.logging_setup import get_logger
 
@@ -44,7 +45,7 @@ TOOL_OUTPUT_MAX_CHARS = 12_000
 RETRYABLE_ERRORS = (openai.RateLimitError, openai.APIConnectionError, openai.APITimeoutError, openai.InternalServerError)
 
 
-def _call_model(client, messages: list) -> "openai.types.chat.ChatCompletion":
+def _call_model(client, messages: list, tool_schemas: list[dict]) -> "openai.types.chat.ChatCompletion":
     """Model call with exponential backoff on transient errors. A 400
     (bad request - e.g. a malformed tool schema) is NOT retried, since
     retrying an malformed request just fails the same way 3 times slower;
@@ -55,7 +56,7 @@ def _call_model(client, messages: list) -> "openai.types.chat.ChatCompletion":
             return client.chat.completions.create(
                 model=MIA_CHAT_MODEL,
                 messages=messages,
-                tools=TOOL_SCHEMAS,
+                tools=tool_schemas,
                 tool_choice="auto",
                 temperature=0.1,
             )
@@ -82,6 +83,23 @@ def ask(question: str, max_rounds: int = 8, return_trace: bool = False):
     agent_benchmark.py to score tool-selection accuracy and hallucinated
     Seri_Kod values without re-parsing the log file."""
     logger.info(f"ask: question={question!r}, max_rounds={max_rounds}")
+    decision = route_question(question, TOOL_SCHEMAS)
+    logger.info(
+        "ask: route=%s, available=%s, allowed_tools=%s, reason=%s",
+        decision.route.value, decision.available, decision.allowed_tool_names, decision.reason,
+    )
+    if decision.route is Route.REFUSE:
+        answer = f"Bu isteği işleyemem: {decision.reason}"
+        return (answer, []) if return_trace else answer
+    if not decision.available:
+        answer = f"Bu istek {decision.route.value} yeteneği gerektiriyor; {decision.reason}"
+        return (answer, []) if return_trace else answer
+
+    allowed_names = set(decision.allowed_tool_names)
+    routed_tool_schemas = [
+        schema for schema in TOOL_SCHEMAS
+        if schema["function"]["name"] in allowed_names
+    ]
     client = get_client()
     messages = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": question}]
     trace = []
@@ -89,7 +107,7 @@ def ask(question: str, max_rounds: int = 8, return_trace: bool = False):
     for round_no in range(1, max_rounds + 1):
         logger.info(f"ask: round {round_no}/{max_rounds}, calling model={MIA_CHAT_MODEL}")
         t0 = time.monotonic()
-        response = _call_model(client, messages)
+        response = _call_model(client, messages, routed_tool_schemas)
         elapsed = time.monotonic() - t0
         usage = getattr(response, "usage", None)
         logger.info(f"ask: round {round_no} model call took {elapsed:.2f}s, tokens={usage}")
