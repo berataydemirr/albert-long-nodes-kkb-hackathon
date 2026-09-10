@@ -86,9 +86,11 @@ python agent.py "2021-2026 arasında konut kredileri ile faiz oranları nasıl d
 ```
 
 The first agent iteration exposes read-only Lakehouse queries, robust anomaly
-detection, period-over-period change detection, and correlation analysis. A
-correlation is explicitly reported as correlation, not causality. Web URL/PDF
-and causality tools are planned next.
+detection, period-over-period change detection, correlation analysis, and a
+citation-ready web search. A correlation is explicitly reported as correlation,
+not causality. Web URL/PDF and causality tools are planned next. Web search
+uses DuckDuckGo by default with no key; set `WEB_SEARCH_PROVIDER=tavily` and
+`TAVILY_API_KEY` in `.env` to use Tavily instead.
 
 ```
 # Single collector, safe/fast test mode (2021-01, tables 1-3):

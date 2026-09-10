@@ -10,6 +10,7 @@ import duckdb
 import pandas as pd
 
 from config.settings import GOLD_DIR
+from src.agent.web_search import web_search
 
 DB_PATH = GOLD_DIR / "lakehouse.duckdb"
 
@@ -101,6 +102,7 @@ TOOL_FUNCTIONS = {
     "anomaly_analysis": anomaly_analysis,
     "change_detection": change_detection,
     "correlation_analysis": correlation_analysis,
+    "web_search": web_search,
 }
 
 TOOL_SCHEMAS = [
@@ -109,6 +111,7 @@ TOOL_SCHEMAS = [
     {"type": "function", "function": {"name": "anomaly_analysis", "description": "Find robust outliers in an ordered time series.", "parameters": {"type": "object", "properties": {"periods": {"type": "array", "items": {"type": "string"}}, "values": {"type": "array", "items": {"type": "number"}}, "threshold": {"type": "number", "default": 3.0}}, "required": ["periods", "values"], "additionalProperties": False}}},
     {"type": "function", "function": {"name": "change_detection", "description": "Find the largest period-over-period percentage changes.", "parameters": {"type": "object", "properties": {"periods": {"type": "array", "items": {"type": "string"}}, "values": {"type": "array", "items": {"type": "number"}}}, "required": ["periods", "values"], "additionalProperties": False}}},
     {"type": "function", "function": {"name": "correlation_analysis", "description": "Calculate aligned Pearson correlation between two series; never call it causation.", "parameters": {"type": "object", "properties": {"x_periods": {"type": "array", "items": {"type": "string"}}, "x_values": {"type": "array", "items": {"type": "number"}}, "y_periods": {"type": "array", "items": {"type": "string"}}, "y_values": {"type": "array", "items": {"type": "number"}}}, "required": ["x_periods", "x_values", "y_periods", "y_values"], "additionalProperties": False}}},
+    {"type": "function", "function": {"name": "web_search", "description": "Search the public web for current or external information. Returns titles, snippets, source domains and URLs; snippets are not verified evidence.", "parameters": {"type": "object", "properties": {"query": {"type": "string", "description": "Specific web-search query."}, "max_results": {"type": "integer", "minimum": 1, "maximum": 10, "default": 5}}, "required": ["query"], "additionalProperties": False}}},
 ]
 
 
