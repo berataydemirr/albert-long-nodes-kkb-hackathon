@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #EEF0EA;
+  --surface: #FFFFFF;
+  --surface-2: #E2E6DD;
+  --text: #1B1F1B;
+  --text-dim: #565F58;
+  --border: #CBD1C4;
+  --bronze: #A85D2E;
+  --silver: #5E6B72;
+  --gold: #A87418;
+  --gold-soft: #F1E4C6;
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --good: #0ca30c;
+  --critical: #d03b3b;
+  --chart-grid: #d8ddd0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181A; --surface: #1C2123; --surface-2: #242B2C;
+    --text: #E9E7DD; --text-dim: #9BA59C; --border: #333B3A;
+    --bronze: #CC8149; --silver: #8FA0A5; --gold: #D9A94A; --gold-soft: #35300F;
+    --s1: #3987e5; --s2: #d95926; --good: #0ca30c; --critical: #e66767;
+    --chart-grid: #2c332c;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-text: var(--text);
+  --color-text-dim: var(--text-dim);
+  --color-border: var(--border);
+  --color-bronze: var(--bronze);
+  --color-silver: var(--silver);
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
+  --font-sans: var(--font-plex-sans);
+  --font-mono: var(--font-plex-mono);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-plex-sans), system-ui, sans-serif;
+}
+
+.mono {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}

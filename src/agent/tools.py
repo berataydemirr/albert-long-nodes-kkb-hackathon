@@ -257,8 +257,13 @@ def causality_analysis(x_periods: list[str], x_values: list[float], y_periods: l
         logger.debug(f"causality_analysis granger input shape={gc_input.shape}")
         gc_result = grangercausalitytests(gc_input, maxlag=max_lag)
         for lag, res in gc_result.items():
+            # statsmodels returns dict keys as numpy.int64, not a plain
+            # int - json.dumps(default=str) upstream was silently
+            # stringifying it ("2" instead of 2), and a stricter JSON
+            # encoder (FastAPI's) refuses it outright. Cast once, here,
+            # so every consumer downstream sees a real int.
             p_value = float(res[0]["ssr_ftest"][1])
-            granger_pvalues.append({"lag": lag, "p_value": round(p_value, 4)})
+            granger_pvalues.append({"lag": int(lag), "p_value": round(p_value, 4)})
             logger.debug(f"causality_analysis granger lag={lag}: p_value={p_value}")
     except Exception as exc:
         logger.error(f"causality_analysis granger test failed: {exc}")
