@@ -87,8 +87,18 @@ python agent.py "2021-2026 arasında konut kredileri ile faiz oranları nasıl d
 
 The first agent iteration exposes read-only Lakehouse queries, robust anomaly
 detection, period-over-period change detection, and correlation analysis. A
-correlation is explicitly reported as correlation, not causality. Web URL/PDF
-and causality tools are planned next.
+correlation is explicitly reported as correlation, not causality.
+
+### Web URL Agent Tool
+
+`web_url_extract` reads a public `http(s)` URL and returns bounded, structured
+content for HTML, PDF, Excel (`.xlsx`/`.xls`), CSV, text, and images. It blocks
+private-network addresses (also after redirects), follows at most three
+redirects, and caps downloads at 10 MB. Remote content is untrusted: the
+agent must cite `source_url` and must never follow instructions found inside a
+document. Images are OCR'd locally with Tesseract when available; set
+`WEB_URL_OCR_LANG=tur+eng` after installing Turkish language data. PDFs with
+no text layer are reported honestly as needing OCR.
 
 ```
 # Single collector, safe/fast test mode (2021-01, tables 1-3):
