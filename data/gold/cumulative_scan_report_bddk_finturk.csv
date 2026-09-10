@@ -1,0 +1,61 @@
+tablo,item,is_cumulative,monotonic_ratio,reset_ratio,n_obs,year_boundaries_checked,reason
+tablo_1,Gayrinakdi Krediler,False,1.0,0.0,22,5,fails_monotonic_or_reset_test
+tablo_1,Nakdi Krediler,False,1.0,0.0,22,5,fails_monotonic_or_reset_test
+tablo_1,Takipteki Alacaklar,False,0.938,0.0,22,5,fails_monotonic_or_reset_test
+tablo_1,Toplam Nakdi Krediler,False,1.0,0.0,22,5,fails_monotonic_or_reset_test
+tablo_2,Diğer Mevduat,False,1.0,0.0,22,5,fails_monotonic_or_reset_test
+tablo_2,Diğer Mevduat (DTH),False,0.812,0.0,22,5,fails_monotonic_or_reset_test
+tablo_2,Diğer Mevduat (TL),False,0.938,0.0,22,5,fails_monotonic_or_reset_test
+tablo_2,Tasarruf Mevduatı,False,1.0,0.0,22,5,fails_monotonic_or_reset_test
+tablo_2,Tasarruf Mevduatı (DTH),False,0.75,0.0,22,5,fails_monotonic_or_reset_test
+tablo_2,Tasarruf Mevduatı (TL),False,0.875,0.0,22,5,fails_monotonic_or_reset_test
+tablo_2,Toplam Mevduat,False,1.0,0.0,22,5,fails_monotonic_or_reset_test
+tablo_3,Bireysel Kredi Kartları,False,1.0,0.0,22,5,fails_monotonic_or_reset_test
+tablo_3,Diğer Tüketici Kredileri,False,1.0,0.0,22,5,fails_monotonic_or_reset_test
+tablo_3,Konut Kredisi,False,0.938,0.0,22,5,fails_monotonic_or_reset_test
+tablo_3,Kredili Mevduat Hesabı,False,0.938,0.0,22,5,fails_monotonic_or_reset_test
+tablo_3,Takipteki Diğer Tüketici Kredileri,False,1.0,0.0,22,5,fails_monotonic_or_reset_test
+tablo_3,Takipteki Konut Kredisi,False,0.5,0.0,22,5,fails_monotonic_or_reset_test
+tablo_3,Takipteki Taşıt Kredisi,False,0.75,0.0,22,5,fails_monotonic_or_reset_test
+tablo_3,Taşıt Kredisi,False,0.5,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Denizcilik,False,0.938,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Enerji,False,0.938,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Finansal Kuruluşlar,False,0.812,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Gayrinakdi Denizcilik,False,0.938,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Gayrinakdi Enerji,False,0.938,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Gayrinakdi Finansal Kuruluşlar,False,1.0,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Gayrinakdi Gıda Meşrubat ve Tütün,False,1.0,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Gayrinakdi Metal ve İşlenmiş Maden,False,0.812,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Gayrinakdi Tekstil ve Tekstil Ürünleri,False,1.0,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Gayrinakdi Toptan Ticaret ve Komisyonculuk,False,1.0,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Gayrinakdi Turizm,False,0.938,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Gayrinakdi Ziraat ve Balıkçılık,False,0.75,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Gayrinakdi İnşaat,False,1.0,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Gıda Meşrubat ve Tütün,False,1.0,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Metal ve İşlenmiş Maden,False,1.0,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Takipteki Denizcilik,False,0.375,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Takipteki Enerji,False,0.812,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Takipteki Finansal Kuruluşlar,False,0.688,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Takipteki Gıda Meşrubat ve Tütün,False,0.625,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Takipteki Kredi Kartları,False,0.938,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Takipteki Metal ve İşlenmiş Maden,False,0.5,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Takipteki Tekstil ve Tekstil Ürünleri,False,0.688,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Takipteki Toptan Ticaret ve Komisyonculuk,False,0.5,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Takipteki Turizm,False,0.562,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Takipteki Ziraat ve Balıkçılık,False,0.5,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Takipteki İnşaat,False,0.875,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Tekstil ve Tekstil Ürünleri,False,0.938,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Toptan Ticaret ve Komisyonculuk,False,1.0,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Turizm,False,0.875,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,Ziraat ve Balıkçılık,False,1.0,0.0,22,5,fails_monotonic_or_reset_test
+tablo_4,İnşaat,False,1.0,0.0,22,5,fails_monotonic_or_reset_test
+tablo_6,Kişi Başı Nakdi Kredi,False,1.0,0.0,22,5,fails_monotonic_or_reset_test
+tablo_6,Kişi Başı Takipteki Alacak,False,0.812,0.0,22,5,fails_monotonic_or_reset_test
+tablo_6,Kişi Başı Tasarruf Mevduatı,False,1.0,0.0,22,5,fails_monotonic_or_reset_test
+tablo_6,Kişi Başı Toplam Mevduat,False,1.0,0.0,22,5,fails_monotonic_or_reset_test
+tablo_6,Yurtiçi Şube Sayısı,False,0.812,0.0,22,5,fails_monotonic_or_reset_test
+tablo_6,Şubeye Düşen Nüfus,False,1.0,0.0,22,5,fails_monotonic_or_reset_test
+tablo_7,Altın Kredileri,False,0.812,0.0,22,5,fails_monotonic_or_reset_test
+tablo_7,Altın Mevduatı-Gerçek Kişi,False,0.875,0.0,22,5,fails_monotonic_or_reset_test
+tablo_7,Altın Mevduatı-Tüzel Kişi,False,0.875,0.0,22,5,fails_monotonic_or_reset_test
+tablo_7,Toplam Altın Mevduatı,False,0.875,0.0,22,5,fails_monotonic_or_reset_test

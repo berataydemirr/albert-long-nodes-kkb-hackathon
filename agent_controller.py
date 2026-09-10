@@ -125,6 +125,7 @@ def build_pipeline(mode: str) -> list[tuple[str, list]]:
         # a given source is missing, rather than crashing - see build_gold.py.
         ("src.gold.scan_cumulative", []),
         ("src.gold.build_gold", []),
+        ("src.gold.check_freshness", []),
     ]
 
 
