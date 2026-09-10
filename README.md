@@ -192,10 +192,9 @@ collector code**:
   (both a national total and the first regional dimension in the gold
   layer). Verified end to end: the housing-credit demo scenario from
   the hackathon brief's own worked example (slides 11-12) reproduces
-  correctly, including CPI-deflated ("enflasyondan arındırılmış")
-  values.
+  correctly, including CPI-deflated values.
 
-**Still pending** (see `docs/gold_schema.md` "Sıradaki adımlar" for the
+**Still pending** (see `docs/gold_schema.md` "Next steps" for the
 full list):
 - Most BDDK Monthly (16 of 17 tables), BDDK Weekly (8 of 9 tables), and
   BDDK FinTurk (6 of 7 tables) line items haven't been pulled into the
