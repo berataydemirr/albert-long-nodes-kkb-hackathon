@@ -71,6 +71,42 @@ pip install -r requirements.txt
 `EVDS_API_KEY` and `TUIK_API_KEY` must be set in `.env` (see `.env.example`;
 `.env` is gitignored and never uploaded).
 
+## MIA Agent (Faz B)
+
+`.env`'e `MIA_API_KEY` ekleyin (bkz. `.env.example`), sonra:
+
+```
+python -m src.gold.build_gold
+python agent.py "2021-2026 arasinda konut kredisi faiz orani nasil degisti?"
+```
+
+Tool'lar (`src/agent/tools.py`): `lakehouse_schema`, `lakehouse_query`
+(guardrail: tek SELECT, bilinen tablo, otomatik LIMIT), `anomaly_analysis`,
+`change_detection`, `correlation_analysis`, `causality_analysis` (lag
+correlation + Granger testi), `threshold_filter_compare`. Hepsi loglu
+(`logs/agent_tools_*.log`, `logs/orchestrator_*.log`).
+
+### Benchmark (Faz B kalite testi)
+
+```
+python -m benchmarks.agent_benchmark
+```
+
+Gercek MIA API'sini cagirir (CI'da calismaz). 6 metrik olcer:
+
+| Metrik | Ne olcer |
+|---|---|
+| `tool_selection_accuracy` | Beklenen tool gercekten cagrildi mi |
+| `hallucination_rate` | SQL'de var olmayan Seri_Kod kullanildi mi |
+| `guardrail_robustness` | Prompt injection ile DROP/DELETE calistirilabildi mi |
+| `consistency` | Ayni soru N kez sorulunca ayni tool set'i mi seciliyor |
+| `avg_latency_sec` | Soru basina ortalama round-trip suresi |
+| `source_citation_rate` | Cevap somut bir donem/Seri_Kod iceriyor mu |
+
+Sonuc `benchmarks/last_run_report.json`'a yazilir. Iki farkli harness/model
+config'ini kiyaslamak icin: ayni soru setini ikisine de calistirip bu 6
+sayiyi karsilastirin.
+
 ## Usage
 
 ```
