@@ -1,7 +1,7 @@
 # Gold Katmanı — Şema Notu
 
 `python -m src.gold.build_gold` çalıştırıldığında `data/gold/lakehouse.duckdb`
-içine 4 tablo yazılır. Lakehouse Tool bu tabloları sorgulayacak.
+içine 5 tablo yazılır. Lakehouse Tool bu tabloları sorgulayacak.
 
 ## ⚠️ Kritik: CSV okuma/yazmada her zaman `encoding="utf-8"`
 
@@ -41,24 +41,32 @@ Genel amaçlı, doğal-dil→SQL tool'unun asıl hedefleneceği tablo.
 | `Tip` | `stock` (dönem sonu seviye) / `flow` (aya ait akış) / `flow_quarter_ffill` (çeyrek sonundan ay'a forward-fill edilmiş, gerçek aylık gözlem değil) |
 | `Kaynak_Dosya` | İzlenebilirlik: hangi silver dosyasından geldi |
 
-**15 seri, 990 satır** (2021-01 → 2026-06), 15/15 seri tam dolu
+**18 seri, 1188 satır** (2021-01 → 2026-06), 18/18 seri tam dolu
 (66/66 dönem, sıfır null - `gold_fact_long` üzerinde her build'de
 kontrol ediliyor). Kaynaklara göre:
 
 - **EVDS (11 seri):** konut fiyat endeksi, konut kredisi faiz oranı,
   TCMB politika faizi, TÜFE, sanayi üretim endeksi, USD/TRY,
   TL mevduat faiz oranı, kredi/banka kartı harcaması (haftalıktan
-  aylığa ortalanmış), reel kesim güven endeksi, **M2 para arzı**
-  (yeni, haftalıktan aylığa), **birleşik tüketici kredisi faiz oranı**
-  (yeni, ihtiyaç+taşıt+konut birlikte). Hepsi `--discover` ile gerçek
+  aylığa ortalanmış), reel kesim güven endeksi, M2 para arzı
+  (haftalıktan aylığa), birleşik tüketici kredisi faiz oranı
+  (ihtiyaç+taşıt+konut birlikte). Hepsi `--discover` ile gerçek
   verilerden bulundu, kod uydurulmadı (bkz. `config/evds_series.py`
   yorumları).
 - **TUIK (1 seri):** işsizlik oranı.
-- **BDDK Aylık (1 seri):** konut kredisi (stok, tablo_4).
+- **BDDK Aylık (4 seri):** konut kredisi (tablo_4), **toplam krediler**
+  (tablo_3, yeni), **toplam mevduat** (tablo_9, yeni), **sermaye
+  yeterliliği standart rasyosu** (tablo_12, yeni, `%`). Hepsi gerçek
+  `Column_2` metniyle birebir eşleştirildi ve `cumulative_scan_report_
+  bddk_monthly.csv`'ye karşı "kümülatif değil" diye doğrulandı.
 - **BDDK Haftalık (1 seri):** konut kredisi haftalık yeni kullandırım
   (akış, tablo_289 - aşağıya bkz., aylığa toplanarak).
 - **BDDK FinTürk (1 seri):** toplam nakdi kredi, Türkiye geneli
   (82 il/yurtdışı toplamı, çeyreklikten aylığa forward-fill).
+
+Ayrıca **`gold_health_life_expectancy`** (yeni, aşağıya bkz.) `gold_fact_long`'a
+dahil değil - doğal yıllık çözünürlüğünde ayrı tabloda, FinTürk'ün bölgesel
+tablosuyla aynı mantıkla (aylığa zorlamak veri uydurmak olurdu).
 
 ### `gold_bddk_net_profit_monthly`
 Faz A2'nin somut çıktısı: BDDK Aylık `tablo_2` içindeki "DÖNEM NET KARI
@@ -90,6 +98,25 @@ boyut. Kolonlar: `Period` (`YYYY-Q`, Q∈{3,6,9,12}), `Bolge` (il adı),
 `NPL_Orani_Yaklasik`. 1804 satır (82 bölge × 22 çeyrek). Ulusal toplamla
 çapraz kontrol edildi: `gold_fact_long`'daki `tablo_1.toplam_nakdi_kredi_ulusal`
 == bu tablonun 82 ilin toplamı (2021-Q1 için doğrulandı, tam eşleşiyor).
+
+### `gold_health_life_expectancy` (yeni)
+Hackathon'un "sadece finans değil" şartına karşılık: TÜİK SDMX
+API'sinde `saglik`/`hastane` ile eşleşen hiçbir dataflow yok (427
+dataflow'un tamamı tarandı, konut/emlak taramasıyla aynı yöntem), ama
+`DF_DNG_YS` ("Doğuşta Beklenen Yaşam Süresi") gerçek ve çalışıyor.
+Doğal **yıllık** çözünürlüğünde, ayrı tabloda (aylığa zorlamak veri
+uydurmak olurdu - FinTürk bölgesel tablosuyla aynı gerekçe). Kolonlar:
+`Period` (`YYYY`), `Bolge` (`TR`), `Deger` (yıl), `Birim` (`Yil`).
+4 satır: 2021-2024. **2025/2026 yok** - TÜİK henüz yayınlamamış, bu
+gerçek bir boşluk, dolduruLMADI.
+
+İkinci bir aday (`DF_DOGUM_KDH_C`, il bazlı kaba doğum hızı) araştırıldı
+ama eklenmedi: 19 boyutlu paylaşılan bir doğum-istatistiği DSD'sinin
+parçası, her boyutun "_T" (Toplam) kodu DSD'nin kendi codelist'lerinden
+bulunup denendiği halde sorgu "NoRecordsFound" döndü - muhtemelen
+`YAYIM_DONEMI` (528 değerli, "toplam"ı olmayan bir yayın-dönemi boyutu)
+gerçek bir değer istiyor. `config/tuik_series.py`'de bir sonraki adım
+olarak not edildi, uydurulmadı.
 
 ## Çözülen bulgu — haftalık "Konut" satırı stok değil, akış
 
@@ -155,17 +182,36 @@ aylık yüzdeye çevirmez. Bu yüzden `build_gold.py` şu an sadece
 `tablo_2` (mutlak TL tutarları) üzerinde decumulate çalıştırıyor;
 rasyo tabloları bilinçli olarak dışarıda bırakıldı.
 
+## Kümülatif tarama artık 3 kaynakta da çalışıyor
+
+`scan_cumulative.py` önceden sadece BDDK Aylık'ı tarıyordu; artık
+`run_weekly()` ve `run_finturk()` ile Haftalık (114 kalem, `donemId`→
+gerçek tarih çevrimiyle) ve FinTürk (60 kalem, ulusal toplam bazında,
+oran sütunları hariç) de taranıyor. Sonuç: **ikisinde de kümülatif
+kalem bulunamadı** (`cumulative_scan_report_bddk_weekly.csv`,
+`cumulative_scan_report_bddk_finturk.csv`) - BDDK Aylık'taki gibi
+YTD-kümülatif bir gelir tablosu deseni yok.
+
+## Veri tazeliği kontrolü (yeni) — `src/gold/check_freshness.py`
+
+`agent_controller.py` pipeline'ına eklendi (gold build'den sonra çalışır).
+İki şeyi kontrol ediyor: (1) `gold_fact_long`'un son dönemi gerçekten
+`FULL_END_YEAR/MONTH`'a (2026-06) ulaşıyor mu - ulaşmıyorsa büyük
+ihtimalle eksik/yarım bir silver'dan build alınmış demektir; (2) 30
+günden eski silver dosyası var mı - bir kaynağın yeniden çekilmesi
+gerekip gerekmediğine dair erken uyarı, hata değil.
+
 ## Sıradaki adımlar (Faz A'nın kalanı)
 
-1. Diğer 16 BDDK Aylık tablosundan (artık hepsinin gerçek adı/birimi
-   `BDDK_MONTHLY_TABLES`'da var) + BDDK Haftalık'tan ihtiyaç duyulan
-   başka satırları `gold_fact_long`'a ekle (şema hazır, satır eklemek
-   ucuz - bkz. `build_bddk_monthly_konut_facts()` deseni).
-2. FinTürk'ün diğer 6 tablosu (Mevduat, Bireysel Bankacılık, Seçilmiş
-   Sektörel Krediler, Rasyolar, Şube/Nüfus, Altın) henüz eklenmedi -
-   sadece tablo_1 (Krediler) işlendi.
+1. BDDK Aylık'ın 13 tablosu, BDDK Haftalık'ın 8 tablosu, FinTürk'ün 6
+   tablosu (Mevduat, Bireysel Bankacılık, Seçilmiş Sektörel Krediler,
+   Rasyolar, Şube/Nüfus, Altın) hâlâ `gold_fact_long`'a hiç girmedi -
+   şema/desen hazır (`build_bddk_monthly_item_facts()`), satır eklemek
+   ucuz, ama bunların hangisinin gerçekten gerekli olduğu ürün kararı.
+2. `DF_DOGUM_KDH_C` (il bazlı kaba doğum hızı) - 19 boyutlu key'in son
+   parçası (`YAYIM_DONEMI`) çözülebilirse ikinci bir sağlık serisi
+   olur, hem de il bazlı.
 3. Yeni EVDS/TUIK seri eklemek için: ASLA kod uydurma - önce
-   `python -m src.collectors.evds --discover --search <kelime>` (ya da
-   TUIK için ilgili discover akışı) ile gerçek kodu bul,
-   `client.get_series(datagroup_code)` ile SERIE_CODE'u doğrula, sonra
-   `config/evds_series.py`'ye ekle. Bugün böyle 3 yeni seri eklendi.
+   `python -m src.collectors.evds --discover --search <kelime>` (EVDS)
+   ya da dataflow→DSD→codelist zincirini (TUIK, bkz.
+   `config/tuik_series.py`) takip et, sonra ilgili config dosyasına ekle.

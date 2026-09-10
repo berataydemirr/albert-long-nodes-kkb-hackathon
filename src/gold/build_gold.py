@@ -53,15 +53,24 @@ GOLD_DB_PATH = GOLD_DIR / "lakehouse.duckdb"
 
 # EVDS series we pull into the long fact table, with human labels for
 # the LLM-facing schema (see docs/gold_schema.md).
+
+# (label, birim) - birim filled ONLY where confirmed by the series' own
+# official name (client.get_series() output, e.g. "Konut Kredisi (TL,
+# Stok, %)" literally ends in "%") or by the datagroup being explicitly
+# named an index ("Endeks"). Left as None where nothing confirms a unit
+# (TP.KKHARTUT.KT1's official SERIE_NAME is just "TOPLAM (*)" - no
+# currency/scale stated anywhere in EVDS metadata, checked via
+# get_series() - guessing "TL" or "Bin TL" here would be exactly the
+# kind of fabrication this project's own rule forbids).
 EVDS_SERIES_LABELS = {
-    "TP.KFE.TR": "Konut Fiyat Endeksi (TR Geneli)",
-    "TP.BKR.TRY.18": "Konut Kredisi Faiz Orani (TL, Stok, %)",
-    "TP.BISPOLFAIZ.TUR": "TCMB Politika Faizi (%)",
-    "TP.GENENDEKS.T1": "TUFE Genel Endeks (2003=100)",
-    "TP.TSANAYMT2021.BCD": "Sanayi Uretim Endeksi (Mevsim/Takvim Etkisinden Arindirilmis)",
-    "TP.MT210AGS.TRY.MT06": "TL Mevduat Faiz Orani (Vadesiz Haric, Stok, %)",
-    "TP.GY1.N2": "Reel Kesim Guven Endeksi",
-    "TP.BKR.TRY.KTFTUK": "Tuketici Kredisi Faiz Orani, Ihtiyac+Tasit+Konut Birlikte (TL, Stok, %)",
+    "TP.KFE.TR": ("Konut Fiyat Endeksi (TR Geneli)", "Endeks"),
+    "TP.BKR.TRY.18": ("Konut Kredisi Faiz Orani (TL, Stok, %)", "%"),
+    "TP.BISPOLFAIZ.TUR": ("TCMB Politika Faizi (%)", "%"),
+    "TP.GENENDEKS.T1": ("TUFE Genel Endeks (2003=100)", "Endeks (2003=100)"),
+    "TP.TSANAYMT2021.BCD": ("Sanayi Uretim Endeksi (Mevsim/Takvim Etkisinden Arindirilmis)", "Endeks"),
+    "TP.MT210AGS.TRY.MT06": ("TL Mevduat Faiz Orani (Vadesiz Haric, Stok, %)", "%"),
+    "TP.GY1.N2": ("Reel Kesim Guven Endeksi", "Endeks"),
+    "TP.BKR.TRY.KTFTUK": ("Tuketici Kredisi Faiz Orani, Ihtiyac+Tasit+Konut Birlikte (TL, Stok, %)", "%"),
     # TP.ALTINPIYASA.KAP05 (gold price) deliberately NOT included here -
     # see the data-quality warning next to it in config/evds_series.py.
 }
@@ -72,6 +81,9 @@ EVDS_SERIES_LABELS = {
 # not just read off the last week like a stock/rate would be; M2 (a
 # stock) uses the last observation of the month instead.
 EVDS_WEEKLY_SERIES = {
+    # birim=None for both: EVDS's own metadata for these two series states
+    # no currency/scale (checked via get_series() - see EVDS_SERIES_LABELS
+    # comment above for why this isn't filled with a guess).
     "TP.KKHARTUT.KT1": ("Kredi/Banka Karti Harcamasi, Toplam (Haftalik, Aylik Ortalama)", None, "flow", "mean"),
     "TP.HPBITABLO1.11": ("M2 Para Arzi (Ay Sonu)", None, "stock", "last"),
 }
@@ -87,14 +99,14 @@ def _fact_row(period, kaynak, seri_kod, seri_adi, deger, birim, tip, kaynak_dosy
 
 def build_evds_facts() -> pd.DataFrame:
     rows = []
-    for code, label in EVDS_SERIES_LABELS.items():
+    for code, (label, birim) in EVDS_SERIES_LABELS.items():
         path = EVDS_SILVER_DIR / f"{code.replace('.', '_')}.csv"
         if not path.exists():
             logger.warning(f"Missing EVDS silver file, skipped: {path}")
             continue
         df = pd.read_csv(path, encoding="utf-8")
         for _, r in df.iterrows():
-            rows.append(_fact_row(r["Period"], "evds", code, label, r["Value"], None, "stock", path.name))
+            rows.append(_fact_row(r["Period"], "evds", code, label, r["Value"], birim, "stock", path.name))
 
     # USD/TRY is daily -> downsample to monthly (last trading day of month = month-end rate)
     usd_path = EVDS_SILVER_DIR / "TP_DK_USD_A_YTL.csv"
@@ -133,6 +145,32 @@ def build_tuik_facts() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def build_health_life_expectancy() -> pd.DataFrame:
+    """TUIK_LIFE_EXPECTANCY (see config/tuik_series.py) - the hackathon's
+    "not just finance" health-data requirement. Kept at its NATIVE
+    annual grain in its own table rather than forced onto the monthly
+    gold_fact_long axis (same reasoning as gold_finturk_regional_quarterly:
+    forward-filling a yearly figure across 12 months would misrepresent
+    it as a real monthly observation). Only 2021-2024 - TUIK hadn't
+    published 2025/2026 life expectancy figures as of this build; that
+    gap is real, not a bug, and is left visible rather than filled."""
+    path = TUIK_SILVER_DIR / "TUIK_LIFE_EXPECTANCY.csv"
+    if not path.exists():
+        logger.warning(f"Missing TUIK silver file, skipped: {path}")
+        return pd.DataFrame()
+    # dtype=str: without it, pandas infers Period ('2021','2022',...) as
+    # int64 since every value looks numeric, and it ends up stored as
+    # 2021.0 instead of "2021" - inconsistent with every other Period
+    # column in the gold layer, which is always a string.
+    df = pd.read_csv(path, encoding="utf-8", dtype={"Period": str})
+    return pd.DataFrame([
+        {"Period": r["Period"], "Bolge": "TR", "Kaynak": "tuik", "Seri_Kod": "TUIK_LIFE_EXPECTANCY",
+         "Seri_Adi": "Doguzda Beklenen Yasam Suresi, Toplam (Yil)", "Deger": r["Value"], "Birim": "Yil",
+         "Tip": "stock", "Kaynak_Dosya": path.name}
+        for _, r in df.iterrows()
+    ])
+
+
 def build_bddk_monthly_konut_facts() -> pd.DataFrame:
     """tablo_4 / 'Tuketici Kredileri - Konut': confirmed a STOCK figure
     (no year-boundary reset, see cumulative_scan_report.csv) - used as-is.
@@ -154,6 +192,30 @@ def build_bddk_monthly_konut_facts() -> pd.DataFrame:
         for _, r in item.iterrows()
     ]
     return pd.DataFrame(rows)
+
+
+def build_bddk_monthly_item_facts(tablo_no: int, item_name: str, seri_kod: str, seri_adi: str, birim: str | None = None) -> pd.DataFrame:
+    """Generic single-line-item puller for BDDK Monthly, used for items
+    beyond the housing-credit theme (Faz A's "diger tablolardan kalem
+    ekle" item). item_name must match Column_2 EXACTLY (checked against
+    real silver data, not a substring guess) - confirmed non-cumulative
+    against cumulative_scan_report_bddk_monthly.csv before being added
+    here. birim defaults to BDDK_MONTHLY_TABLES's table-level unit, but
+    can be overridden for a ratio/count row inside an otherwise TL-valued
+    table (e.g. tablo_12's capital adequacy ratio row is '%', not the
+    table's default 'milyon TL')."""
+    tablo_dir = BDDK_MONTHLY_SILVER_DIR / f"tablo_{tablo_no}"
+    long_df = load_table_long(tablo_dir)
+    item = long_df[long_df["Item"] == item_name]
+    if item.empty:
+        logger.warning(f"build_bddk_monthly_item_facts: '{item_name}' not found in tablo_{tablo_no}")
+        return pd.DataFrame()
+
+    unit = birim if birim is not None else BDDK_MONTHLY_TABLES[tablo_no]["unit"]
+    return pd.DataFrame([
+        _fact_row(r["Period"], "bddk_monthly", seri_kod, seri_adi, r["Value"], unit, "stock", f"tablo_{tablo_no}/*.csv")
+        for _, r in item.iterrows()
+    ])
 
 
 def build_bddk_weekly_konut_facts() -> pd.DataFrame:
@@ -319,6 +381,10 @@ def run(db_path=GOLD_DB_PATH) -> None:
         build_evds_facts(),
         build_tuik_facts(),
         build_bddk_monthly_konut_facts(),
+        build_bddk_monthly_item_facts(3, "Toplam Krediler", "tablo_3.toplam_krediler", "Toplam Krediler, Sektor Geneli"),
+        build_bddk_monthly_item_facts(9, "Toplam Mevduat", "tablo_9.toplam_mevduat", "Toplam Mevduat, Sektor Geneli"),
+        build_bddk_monthly_item_facts(12, "Sermaye Yeterliliği Standart Rasyosu ((5/7)*100) (YÜZDE)",
+                                       "tablo_12.sermaye_yeterlilik_rasyosu", "Sermaye Yeterliliği Standart Rasyosu", birim="%"),
         build_bddk_weekly_konut_facts(),
         build_finturk_national_facts(),
     ], ignore_index=True)
@@ -331,6 +397,9 @@ def run(db_path=GOLD_DB_PATH) -> None:
 
     logger.info("Building gold_finturk_regional_quarterly (province-level, native quarterly grain) ...")
     finturk_regional = build_finturk_regional_quarterly()
+
+    logger.info("Building gold_health_life_expectancy (native annual grain) ...")
+    life_expectancy = build_health_life_expectancy()
 
     db_path.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(str(db_path))
@@ -348,6 +417,10 @@ def run(db_path=GOLD_DB_PATH) -> None:
         con.register("finturk_regional_df", finturk_regional)
         con.execute("CREATE OR REPLACE TABLE gold_finturk_regional_quarterly AS SELECT * FROM finturk_regional_df")
 
+    if not life_expectancy.empty:
+        con.register("life_expectancy_df", life_expectancy)
+        con.execute("CREATE OR REPLACE TABLE gold_health_life_expectancy AS SELECT * FROM life_expectancy_df")
+
     con.close()
 
     logger.info("=" * 50)
@@ -356,6 +429,7 @@ def run(db_path=GOLD_DB_PATH) -> None:
     logger.info(f"gold_bddk_net_profit_monthly   : {len(net_profit)} rows")
     logger.info(f"gold_konut_demo                : {len(konut_demo)} rows, {konut_demo['Period'].min()}..{konut_demo['Period'].max()}")
     logger.info(f"gold_finturk_regional_quarterly: {len(finturk_regional)} rows, {finturk_regional['Bolge'].nunique() if not finturk_regional.empty else 0} bolge")
+    logger.info(f"gold_health_life_expectancy    : {len(life_expectancy)} rows, {life_expectancy['Period'].min() if not life_expectancy.empty else None}..{life_expectancy['Period'].max() if not life_expectancy.empty else None}")
     logger.info(f"Written to                     : {db_path}")
     logger.info("=" * 50)
 

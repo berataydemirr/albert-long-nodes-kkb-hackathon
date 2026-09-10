@@ -29,6 +29,21 @@ def get_silver_path(series_code: str):
     return TUIK_SILVER_DIR / f"{series_code}.csv"
 
 
+def _period_in_range(period: str) -> bool:
+    """True if `period` ('YYYY' or 'YYYY-MM') falls within
+    FULL_START_YEAR/MONTH .. FULL_END_YEAR/MONTH. Works for both
+    granularities instead of assuming every TUIK series is monthly."""
+    year = int(period[:4])
+    if year < FULL_START_YEAR or year > FULL_END_YEAR:
+        return False
+    has_month = len(period) > 4
+    if year == FULL_START_YEAR and has_month and int(period[5:7]) < FULL_START_MONTH:
+        return False
+    if year == FULL_END_YEAR and has_month and int(period[5:7]) > FULL_END_MONTH:
+        return False
+    return True
+
+
 def parse_series(series_code: str) -> bool:
     bronze_path = get_bronze_path(series_code)
     if not bronze_path.exists():
@@ -46,10 +61,18 @@ def parse_series(series_code: str) -> bool:
     df = df.drop_duplicates(subset="Period").sort_values("Period").reset_index(drop=True)
 
     # The TUIK API interprets startPeriod/endPeriod loosely (can return one
-    # extra month) - trim any rows that fall outside the requested 2021-01..2026-06.
-    start_key = f"{FULL_START_YEAR}-{FULL_START_MONTH:02d}"
-    end_key = f"{FULL_END_YEAR}-{FULL_END_MONTH:02d}"
-    df = df[(df["Period"] >= start_key) & (df["Period"] <= end_key)].reset_index(drop=True)
+    # extra period) - trim any rows that fall outside the requested
+    # 2021-01..2026-06.
+    #
+    # BUG FOUND WHILE ADDING AN ANNUAL SERIES: this used to compare Period
+    # against "2021-01"/"2026-06" as plain strings. That's correct for a
+    # monthly series ("2021-01" >= "2021-01"), but TUIK_LIFE_EXPECTANCY's
+    # periods are bare years ("2021", "2022", ...) - and in Python string
+    # comparison "2021" < "2021-01" (a shorter string that's a prefix of a
+    # longer one always sorts first), so 2021's real, valid observation was
+    # silently trimmed away as "before the start date". Fixed to parse the
+    # year (and month, only when present) instead of comparing raw strings.
+    df = df[df["Period"].apply(_period_in_range)].reset_index(drop=True)
 
     df.to_csv(get_silver_path(series_code), index=False, encoding="utf-8")
     return True
