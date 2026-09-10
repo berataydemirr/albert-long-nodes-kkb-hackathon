@@ -18,6 +18,8 @@ python-dotenv==1.2.3
 requests==2.34.2
 six==1.17.0
 soupsieve==2.9.2
+statsmodels==0.15.0
+scipy==1.17.1
 typing_extensions==4.16.0
 tzdata==2026.3
 urllib3==2.7.0
