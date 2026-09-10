@@ -1,8 +1,9 @@
 "use client";
 
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import type { CausalityResult } from "@/lib/api";
+import { formatNumber } from "@/lib/format";
 
 interface CausalityPanelProps {
   result: CausalityResult | null;
@@ -33,19 +34,21 @@ export default function CausalityPanel({ result }: CausalityPanelProps) {
   const hasSignificant = result.granger_significant_lags.length > 0;
 
   return (
-    <div className="rounded-lg border p-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+    <div className="card">
       <h3 className="mb-1 text-sm font-semibold" style={{ color: "var(--text)" }}>
         Nedensellik: Faiz Orani &rarr; Konut Kredisi
       </h3>
       <p className="mb-3 text-xs" style={{ color: "var(--text-dim)" }}>
         {result.shared_periods} ortak donem &middot; kirmizi = en iyi lag
       </p>
-      <ResponsiveContainer width="100%" height={220}>
-        <BarChart data={data} margin={{ top: 4, right: 12, left: 0, bottom: 4 }}>
+      <ResponsiveContainer width="100%" height={240}>
+        <BarChart data={data} margin={{ top: 20, right: 12, left: 0, bottom: 4 }}>
           <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
           <XAxis dataKey="lag" tick={{ fontSize: 11, fill: "var(--text-dim)" }} stroke="var(--border)" />
-          <YAxis tick={{ fontSize: 11, fill: "var(--text-dim)" }} stroke="var(--border)" width={48} />
+          <YAxis tick={{ fontSize: 11, fill: "var(--text-dim)" }} stroke="var(--border)" width={48} domain={[0, 1]} />
           <Tooltip
+            formatter={(value) => [formatNumber(Number(value), 4), "Korelasyon"]}
+            labelFormatter={(lag) => `Lag ${lag}`}
             contentStyle={{
               background: "var(--surface)",
               border: "1px solid var(--border)",
@@ -58,6 +61,15 @@ export default function CausalityPanel({ result }: CausalityPanelProps) {
             {data.map((d) => (
               <Cell key={d.lag} fill={d.isBest ? "var(--critical)" : "var(--s1)"} />
             ))}
+            {/* All correlations here cluster near 0.95-0.98 - a 0-1 axis
+                alone makes the bars look nearly identical, so the exact
+                value is also written directly above each bar. */}
+            <LabelList
+              dataKey="correlation"
+              position="top"
+              formatter={(v) => formatNumber(Number(v), 2)}
+              style={{ fontSize: 10, fill: "var(--text-dim)" }}
+            />
           </Bar>
         </BarChart>
       </ResponsiveContainer>

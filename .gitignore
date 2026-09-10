@@ -17,3 +17,4 @@ data/gold/*.duckdb
 # Local-only reference material, not part of the public repo
 CONTRIBUTING.md
 archive/
+docs/architecture.png

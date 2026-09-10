@@ -69,7 +69,7 @@ def downsample_to_monthly(df: pd.DataFrame, date_col: str, value_cols: list[str]
 
 def upsample_quarterly_to_monthly(df: pd.DataFrame, quarter_col: str, value_cols: list[str],
                                    group_cols: list[str] | None = None) -> pd.DataFrame:
-    """Expands FinTürk-style 'YYYY-Q' quarterly rows (Q in 3,6,9,12) into
+    """Expands FinTurk-style 'YYYY-Q' quarterly rows (Q in 3,6,9,12) into
     3 monthly rows via forward-fill. EXPLICIT LIMITATION, stated rather
     than hidden: this repeats the quarter-end value across its 3 months
     because no finer-grained figure exists - it is an approximation, not

@@ -4,6 +4,7 @@ from src.agent.tools import (
     anomaly_analysis, change_detection, correlation_analysis,
     causality_analysis, threshold_filter_compare,
     lakehouse_schema, lakehouse_query,
+    describe_series, compare_regions,
 )
 
 
@@ -25,6 +26,29 @@ def test_correlation_warns_against_causal_claim():
     result = correlation_analysis(["2021-01", "2021-02", "2021-03"], [1, 2, 3], ["2021-01", "2021-02", "2021-03"], [2, 4, 6])
     assert result["pearson_correlation"] == pytest.approx(1.0)
     assert "not proof of causality" in result["warning"]
+
+
+def test_correlation_analysis_captures_negative_sign():
+    """A perfectly inverse relationship must return ~-1.0, not just a
+    large magnitude with the sign lost or flipped somewhere."""
+    periods = _periods(6)
+    result = correlation_analysis(periods, [1, 2, 3, 4, 5, 6], periods, [60, 50, 40, 30, 20, 10])
+    assert result["pearson_correlation"] == pytest.approx(-1.0)
+
+
+def test_causality_analysis_low_correlation_on_unrelated_series():
+    """Two series with no real relationship shouldn't produce a
+    near-perfect best-lag correlation - a sanity bound on the method
+    itself, not a precise statistical claim (some noise-driven
+    correlation is expected and fine)."""
+    import random
+    rng = random.Random(7)
+    n = 30
+    periods = _periods(n)
+    x_values = [rng.uniform(-1, 1) for _ in range(n)]
+    y_values = [rng.uniform(-1, 1) for _ in range(n)]
+    result = causality_analysis(periods, x_values, periods, y_values, max_lag=3)
+    assert abs(result["best_lag"]["correlation"]) < 0.9
 
 
 def test_causality_analysis_finds_the_true_lag():
@@ -86,3 +110,39 @@ def test_lakehouse_query_rejects_ddl_keyword():
 def test_lakehouse_query_rejects_unknown_table():
     with pytest.raises(ValueError, match="Unknown table"):
         lakehouse_query("SELECT * FROM this_table_does_not_exist")
+
+
+def test_describe_series_basic_stats():
+    result = describe_series(["2021-01", "2021-02", "2021-03", "2021-04"], [10.0, 20.0, 15.0, 40.0])
+    assert result["count"] == 4
+    assert result["missing_count"] == 0
+    assert result["min"] == 10.0
+    assert result["max"] == 40.0
+    assert result["first_value"] == 10.0
+    assert result["last_value"] == 40.0
+    assert result["total_change"] == 30.0
+    assert result["total_percent_change"] == pytest.approx(300.0)
+
+
+def test_describe_series_skips_missing_values_for_first_last():
+    result = describe_series(["2021-01", "2021-02", "2021-03"], [None, 5.0, 10.0])
+    assert result["missing_count"] == 1
+    assert result["first_value"] == 5.0
+    assert result["first_period"] == "2021-02"
+
+
+def test_compare_regions_defaults_to_latest_quarter():
+    result = compare_regions(top_n=5)
+    assert len(result["ranking"]) <= 5
+    assert result["ranking"][0]["Bolge"] is not None
+    # Real project data: the ranking must actually be sorted descending.
+    values = [r["Toplam_Nakdi_Kredi_Bin_TL"] for r in result["ranking"]]
+    assert values == sorted(values, reverse=True)
+
+
+def test_compare_regions_with_growth_comparison():
+    result = compare_regions(top_n=3, compare_period="2021-3")
+    assert "growth" in result
+    assert len(result["growth"]) > 0
+    growth_values = [g["growth_percent"] for g in result["growth"]]
+    assert growth_values == sorted(growth_values, reverse=True)

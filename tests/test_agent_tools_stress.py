@@ -17,6 +17,7 @@ from src.agent.tools import (
     lakehouse_query, execute_tool,
     anomaly_analysis, change_detection, correlation_analysis,
     causality_analysis, threshold_filter_compare,
+    describe_series, compare_regions, _quarterly_sort_key,
 )
 
 
@@ -188,3 +189,265 @@ def test_threshold_filter_compare_result_is_json_safe():
     periods = [f"2021-{m:02d}" for m in range(1, 11)]
     result = threshold_filter_compare(periods, [5.0] * 10, periods, list(range(10)), low=0, high=10)
     json.dumps(result, default=str)
+
+
+def test_threshold_filter_compare_rejects_non_numeric_low_high():
+    """Bug found live: a string low/high reached pandas' .between() and
+    raised a raw, unhelpful TypeError instead of a clean ValueError."""
+    periods = [f"2021-{m:02d}" for m in range(1, 11)]
+    with pytest.raises(ValueError):
+        threshold_filter_compare(periods, list(range(10)), periods, list(range(10, 20)), low="abc", high="xyz")
+
+
+# ---------------------------------------------------------------------
+# Round 2 (2026-09-10): case-sensitivity guardrail, MAD=0 blind spot,
+# change_detection crash on missing values - all confirmed live before
+# being fixed here, not hypothetical.
+# ---------------------------------------------------------------------
+
+def test_lakehouse_query_allows_uppercase_table_name():
+    """Bug found live: DuckDB is case-insensitive for unquoted
+    identifiers (FROM GOLD_FACT_LONG runs fine against a table actually
+    named gold_fact_long), but the known-table guardrail compared raw
+    case and rejected it as 'unknown table' before DuckDB ever saw it."""
+    result = lakehouse_query("SELECT COUNT(*) AS n FROM GOLD_FACT_LONG")
+    assert result["row_count"] == 1
+
+
+def test_lakehouse_query_allows_mixed_case_table_name():
+    result = lakehouse_query("SELECT COUNT(*) AS n FROM Gold_Fact_Long")
+    assert result["row_count"] == 1
+
+
+def test_lakehouse_query_still_rejects_a_genuinely_unknown_table():
+    """The case-insensitivity fix must not turn into 'accept anything' -
+    a table that truly doesn't exist (in any case) must still be
+    rejected."""
+    with pytest.raises(ValueError):
+        lakehouse_query("SELECT * FROM totally_made_up_table")
+
+
+def test_anomaly_analysis_finds_an_outlier_when_mad_is_zero():
+    """Bug found live: when >=half the series shares one value, MAD=0,
+    and the old code returned all-zero scores unconditionally - a 100x
+    outlier sitting right next to a flat run was reported as zero
+    anomalies. This is a realistic shape for this project's own data
+    (a policy rate held flat for months)."""
+    periods = [f"2021-{m:02d}" for m in range(1, 11)]
+    values = [5.0] * 9 + [500.0]
+    result = anomaly_analysis(periods, values, threshold=3.0)
+    assert len(result["anomalies"]) >= 1
+    assert result["anomalies"][0]["period"] == "2021-10"
+
+
+def test_anomaly_analysis_truly_constant_series_still_reports_nothing():
+    """The MAD=0 fallback must not start hallucinating anomalies in a
+    genuinely constant series (std is also 0 there - the fallback's own
+    escape hatch)."""
+    result = anomaly_analysis(["2021-01", "2021-02", "2021-03"], [5.0, 5.0, 5.0])
+    assert result["anomalies"] == []
+
+
+def test_change_detection_none_value_is_skipped_not_a_crash():
+    """Bug found live: a None in values (a real gap in the gold layer)
+    reached a bare 'current - previous' subtraction and raised an
+    unhandled TypeError instead of being skipped like a missing point
+    is skipped everywhere else in this codebase."""
+    result = change_detection(["2021-01", "2021-02", "2021-03"], [None, 5.0, 6.0])
+    assert result["largest_changes"] == [{"period": "2021-03", "absolute_change": 1.0, "percent_change": 20.0}]
+
+
+def test_change_detection_nan_value_is_skipped_not_a_crash():
+    result = change_detection(["2021-01", "2021-02", "2021-03"], [float("nan"), 5.0, 6.0])
+    assert result["largest_changes"] == [{"period": "2021-03", "absolute_change": 1.0, "percent_change": 20.0}]
+
+
+def test_change_detection_from_zero_transition_is_reported_not_dropped():
+    """Previously silently dropped entirely (can't divide by zero) - now
+    reported with percent_change=None instead of vanishing, since a
+    series starting from exactly zero is usually the most significant
+    move, not the least."""
+    result = change_detection(["2021-01", "2021-02", "2021-03"], [0.0, 5.0, 5.0])
+    periods_reported = [c["period"] for c in result["largest_changes"]]
+    assert "2021-02" in periods_reported
+    entry = next(c for c in result["largest_changes"] if c["period"] == "2021-02")
+    assert entry["absolute_change"] == 5.0
+    assert entry["percent_change"] is None
+
+
+def test_change_detection_from_zero_result_is_json_safe():
+    result = change_detection(["2021-01", "2021-02"], [0.0, 5.0])
+    raw = json.dumps(result, default=str)
+    json.loads(raw)
+
+
+# ---------------------------------------------------------------------
+# Round 3 (2026-09-10): string-literal content leaking into the
+# forbidden-token / semicolon / table-name checks, causing false
+# positives on entirely harmless queries.
+# ---------------------------------------------------------------------
+
+def test_lakehouse_query_allows_forbidden_word_inside_a_string_literal():
+    """Bug found live: 'please insert coin' as a literal value contains
+    'insert ' as a raw substring, and the guardrail scanned the whole
+    normalized SQL text for that substring regardless of whether it was
+    inside a string - false-rejected as DML."""
+    result = lakehouse_query("SELECT 'please insert coin' AS note FROM gold_fact_long LIMIT 1")
+    assert result["rows"][0]["note"] == "please insert coin"
+
+
+def test_lakehouse_query_allows_semicolon_inside_a_string_literal():
+    """Bug found live: a literal 'a;b' tripped the 'no semicolon inside
+    the query' check, which didn't know the ';' was inert string
+    content, not a second statement."""
+    result = lakehouse_query("SELECT 'a;b' AS x FROM gold_fact_long LIMIT 1")
+    assert result["rows"][0]["x"] == "a;b"
+
+
+def test_lakehouse_query_allows_from_clause_text_inside_a_string_literal():
+    """Bug found live: a literal value containing the text 'from users'
+    matched the FROM-name extraction regex and got rejected as
+    referencing an unknown table, even though it was never a real
+    FROM clause."""
+    result = lakehouse_query("SELECT 'select * from users' AS note FROM gold_fact_long LIMIT 1")
+    assert result["rows"][0]["note"] == "select * from users"
+
+
+def test_lakehouse_query_still_blocks_real_stacked_statement_despite_literal_fix():
+    """The string-literal fix must not accidentally widen the guardrail -
+    a genuine second statement outside any string must still be blocked."""
+    with pytest.raises(ValueError):
+        lakehouse_query("SELECT 1; DROP TABLE gold_fact_long")
+
+
+def test_lakehouse_query_still_blocks_dml_keyword_outside_a_literal():
+    with pytest.raises(ValueError):
+        lakehouse_query("UPDATE gold_fact_long SET Deger = 0")
+
+
+def test_lakehouse_query_handles_escaped_quote_inside_literal():
+    """SQL-standard escaped quote ('') must not prematurely end the
+    literal and desynchronize the rest of the guardrail's parsing."""
+    result = lakehouse_query("SELECT 'O''Brien; DROP TABLE x' AS name FROM gold_fact_long LIMIT 1")
+    assert "O'Brien" in result["rows"][0]["name"]
+
+
+# ---------------------------------------------------------------------
+# _quarterly_sort_key: the non-zero-padded 'YYYY-Q' period bug
+# ---------------------------------------------------------------------
+
+def test_quarterly_sort_key_orders_q4_after_q3_within_a_year():
+    """Bug found live: plain string comparison puts '2021-12' BEFORE
+    '2021-9' ('1' < '9' at the first differing character), even though
+    Q4 chronologically follows Q3. Confirmed this already affects
+    api/gold_queries.py's get_regional_top(), which used SQL's
+    MAX(Period) and got lucky only because the current data's most
+    recent year has no Q4 yet."""
+    periods = ["2021-3", "2021-6", "2021-9", "2021-12"]
+    assert sorted(periods, key=_quarterly_sort_key) == ["2021-3", "2021-6", "2021-9", "2021-12"]
+    assert sorted(periods) != ["2021-3", "2021-6", "2021-9", "2021-12"]  # proves plain string sort IS wrong here
+
+
+def test_quarterly_sort_key_orders_across_years():
+    periods = ["2022-3", "2021-12", "2021-3", "2022-12"]
+    assert max(periods, key=_quarterly_sort_key) == "2022-12"
+
+
+# ---------------------------------------------------------------------
+# describe_series: edge cases
+# ---------------------------------------------------------------------
+
+def test_describe_series_rejects_mismatched_lengths():
+    with pytest.raises(ValueError):
+        describe_series(["2021-01", "2021-02"], [1.0])
+
+
+def test_describe_series_rejects_empty_input():
+    with pytest.raises(ValueError):
+        describe_series([], [])
+
+
+def test_describe_series_single_point_std_is_zero_not_nan():
+    """pandas .std() on a single-element Series returns NaN (ddof=1
+    needs >=2 points) - must be reported as 0.0, a valid JSON number,
+    not silently produce a NaN that breaks json.dumps downstream."""
+    result = describe_series(["2021-01"], [42.0])
+    assert result["std"] == 0.0
+    raw = json.dumps(result, default=str)
+    json.loads(raw)
+
+
+def test_describe_series_all_missing_values_no_crash():
+    result = describe_series(["2021-01", "2021-02"], [None, float("nan")])
+    assert result["missing_count"] == 2
+    assert result["min"] is None
+    assert result["first_period"] is None
+    json.dumps(result, default=str)
+
+
+def test_describe_series_first_value_zero_gives_none_percent_change_not_infinity():
+    result = describe_series(["2021-01", "2021-02"], [0.0, 5.0])
+    assert result["total_change"] == 5.0
+    assert result["total_percent_change"] is None
+    raw = json.dumps(result, default=str)
+    json.loads(raw)  # would fail if percent_change were a bare Infinity token
+
+
+def test_describe_series_result_is_always_json_safe():
+    result = describe_series(["2021-01", "2021-02", "2021-03"], [1.0, None, 3.0])
+    json.loads(json.dumps(result, default=str))
+
+
+# ---------------------------------------------------------------------
+# compare_regions: edge cases
+# ---------------------------------------------------------------------
+
+def test_compare_regions_rejects_zero_top_n():
+    with pytest.raises(ValueError):
+        compare_regions(top_n=0)
+
+
+def test_compare_regions_rejects_negative_top_n():
+    with pytest.raises(ValueError):
+        compare_regions(top_n=-5)
+
+
+def test_compare_regions_rejects_unknown_period():
+    with pytest.raises(ValueError, match="Unknown period"):
+        compare_regions(period="1999-3")
+
+
+def test_compare_regions_rejects_unknown_compare_period():
+    with pytest.raises(ValueError, match="Unknown compare_period"):
+        compare_regions(compare_period="1999-3")
+
+
+def test_compare_regions_rejects_compare_period_equal_to_period():
+    with pytest.raises(ValueError, match="must differ"):
+        compare_regions(period="2021-3", compare_period="2021-3")
+
+
+def test_compare_regions_top_n_larger_than_available_regions_no_crash():
+    """82 provinces exist - asking for far more than that must just
+    return everything, not error."""
+    result = compare_regions(top_n=10_000)
+    assert len(result["ranking"]) <= 82
+
+
+def test_compare_regions_result_is_json_safe():
+    result = compare_regions(top_n=5, compare_period="2021-3")
+    json.loads(json.dumps(result, default=str))
+
+
+def test_compare_regions_latest_period_is_chronologically_correct():
+    """Regression for the _quarterly_sort_key bug: the tool's own
+    'default to latest' path must use the fixed comparator, not
+    SQL MAX()/plain string ordering."""
+    result = compare_regions(top_n=1)
+    from src.agent.tools import _db
+    con = _db()
+    try:
+        all_periods = [row[0] for row in con.execute("SELECT DISTINCT Period FROM gold_finturk_regional_quarterly").fetchall()]
+    finally:
+        con.close()
+    assert result["period"] == max(all_periods, key=_quarterly_sort_key)

@@ -9,21 +9,33 @@ interface AskPanelProps {
   miaConfigured: boolean;
 }
 
+// Deliberately adversarial examples - each one targets a specific guardrail
+// (out-of-range forecast, a series too sparse to answer, comparative
+// multi-hop reasoning, an unconfirmed-unit table) rather than a question
+// the agent trivially answers with one lookup.
+const EXAMPLE_QUESTIONS = [
+  "2027 yilinda politika faizi ne olur?",
+  "Altin fiyati ile TL kredi faizi arasindaki korelasyon nedir?",
+  "Istanbul ve Ankara'nin 2021'den 2026'ya nakdi kredi buyume oranini karsilastir, hangisi daha hizli buyudu?",
+  "M2 para arzi ile TCMB politika faizi arasinda 12 lag ile Granger nedensellik testi yap.",
+  "Net kar verisindeki en buyuk anomaliyi bul ve sebebini acikla.",
+  "BDDK haftalik konut kredisi ile aylik tuketici kredisini karsilastir, birimleri tutarli mi?",
+];
+
 export default function AskPanel({ miaConfigured }: AskPanelProps) {
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AskResponse | null>(null);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!question.trim() || loading) return;
-    console.log("[AskPanel] submitting question", { question });
+  async function runQuestion(q: string) {
+    if (!q.trim() || loading) return;
+    console.log("[AskPanel] submitting question", { question: q });
     setLoading(true);
     setError(null);
     setResult(null);
     try {
-      const response = await askQuestion(question.trim());
+      const response = await askQuestion(q.trim());
       console.log("[AskPanel] got response", response);
       setResult(response);
     } catch (err) {
@@ -35,12 +47,19 @@ export default function AskPanel({ miaConfigured }: AskPanelProps) {
     }
   }
 
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    runQuestion(question);
+  }
+
+  function handleExampleClick(example: string) {
+    setQuestion(example);
+    runQuestion(example);
+  }
+
   if (!miaConfigured) {
     return (
-      <div
-        className="rounded-lg border p-4 text-sm"
-        style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--critical)" }}
-      >
+      <div className="card text-sm" style={{ color: "var(--critical)" }}>
         MIA_API_KEY .env dosyasinda tanimli degil - bu sekme calismaz. &quot;Genel Bakis&quot; sekmesi API anahtari
         gerektirmez.
       </div>
@@ -62,12 +81,33 @@ export default function AskPanel({ miaConfigured }: AskPanelProps) {
         <button
           type="submit"
           disabled={loading || !question.trim()}
-          className="rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="rounded-md px-4 py-2 text-sm font-medium text-white transition-opacity disabled:opacity-50"
           style={{ background: "var(--bronze)" }}
         >
           {loading ? "Calisiyor..." : "Sor"}
         </button>
       </form>
+
+      {!result && !loading && !error && (
+        <div className="flex flex-col gap-2">
+          <span className="text-xs uppercase tracking-wide" style={{ color: "var(--text-dim)" }}>
+            Zorlu ornek sorular
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {EXAMPLE_QUESTIONS.map((example) => (
+              <button
+                key={example}
+                type="button"
+                onClick={() => handleExampleClick(example)}
+                className="rounded-full border px-3 py-1.5 text-left text-xs transition-colors hover:border-[var(--bronze)] hover:text-[var(--bronze)]"
+                style={{ borderColor: "var(--border)", color: "var(--text-dim)", background: "var(--surface)" }}
+              >
+                {example}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {loading && (
         <p className="text-sm" style={{ color: "var(--text-dim)" }}>
@@ -86,7 +126,7 @@ export default function AskPanel({ miaConfigured }: AskPanelProps) {
 
       {result && (
         <div className="flex flex-col gap-4">
-          <div className="rounded-lg border p-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+          <div className="card">
             <div className="mb-2 flex items-center justify-between">
               <h3 className="text-sm font-semibold" style={{ color: "var(--text)" }}>
                 Cevap
@@ -100,7 +140,7 @@ export default function AskPanel({ miaConfigured }: AskPanelProps) {
             </p>
           </div>
 
-          <div className="rounded-lg border p-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+          <div className="card">
             <h3 className="mb-2 text-sm font-semibold" style={{ color: "var(--text)" }}>
               Kaynaklar
             </h3>

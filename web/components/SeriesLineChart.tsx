@@ -55,7 +55,7 @@ export default function SeriesLineChart({ title, series, height = 280, yLabel }:
   });
 
   return (
-    <div className="rounded-lg border p-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+    <div className="card">
       <h3 className="mb-3 text-sm font-semibold" style={{ color: "var(--text)" }}>
         {title}
       </h3>

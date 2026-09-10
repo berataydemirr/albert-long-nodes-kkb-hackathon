@@ -7,10 +7,7 @@ interface StatTileProps {
 
 export default function StatTile({ label, value, hint, accent = "bronze" }: StatTileProps) {
   return (
-    <div
-      className="flex flex-col gap-1 rounded-lg border p-4"
-      style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-    >
+    <div className="card flex flex-col gap-1" style={{ borderTop: `3px solid var(--${accent})` }}>
       <span className="text-xs uppercase tracking-wide" style={{ color: "var(--text-dim)" }}>
         {label}
       </span>

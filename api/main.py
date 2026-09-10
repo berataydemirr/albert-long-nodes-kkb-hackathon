@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from config.settings import MIA_API_KEY
+from config.settings import MIA_API_KEY, ALLOWED_ORIGINS
 from api.gold_queries import get_dashboard_snapshot, DB_PATH, query_series_from_gold
 from src.report.citations import extract_citations
 from src.common.logging_setup import get_logger
@@ -23,15 +23,12 @@ logger = get_logger("api")
 
 app = FastAPI(title="KKB Agentic Data Analytics API", version="1.0.0")
 
-# Next.js dev server (localhost:3000) and the production build served
-# from the same origin both need to reach this API. Kept as an explicit
-# list, not "*" - this API can execute SQL (guardrailed, but still) and
-# call a paid MIA endpoint, so wildcard CORS is the wrong default even
-# for a hackathon demo.
-ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
+# Next.js dev server (localhost:3000) plus whatever production frontend
+# origin ALLOWED_ORIGINS names (config/settings.py, env-configurable via
+# ALLOWED_ORIGINS in .env). Kept as an explicit list, not "*" - this API
+# can execute SQL (guardrailed, but still) and call a paid MIA endpoint,
+# so wildcard CORS is the wrong default even for a hackathon demo.
+logger.info(f"CORS allowed origins: {ALLOWED_ORIGINS}")
 
 app.add_middleware(
     CORSMiddleware,

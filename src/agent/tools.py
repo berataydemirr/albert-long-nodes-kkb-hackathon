@@ -5,6 +5,7 @@ queries and calculations against the local DuckDB gold layer.
 """
 
 import json
+import math
 import re
 import duckdb
 import pandas as pd
@@ -15,6 +16,24 @@ from src.common.logging_setup import get_logger
 
 DB_PATH = GOLD_DIR / "lakehouse.duckdb"
 logger = get_logger("agent_tools")
+
+
+def _quarterly_sort_key(period: str) -> tuple[int, int]:
+    """'YYYY-Q' (Q in 3,6,9,12, the FinTurk regional table's own format)
+    -> (year, quarter) for correct chronological sorting/max.
+
+    Bug found live: plain string comparison / SQL MAX(Period) is WRONG
+    here because these periods aren't zero-padded - '2021-12' < '2021-9'
+    lexicographically (comparing '1' vs '9' at the first differing
+    char), even though Q4 comes after Q3. Confirmed: SELECT MAX(Period)
+    FROM gold_finturk_regional_quarterly happened to return the correct
+    latest period today only because the most recent year in the data
+    doesn't have a Q4 yet - it will silently return the wrong 'latest
+    quarter' (Q3 instead of Q4) the moment one is added. Every 'latest
+    period' lookup against this table must sort with this key, not
+    Python's default string ordering or SQL's MAX()."""
+    year_str, q_str = period.split("-")
+    return (int(year_str), int(q_str))
 
 # gold_fact_long has a Seri_Kod dimension the LLM can't guess from DESCRIBE
 # alone - without this it will invent Seri_Kod values that don't exist.
@@ -28,6 +47,13 @@ FORBIDDEN_TOKENS = ("insert ", "update ", "delete ", "drop ", "alter ", "create 
 MAX_ROWS = 200
 
 _SQL_COMMENT_RE = re.compile(r"--[^\n]*|/\*.*?\*/", re.DOTALL)
+# Single-quoted SQL string literal, including the standard '' escaped-quote
+# form (e.g. 'O''Brien') and a backslash-escape form some dialects accept.
+# Used to blank out literal content before the forbidden-token/semicolon/
+# table-name checks below, so a harmless value like 'please insert coin'
+# or 'a;b' can't false-positive as DML or a second statement (confirmed
+# live: both were rejected before this existed).
+_SQL_STRING_LITERAL_RE = re.compile(r"'(?:[^'\\]|\\.|'')*'", re.DOTALL)
 
 
 def _db() -> duckdb.DuckDBPyConnection:
@@ -88,10 +114,14 @@ def _cte_names(sql: str) -> set[str]:
 def lakehouse_query(sql: str) -> dict:
     """Execute one read-only SELECT query and return rows plus metadata.
 
-    Guardrail, in order (checked against the SQL with comments stripped
-    first - a '--'/'/* */' comment can't execute, so it must not be able
-    to either trigger a false rejection by containing a dangerous-looking
-    word, or hide a real second statement from the semicolon check):
+    Guardrail, in order (checked against the SQL with comments AND string
+    literal contents blanked out first - a '--'/'/* */' comment can't
+    execute and neither can the text inside a 'quoted string', so neither
+    must be able to either trigger a false rejection by containing a
+    dangerous-looking word, or hide a real second statement from the
+    semicolon check. Confirmed live: SELECT 'please insert coin' AS note
+    and SELECT 'a;b' AS x were both false-rejected before literals were
+    stripped here too, same as an unstripped comment would have done):
       1. single statement only (no ';' other than an optional trailing one)
       2. must start with SELECT or WITH (a CTE), no DDL/DML keywords anywhere
       3. every referenced table must exist in the gold database (SHOW TABLES)
@@ -100,14 +130,17 @@ def lakehouse_query(sql: str) -> dict:
          guarantee, not just a default for a query that forgot one
     Every rejection is logged with the reason and the original SQL, so a
     bad query from the model is traceable instead of a silent 'it just
-    didn't answer'."""
+    didn't answer'. The ORIGINAL sql (comments and literals intact) is
+    what actually executes - only the guardrail checks see the blanked
+    version."""
     logger.info(f"lakehouse_query: received sql={sql!r}")
     if not isinstance(sql, str):
         logger.warning(f"lakehouse_query: rejected (sql is not a string): {sql!r}")
         raise ValueError("sql must be a string.")
 
     stripped_of_comments = _SQL_COMMENT_RE.sub(" ", sql)
-    normalized = re.sub(r"\s+", " ", stripped_of_comments.strip()).lower()
+    stripped_of_literals = _SQL_STRING_LITERAL_RE.sub("''", stripped_of_comments)
+    normalized = re.sub(r"\s+", " ", stripped_of_literals.strip()).lower()
 
     inner_sql = normalized[:-1] if normalized.endswith(";") else normalized
     if ";" in inner_sql:
@@ -121,8 +154,20 @@ def lakehouse_query(sql: str) -> dict:
     con = _db()
     try:
         known_tables = {row[0] for row in con.execute("SHOW TABLES").fetchall()}
-        referenced = _referenced_tables(stripped_of_comments)
-        unknown = referenced - known_tables - _cte_names(stripped_of_comments)
+        # DuckDB folds unquoted identifiers case-insensitively (FROM
+        # GOLD_FACT_LONG executes fine against a catalog table named
+        # gold_fact_long) - comparing raw case here would reject a query
+        # DuckDB itself would happily run. Lowercase both sides for the
+        # membership check; report the model's own original casing back
+        # in the error so it's still traceable.
+        known_tables_lower = {t.lower() for t in known_tables}
+        # Also run against the literal-stripped SQL, not just
+        # comment-stripped - otherwise a string like 'select * from
+        # users' embedded as a harmless literal value spuriously matches
+        # the FROM-name regex and gets rejected as an unknown table.
+        cte_names_lower = {n.lower() for n in _cte_names(stripped_of_literals)}
+        referenced = _referenced_tables(stripped_of_literals)
+        unknown = {r for r in referenced if r.lower() not in known_tables_lower and r.lower() not in cte_names_lower}
         if unknown:
             logger.warning(f"lakehouse_query: rejected (unknown table(s) {unknown}): {sql!r}")
             raise ValueError(f"Unknown table(s) referenced: {sorted(unknown)}. Known tables: {sorted(known_tables)}")
@@ -154,17 +199,40 @@ def anomaly_analysis(periods: list[str], values: list[float], threshold: float =
     series = pd.Series(values, dtype="float64")
     median = float(series.median())
     mad = float((series - median).abs().median())
+    # MAD==0 means over half the series shares one value (common here: a
+    # policy rate held flat for months, then one real move/outlier). The
+    # old code treated this as "nothing to score" and returned all-zero
+    # scores - which made the method BLIND to a genuine outlier sitting
+    # right next to a flat run (confirmed live: 9x 5.0 + one 500.0
+    # produced zero anomalies). std was tried as a fallback first and
+    # rejected: std is QUADRATICALLY sensitive to the outlier itself, so
+    # one huge point inflates std enough to partially mask its own
+    # z-score (confirmed live: that same 9x5.0+500.0 case scored 2.85,
+    # just under the default threshold=3.0 - the classic outlier-masking
+    # problem std-based detection is known for). Mean absolute deviation
+    # from the median grows only linearly with one outlier, so it stays
+    # sensitive (same case scores 10.0 with this fallback) while still
+    # degenerating to 0 only in the genuinely-constant case, same escape
+    # hatch as before.
     if mad == 0:
-        scores = pd.Series([0.0] * len(series))
+        mean_ad = float((series - median).abs().mean())
+        if mean_ad == 0:
+            scores = pd.Series([0.0] * len(series))
+            method = "median_absolute_deviation (degenerate: zero variance, no anomalies possible)"
+        else:
+            scores = (series - median).abs() / mean_ad
+            method = "median_absolute_deviation (fallback to mean-absolute-deviation scoring: MAD was 0)"
+        logger.warning(f"anomaly_analysis: MAD=0 (>=half the series shares one value), used mean-AD fallback (mean_ad={mean_ad})")
     else:
         scores = 0.6745 * (series - median).abs() / mad
+        method = "median_absolute_deviation"
     anomalies = [
         {"period": period, "value": float(value), "score": round(float(score), 3)}
         for period, value, score in zip(periods, values, scores)
         if score >= threshold
     ]
-    logger.info(f"anomaly_analysis done: {len(anomalies)} anomalies found")
-    return {"method": "median_absolute_deviation", "threshold": threshold, "anomalies": anomalies}
+    logger.info(f"anomaly_analysis done: {len(anomalies)} anomalies found, method={method}")
+    return {"method": method, "threshold": threshold, "anomalies": anomalies}
 
 
 def change_detection(periods: list[str], values: list[float]) -> dict:
@@ -175,10 +243,31 @@ def change_detection(periods: list[str], values: list[float]) -> dict:
         raise ValueError("periods and values must have equal length and at least 2 points")
     changes = []
     for previous, current, period in zip(values, values[1:], periods[1:]):
-        if previous == 0:
+        # A None/NaN value (a real gap in the gold layer, e.g. a
+        # forward-fill boundary) used to reach the bare 'current -
+        # previous' subtraction below and crash with an unhandled
+        # TypeError - skip the pair instead, same as a missing point
+        # would be skipped anywhere else in this codebase.
+        if previous is None or current is None:
+            logger.debug(f"change_detection: skipping period={period} (missing value)")
             continue
-        changes.append({"period": period, "absolute_change": current - previous, "percent_change": (current - previous) / abs(previous) * 100})
-    changes.sort(key=lambda item: abs(item["percent_change"]), reverse=True)
+        if (isinstance(previous, float) and math.isnan(previous)) or (isinstance(current, float) and math.isnan(current)):
+            logger.debug(f"change_detection: skipping period={period} (NaN value)")
+            continue
+        absolute_change = current - previous
+        if previous == 0:
+            if absolute_change == 0:
+                continue  # 0 -> 0 is a real no-op, not a change to report
+            # Previously silently dropped (can't divide by zero for a
+            # percent change) - but a series starting from exactly zero
+            # (e.g. a rate introduced mid-series) is usually the MOST
+            # significant move, not one to hide. Report it with
+            # percent_change=None (honest: genuinely undefined) instead
+            # of omitting the period entirely.
+            changes.append({"period": period, "absolute_change": absolute_change, "percent_change": None})
+            continue
+        changes.append({"period": period, "absolute_change": absolute_change, "percent_change": absolute_change / abs(previous) * 100})
+    changes.sort(key=lambda item: abs(item["percent_change"]) if item["percent_change"] is not None else float("inf"), reverse=True)
     logger.info(f"change_detection done: top={changes[:1]}")
     return {"largest_changes": changes[:10]}
 
@@ -291,6 +380,10 @@ def threshold_filter_compare(filter_periods: list[str], filter_values: list[floa
     filtered window against the baseline (all other periods)."""
     logger.info(f"threshold_filter_compare start: n_filter={len(filter_values)}, n_compare={len(compare_values)}, range=[{low},{high}]")
 
+    if not isinstance(low, (int, float)) or not isinstance(high, (int, float)):
+        logger.error(f"threshold_filter_compare: low/high must be numbers, got low={low!r} high={high!r}")
+        raise ValueError(f"low and high must both be numbers, got low={low!r} ({type(low).__name__}), high={high!r} ({type(high).__name__})")
+
     joined = _align_series(filter_periods, filter_values, compare_periods, compare_values)
     if len(joined) < 3:
         logger.error("threshold_filter_compare: fewer than 3 shared periods")
@@ -315,6 +408,149 @@ def threshold_filter_compare(filter_periods: list[str], filter_values: list[floa
     return result
 
 
+def describe_series(periods: list[str], values: list[float]) -> dict:
+    """Summary statistics for one series: range, spread, and total change
+    from first to last OBSERVED (non-missing) point - not a substitute
+    for anomaly_analysis/change_detection, but a cheap first look that
+    doesn't need a second lakehouse_query round-trip just to answer
+    'what's the range of this series'."""
+    logger.info(f"describe_series start: n={len(values)}")
+    if len(periods) != len(values):
+        logger.error(f"describe_series: length mismatch periods={len(periods)} values={len(values)}")
+        raise ValueError(f"periods and values must have equal length, got {len(periods)} and {len(values)}")
+    if len(periods) == 0:
+        logger.error("describe_series: empty input")
+        raise ValueError("At least 1 point is required")
+
+    def _is_missing(v):
+        return v is None or (isinstance(v, float) and math.isnan(v))
+
+    # Input order is treated as chronological, same assumption every
+    # other tool in this file makes (change_detection, anomaly_analysis)
+    # - periods are NOT re-sorted here, since some gold tables use
+    # non-zero-padded period strings ('YYYY-Q') where a naive string
+    # sort would silently misorder Q4 before Q3 (see _quarterly_sort_key
+    # above) and this function has no way to know which format it was
+    # handed.
+    clean = [(p, v) for p, v in zip(periods, values) if not _is_missing(v)]
+    missing_count = len(values) - len(clean)
+    logger.debug(f"describe_series: clean_n={len(clean)}, missing_count={missing_count}")
+
+    if not clean:
+        logger.warning("describe_series: every value is missing/NaN")
+        result = {
+            "count": len(values), "missing_count": missing_count,
+            "first_period": None, "last_period": None,
+            "min": None, "max": None, "mean": None, "median": None, "std": None,
+            "first_value": None, "last_value": None,
+            "total_change": None, "total_percent_change": None,
+        }
+        logger.info(f"describe_series done (all missing): {result}")
+        return result
+
+    clean_values = pd.Series([v for _, v in clean], dtype="float64")
+    first_period, first_value = clean[0]
+    last_period, last_value = clean[-1]
+    total_change = float(last_value) - float(first_value)
+    total_percent_change = (total_change / abs(first_value) * 100) if first_value != 0 else None
+
+    result = {
+        "count": len(values),
+        "missing_count": missing_count,
+        "first_period": first_period,
+        "last_period": last_period,
+        "min": float(clean_values.min()),
+        "max": float(clean_values.max()),
+        "mean": float(clean_values.mean()),
+        "median": float(clean_values.median()),
+        "std": float(clean_values.std()) if len(clean_values) > 1 else 0.0,
+        "first_value": float(first_value),
+        "last_value": float(last_value),
+        "total_change": total_change,
+        "total_percent_change": float(total_percent_change) if total_percent_change is not None else None,
+    }
+    logger.info(f"describe_series done: count={result['count']}, missing={missing_count}, range=[{result['min']},{result['max']}]")
+    return result
+
+
+def compare_regions(period: str | None = None, top_n: int = 10, compare_period: str | None = None) -> dict:
+    """Rank provinces (Bolge) by total cash loans for one FinTurk quarter
+    (gold_finturk_regional_quarterly). Defaults to the latest available
+    quarter if period is omitted. If compare_period is also given,
+    additionally returns each province's growth% between compare_period
+    and period, sorted fastest-growing first - purpose-built so a
+    regional comparison question doesn't need the agent to hand-write a
+    multi-step SQL join every time."""
+    logger.info(f"compare_regions start: period={period}, top_n={top_n}, compare_period={compare_period}")
+    if not isinstance(top_n, int) or top_n < 1:
+        logger.error(f"compare_regions: invalid top_n={top_n!r}")
+        raise ValueError(f"top_n must be a positive integer, got {top_n!r}")
+
+    con = _db()
+    try:
+        table = "gold_finturk_regional_quarterly"
+        if table not in {row[0] for row in con.execute("SHOW TABLES").fetchall()}:
+            logger.error(f"compare_regions: {table} missing from gold layer")
+            raise ValueError(f"{table} table not found in the gold layer.")
+
+        available_periods = [row[0] for row in con.execute(f'SELECT DISTINCT Period FROM "{table}"').fetchall()]
+        if not available_periods:
+            logger.error(f"compare_regions: {table} has no rows")
+            raise ValueError(f"{table} has no data.")
+        available_sorted = sorted(available_periods, key=_quarterly_sort_key)
+
+        if period is None:
+            period = available_sorted[-1]
+            logger.debug(f"compare_regions: defaulted period to latest available={period}")
+        elif period not in available_periods:
+            logger.warning(f"compare_regions: unknown period={period!r}")
+            raise ValueError(f"Unknown period {period!r}. Available periods: {available_sorted}")
+
+        ranking_df = con.execute(
+            f'SELECT Bolge, Toplam_Nakdi_Kredi_Bin_TL, Takipteki_Alacak_Bin_TL, NPL_Orani_Yaklasik '
+            f'FROM "{table}" WHERE Period = ? ORDER BY Toplam_Nakdi_Kredi_Bin_TL DESC LIMIT ?',
+            [period, top_n],
+        ).fetchdf()
+        result = {
+            "period": period,
+            "top_n": top_n,
+            "ranking": ranking_df.where(ranking_df.notna(), None).to_dict("records"),
+        }
+
+        if compare_period is not None:
+            if compare_period not in available_periods:
+                logger.warning(f"compare_regions: unknown compare_period={compare_period!r}")
+                raise ValueError(f"Unknown compare_period {compare_period!r}. Available periods: {available_sorted}")
+            if compare_period == period:
+                logger.warning("compare_regions: compare_period equals period")
+                raise ValueError("compare_period must differ from period.")
+
+            growth_df = con.execute(
+                f'SELECT a.Bolge, a."Toplam_Nakdi_Kredi_Bin_TL" AS value_at_compare_period, '
+                f'b."Toplam_Nakdi_Kredi_Bin_TL" AS value_at_period '
+                f'FROM "{table}" a JOIN "{table}" b ON a.Bolge = b.Bolge '
+                f'WHERE a.Period = ? AND b.Period = ?',
+                [compare_period, period],
+            ).fetchdf()
+            # A province whose baseline value is 0 has an undefined
+            # growth% (same reasoning as change_detection's from-zero
+            # case) - excluded from the ranked list rather than
+            # crashing or reporting an infinite/NaN percentage.
+            growth_df = growth_df[growth_df["value_at_compare_period"] != 0].copy()
+            growth_df["growth_percent"] = (
+                (growth_df["value_at_period"] - growth_df["value_at_compare_period"])
+                / growth_df["value_at_compare_period"].abs() * 100
+            )
+            growth_df = growth_df.sort_values("growth_percent", ascending=False)
+            result["compare_period"] = compare_period
+            result["growth"] = growth_df.where(growth_df.notna(), None).to_dict("records")
+
+        logger.info(f"compare_regions done: period={period}, ranking_n={len(result['ranking'])}")
+        return result
+    finally:
+        con.close()
+
+
 TOOL_FUNCTIONS = {
     "lakehouse_schema": lakehouse_schema,
     "lakehouse_query": lakehouse_query,
@@ -323,6 +559,8 @@ TOOL_FUNCTIONS = {
     "correlation_analysis": correlation_analysis,
     "causality_analysis": causality_analysis,
     "threshold_filter_compare": threshold_filter_compare,
+    "describe_series": describe_series,
+    "compare_regions": compare_regions,
 }
 
 TOOL_SCHEMAS = [
@@ -333,6 +571,8 @@ TOOL_SCHEMAS = [
     {"type": "function", "function": {"name": "correlation_analysis", "description": "Calculate aligned Pearson correlation between two series; never call it causation.", "parameters": {"type": "object", "properties": {"x_periods": {"type": "array", "items": {"type": "string"}}, "x_values": {"type": "array", "items": {"type": "number"}}, "y_periods": {"type": "array", "items": {"type": "string"}}, "y_values": {"type": "array", "items": {"type": "number"}}}, "required": ["x_periods", "x_values", "y_periods", "y_values"], "additionalProperties": False}}},
     {"type": "function", "function": {"name": "causality_analysis", "description": "Test whether series x is a statistically useful predictor of series y: best-aligned lag correlation plus a Granger causality test (p-values per lag). Not proof of true causation.", "parameters": {"type": "object", "properties": {"x_periods": {"type": "array", "items": {"type": "string"}}, "x_values": {"type": "array", "items": {"type": "number"}}, "y_periods": {"type": "array", "items": {"type": "string"}}, "y_values": {"type": "array", "items": {"type": "number"}}, "max_lag": {"type": "integer", "default": 6}}, "required": ["x_periods", "x_values", "y_periods", "y_values"], "additionalProperties": False}}},
     {"type": "function", "function": {"name": "threshold_filter_compare", "description": "Filter periods where filter_values falls in [low, high] (e.g. an interest rate range), then compare the average period-over-period change of compare_values inside vs outside that window. Matches the hackathon demo's 'faiz X ile Y arasindayken kredi nasil degisti' pattern.", "parameters": {"type": "object", "properties": {"filter_periods": {"type": "array", "items": {"type": "string"}}, "filter_values": {"type": "array", "items": {"type": "number"}}, "compare_periods": {"type": "array", "items": {"type": "string"}}, "compare_values": {"type": "array", "items": {"type": "number"}}, "low": {"type": "number"}, "high": {"type": "number"}}, "required": ["filter_periods", "filter_values", "compare_periods", "compare_values", "low", "high"], "additionalProperties": False}}},
+    {"type": "function", "function": {"name": "describe_series", "description": "Summary statistics for one series: count, missing count, min/max/mean/median/std, and total change from first to last observed point. A cheap first look before reaching for anomaly_analysis or change_detection.", "parameters": {"type": "object", "properties": {"periods": {"type": "array", "items": {"type": "string"}}, "values": {"type": "array", "items": {"type": "number"}}}, "required": ["periods", "values"], "additionalProperties": False}}},
+    {"type": "function", "function": {"name": "compare_regions", "description": "Rank Turkish provinces by total cash loans for one quarter (gold_finturk_regional_quarterly), defaulting to the latest available quarter. Optionally also returns each province's growth% versus an earlier compare_period, fastest-growing first.", "parameters": {"type": "object", "properties": {"period": {"type": "string", "description": "'YYYY-Q' with Q in 3,6,9,12, e.g. '2026-6'. Omit for the latest available quarter."}, "top_n": {"type": "integer", "default": 10}, "compare_period": {"type": "string", "description": "Optional earlier 'YYYY-Q' period to compute growth% against."}}, "required": [], "additionalProperties": False}}},
 ]
 
 

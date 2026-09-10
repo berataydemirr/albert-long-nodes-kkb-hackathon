@@ -86,6 +86,32 @@ def test_dashboard_causality_has_no_numpy_int_leak():
             assert isinstance(lag_entry["lag"], int)
 
 
+def test_dashboard_regional_top_uses_the_chronologically_latest_quarter():
+    """Regression: get_regional_top() used to find 'latest period' via
+    SQL MAX(Period), which sorts 'YYYY-Q' periods as plain strings and
+    is wrong whenever a year's Q4 ('...-12') exists alongside single-
+    digit quarters ('...-3/6/9') - '2021-12' < '2021-9' lexicographically
+    even though Q4 comes after Q3. Confirmed this only ever looked
+    correct because the current data's most recent year has no Q4 yet."""
+    from api.gold_queries import _quarterly_sort_key
+    import duckdb
+    from config.settings import GOLD_DIR
+
+    con = duckdb.connect(str(GOLD_DIR / "lakehouse.duckdb"), read_only=True)
+    try:
+        all_periods = [row[0] for row in con.execute("SELECT DISTINCT Period FROM gold_finturk_regional_quarterly").fetchall()]
+    finally:
+        con.close()
+    true_latest = max(all_periods, key=_quarterly_sort_key)
+
+    r = client.get("/api/dashboard")
+    regional_top = r.json()["regional_top"]
+    assert len(regional_top) > 0
+
+    from api.gold_queries import get_regional_top
+    assert get_regional_top()[0]["Bolge"] == get_regional_top(period=true_latest)[0]["Bolge"]
+
+
 # ---------------------------------------------------------------------
 # /api/ask: validation edge cases (no live MIA call needed)
 # ---------------------------------------------------------------------

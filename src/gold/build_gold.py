@@ -34,6 +34,7 @@ Usage (from the repo root):
     python -m src.gold.build_gold
 """
 import argparse
+import re
 
 import duckdb
 import pandas as pd
@@ -218,6 +219,47 @@ def build_bddk_monthly_item_facts(tablo_no: int, item_name: str, seri_kod: str, 
     ])
 
 
+def build_bddk_monthly_kobi_facts() -> pd.DataFrame:
+    """tablo_6 (SME Loans) bypasses the generic
+    build_bddk_monthly_item_facts() on purpose - it has no column named
+    exactly 'Toplam' (unlike every other table pulled from so far), it
+    has several sub-metric columns instead: 'Nakdi Kredi TP/YP', 'Toplam
+    Nakdi Krediler', 'Takip Kredi TP/YP', 'Gayri Nakdi Kredi TP/YP',
+    'Musteri Sayisi (Net)'. load_table_long()'s generic 'last numeric
+    column' fallback silently picked the customer-COUNT column (often
+    0) instead of the loan amount - confirmed live: the generic path
+    reported the SME total loan series as 0.0 TL for every recent
+    month, which is obviously wrong for a major Turkish banking-sector
+    total.
+    Reads 'Toplam Nakdi Krediler' directly instead - SME cash loans,
+    domestic + foreign currency combined, the real total."""
+    tablo_dir = BDDK_MONTHLY_SILVER_DIR / "tablo_6"
+    if not tablo_dir.exists():
+        return pd.DataFrame()
+
+    rows = []
+    for csv_path in sorted(tablo_dir.glob("*_*.csv")):
+        m = re.match(r"^(\d{4})_(\d{2})\.csv$", csv_path.name)
+        if not m:
+            continue
+        period = f"{m.group(1)}-{m.group(2)}"
+        df = pd.read_csv(csv_path, encoding="utf-8")
+        item = df[df["Column_2"] == "Toplam KOBİ Kredileri (2+3+4)"]
+        if item.empty or "Toplam Nakdi Krediler" not in df.columns:
+            logger.warning(f"build_bddk_monthly_kobi_facts: item/column missing for {csv_path.name}")
+            continue
+        rows.append({"Period": period, "Value": float(item.iloc[0]["Toplam Nakdi Krediler"])})
+
+    if not rows:
+        return pd.DataFrame()
+    unit = BDDK_MONTHLY_TABLES[6]["unit"]
+    return pd.DataFrame([
+        _fact_row(r["Period"], "bddk_monthly", "tablo_6.toplam_kobi_kredileri",
+                   "Toplam KOBI Kredileri (Nakdi, TP+YP), Sektor Geneli", r["Value"], unit, "stock", "tablo_6/*.csv")
+        for r in rows
+    ])
+
+
 def build_bddk_weekly_konut_facts() -> pd.DataFrame:
     """tablo_289 (Loans) / 'a) Konut', weekly -> downsampled to monthly.
 
@@ -385,6 +427,36 @@ def run(db_path=GOLD_DB_PATH) -> None:
         build_bddk_monthly_item_facts(9, "Toplam Mevduat", "tablo_9.toplam_mevduat", "Toplam Mevduat, Sektor Geneli"),
         build_bddk_monthly_item_facts(12, "Sermaye Yeterliliği Standart Rasyosu ((5/7)*100) (YÜZDE)",
                                        "tablo_12.sermaye_yeterlilik_rasyosu", "Sermaye Yeterliliği Standart Rasyosu", birim="%"),
+        # 3 new items from tablo_1 (Balance Sheet), all bronze/silver already
+        # collected - no new network calls. Each item_name is matched
+        # EXACTLY against real Column_2 text (not a substring guess) and
+        # confirmed non-cumulative against
+        # cumulative_scan_report_bddk_monthly.csv before being added
+        # here (same discipline as the pre-existing items above).
+        # Chosen as a set on purpose: TOPLAM AKTIFLER (assets) and
+        # TOPLAM PASIFLER (liabilities) must be equal by the balance
+        # sheet's own accounting identity - a genuine cross-check on the
+        # pipeline's correctness, not just "did it run without
+        # crashing" (see tests/test_gold_data_integrity.py).
+        build_bddk_monthly_item_facts(1, "TOPLAM AKTİFLER", "tablo_1.toplam_aktifler", "Toplam Aktifler, Sektor Geneli"),
+        build_bddk_monthly_item_facts(1, "TOPLAM PASİFLER", "tablo_1.toplam_pasifler", "Toplam Pasifler, Sektor Geneli"),
+        build_bddk_monthly_item_facts(1, "TOPLAM ÖZKAYNAKLAR", "tablo_1.toplam_ozkaynaklar", "Toplam Ozkaynaklar (Sermaye), Sektor Geneli"),
+        # 3 more, same zero-new-network-call discipline as above, this
+        # time from tablo_6 (SME Loans), tablo_11 (Liquidity Position),
+        # tablo_15 (Ratios) - all confirmed non-cumulative.
+        # NOTE on what was deliberately NOT added here: tablo_15's ROA/
+        # ROE-style rows ("Donem Net Kari / Ortalama Toplam Aktifler
+        # (%)" etc.) came back is_cumulative=True in the scan report -
+        # their numerator (period net profit) is itself YTD-cumulative
+        # (same root cause as tablo_2's net profit, see
+        # build_bddk_net_profit_monthly below), so the raw ratio is NOT
+        # a comparable month-to-month figure without properly
+        # decumulating the numerator first, not just diffing the ratio
+        # itself. Left out rather than shipped wrong - a real trap this
+        # scan caught, not an oversight.
+        build_bddk_monthly_kobi_facts(),
+        build_bddk_monthly_item_facts(11, "Likidite Yeterlilik Oranı", "tablo_11.likidite_yeterlilik_orani", "Likidite Yeterlilik Orani", birim="%"),
+        build_bddk_monthly_item_facts(15, "Takipteki Alacaklar (Brüt) / Toplam Nakdi Krediler (%)", "tablo_15.takipteki_alacaklar_orani", "Takipteki Alacaklar Orani (NPL), Sektor Geneli", birim="%"),
         build_bddk_weekly_konut_facts(),
         build_finturk_national_facts(),
     ], ignore_index=True)

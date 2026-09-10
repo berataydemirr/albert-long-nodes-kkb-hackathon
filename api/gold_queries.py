@@ -99,6 +99,18 @@ def get_health() -> list[dict]:
         con.close()
 
 
+def _quarterly_sort_key(period: str) -> tuple[int, int]:
+    """'YYYY-Q' (Q in 3,6,9,12) -> (year, quarter). SQL's MAX(Period) /
+    plain string comparison is WRONG here since these periods aren't
+    zero-padded: '2021-12' < '2021-9' lexicographically, even though Q4
+    comes after Q3. Confirmed live: MAX(Period) happened to return the
+    right 'latest quarter' today only because the most recent year in
+    the data doesn't have a Q4 yet - it silently breaks (returns Q3
+    instead of Q4) the moment one is added."""
+    year_str, q_str = period.split("-")
+    return (int(year_str), int(q_str))
+
+
 def get_regional_top(period: str | None = None, limit: int = 10) -> list[dict]:
     if not DB_PATH.exists():
         return []
@@ -107,9 +119,10 @@ def get_regional_top(period: str | None = None, limit: int = 10) -> list[dict]:
         if not _table_exists(con, "gold_finturk_regional_quarterly"):
             return []
         if period is None:
-            period = con.execute("SELECT MAX(Period) FROM gold_finturk_regional_quarterly").fetchone()[0]
-            if period is None:
+            available = [row[0] for row in con.execute("SELECT DISTINCT Period FROM gold_finturk_regional_quarterly").fetchall()]
+            if not available:
                 return []
+            period = max(available, key=_quarterly_sort_key)
         df = con.execute(
             "SELECT Bolge, Toplam_Nakdi_Kredi_Bin_TL FROM gold_finturk_regional_quarterly "
             "WHERE Period = ? ORDER BY Toplam_Nakdi_Kredi_Bin_TL DESC LIMIT ?",

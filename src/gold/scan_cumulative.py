@@ -48,7 +48,27 @@ def load_table_long(tablo_dir) -> pd.DataFrame:
         period = f"{m.group(1)}-{m.group(2)}"
 
         df = pd.read_csv(csv_path, encoding="utf-8")
-        value_col = "Toplam" if "Toplam" in df.columns else df.select_dtypes("number").columns[-1]
+        if "Toplam" in df.columns:
+            value_col = "Toplam"
+        else:
+            # Bug found live (tablo_6, SME Loans): this table has
+            # NO column named exactly "Toplam" - it has several
+            # sub-metric columns instead (domestic/foreign-currency cash
+            # loans, total cash loans, past-due loans, customer count).
+            # The "last numeric column" fallback silently picked the
+            # customer-COUNT column (often 0) instead of the
+            # loan amount a caller actually wanted, and nothing here
+            # ever said so - a generic item-puller built on top of this
+            # (build_bddk_monthly_item_facts) shipped a table of zeros.
+            # Loud by design now: any table shaped like this needs its
+            # own bespoke loader (see build_bddk_monthly_kobi_facts for
+            # tablo_6's real fix), not the generic single-Value path.
+            value_col = df.select_dtypes("number").columns[-1]
+            logger.warning(
+                f"load_table_long({tablo_dir.name}, {csv_path.name}): no 'Toplam' column - "
+                f"falling back to last numeric column {value_col!r} (columns: {list(df.columns)}). "
+                f"Verify this is really the intended value before trusting it."
+            )
         item_col = "Column_2"
         if item_col not in df.columns or value_col not in df.columns:
             continue

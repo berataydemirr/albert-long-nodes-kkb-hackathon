@@ -19,6 +19,16 @@ MIA_BASE_URL = os.getenv("MIA_BASE_URL", "https://mia.csp.kloudeks.com/v1")
 MIA_CHAT_MODEL = os.getenv("MIA_CHAT_MODEL", "kkbhackathon2026/Qwen3.8-27B")
 MIA_EMBEDDING_MODEL = os.getenv("MIA_EMBEDDING_MODEL", "kkbhackathon2026/Qwen3-Embedding-8B")
 
+# Comma-separated list of origins the FastAPI backend's CORS middleware
+# accepts (api/main.py). Defaults cover local dev only - the production
+# frontend origin (e.g. a Vercel URL) is added via this env var on the
+# deployed backend, never hardcoded, so a redeploy of the frontend to a
+# new URL doesn't require a code change here.
+ALLOWED_ORIGINS = [
+    o.strip() for o in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
+    if o.strip()
+]
+
 # --- Data layers (medallion architecture: bronze=raw, silver=clean, gold=analysis-ready) ---
 DATA_DIR = PROJECT_ROOT / "data"
 BRONZE_DIR = DATA_DIR / "bronze"

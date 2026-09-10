@@ -1,217 +1,250 @@
-# Gold Katmanı — Şema Notu
+# Gold Layer — Schema Notes
 
-`python -m src.gold.build_gold` çalıştırıldığında `data/gold/lakehouse.duckdb`
-içine 5 tablo yazılır. Lakehouse Tool bu tabloları sorgulayacak.
+Running `python -m src.gold.build_gold` writes 5 tables into
+`data/gold/lakehouse.duckdb`. The Lakehouse Tool queries these tables.
 
-## ⚠️ Kritik: CSV okuma/yazmada her zaman `encoding="utf-8"`
+## ⚠️ Critical: always pass `encoding="utf-8"` for CSV read/write
 
-Bu makinede (Windows, Türkçe yerel ayar) `pd.read_csv(path)` /
-`df.to_csv(path)` **varsayılan** çağrıları OS'nin yerel kod sayfasını
-(cp1254) kullanıyor. Diskteki CSV'ler gerçekte doğru UTF-8 (bronze JSON
-byte'ları ile doğrulandı), ama `encoding="utf-8"` verilmeden okunduğunda
-"DÖNEM" gibi kelimelerdeki Türkçe harfler sessizce `�` karakterine
-dönüşüyor. Bu, yazarın makinesinde fark edilmeyip demo sırasında
-jüri önünde bozuk metin olarak ortaya çıkabilecek türden bir hata.
-**Bu veriye dokunan her yeni kod (tool'lar dahil) `pd.read_csv(path,
-encoding="utf-8")` ve `df.to_csv(path, encoding="utf-8")` kullanmalı.**
-Mevcut `src/processing/*.py` ve `src/gold/*.py` script'leri düzeltildi.
+On this machine (Windows, Turkish locale) the **default** `pd.read_csv(path)` /
+`df.to_csv(path)` calls use the OS's local code page (cp1254). The CSVs on
+disk are genuinely correct UTF-8 (verified against the bronze JSON bytes),
+but when read without `encoding="utf-8"` the Turkish characters in words
+like "DÖNEM" silently turn into `�`. This is the kind of bug that goes
+unnoticed on the author's own machine and shows up as garbled text in front
+of the jury during the demo.
+**Every new piece of code that touches this data (tools included) must use
+`pd.read_csv(path, encoding="utf-8")` and `df.to_csv(path, encoding="utf-8")`.**
+The existing `src/processing/*.py` and `src/gold/*.py` scripts were fixed for this.
 
-Not: terminalde/log çıktısında yine de `�` görebilirsiniz (ör. `İSTANBUL`
-konsolda `�STANBUL` gibi görünür) - bu SADECE konsolun kod sayfası
-sorunu, `repr()` / hex codepoint ile kontrol edilince veri doğru
-(`0x130` = `İ`). Konsol çıktısına bakıp veri bozuk sanmayın; asıl kontrol
-dosyanın/DB'nin byte'larında.
+Note: you can still see `�` in terminal/log output (e.g. `İSTANBUL` shows
+as `�STANBUL` in the console) - this is ONLY the console's code page
+issue; checking with `repr()` / the hex codepoint confirms the data itself
+is correct (`0x130` = `İ`). Don't assume the data is corrupt from console
+output alone; the real check is the bytes on disk/in the DB.
 
-## Tablolar
+## Tables
 
 ### `gold_fact_long`
-Tüm kaynaklardan (EVDS, TUIK, BDDK Aylık, BDDK Haftalık, BDDK FinTürk-
-ulusal) ortak aylık eksende tek satır = tek gözlem şeklinde uzun format.
-Genel amaçlı, doğal-dil→SQL tool'unun asıl hedefleneceği tablo.
+Long/tidy format across all sources (EVDS, TUIK, BDDK Monthly, BDDK
+Weekly, BDDK FinTurk-national) on a shared monthly axis: one row = one
+observation. General-purpose - the table a natural-language→SQL tool
+should actually be pointed at.
 
-| Kolon | Açıklama |
+| Column | Description |
 |---|---|
 | `Period` | `YYYY-MM` |
-| `Bolge` | `TR` (ülke geneli) - il bazlı veri için `gold_finturk_regional_quarterly`'e bkz. |
+| `Bolge` | `TR` (country-wide) - see `gold_finturk_regional_quarterly` for province-level data |
 | `Kaynak` | `evds` / `tuik` / `bddk_monthly` / `bddk_weekly` / `bddk_finturk` |
-| `Seri_Kod` | Kaynağa özgü seri/tablo kodu (ör. `TP.KFE.TR`, `tablo_4.konut_kredisi`) |
-| `Seri_Adi` | İnsan-okunur açıklama (LLM'e prompt'ta bu isim verilecek) |
-| `Deger` | Sayısal değer |
-| `Birim` | `%`, `milyon TL`, `TRY`, `Bin TL (dogrulanmadi)`, boş/`NULL`=endeks ya da birim teyit edilemedi |
-| `Tip` | `stock` (dönem sonu seviye) / `flow` (aya ait akış) / `flow_quarter_ffill` (çeyrek sonundan ay'a forward-fill edilmiş, gerçek aylık gözlem değil) |
-| `Kaynak_Dosya` | İzlenebilirlik: hangi silver dosyasından geldi |
+| `Seri_Kod` | Source-specific series/table code (e.g. `TP.KFE.TR`, `tablo_4.konut_kredisi`) |
+| `Seri_Adi` | Human-readable description (this is what gets shown to the LLM in the prompt) |
+| `Deger` | Numeric value |
+| `Birim` | `%`, `milyon TL` (million TRY), `TRY`, `Bin TL (dogrulanmadi)` (thousand TRY, unconfirmed), empty/`NULL` = an index or the unit couldn't be confirmed |
+| `Tip` | `stock` (level at period end) / `flow` (flow for that month) / `flow_quarter_ffill` (forward-filled from quarter-end to month, not a real monthly observation) |
+| `Kaynak_Dosya` | Traceability: which silver file this row came from |
 
-**18 seri, 1188 satır** (2021-01 → 2026-06), 18/18 seri tam dolu
-(66/66 dönem, sıfır null - `gold_fact_long` üzerinde her build'de
-kontrol ediliyor). Kaynaklara göre:
+**24 series, 1584 rows** (2021-01 → 2026-06), 24/24 series with full
+coverage (66/66 periods, zero nulls - checked on every build against
+`gold_fact_long`, and `tests/test_gold_data_integrity.py` also runs
+against the real build). By source:
 
-- **EVDS (11 seri):** konut fiyat endeksi, konut kredisi faiz oranı,
-  TCMB politika faizi, TÜFE, sanayi üretim endeksi, USD/TRY,
-  TL mevduat faiz oranı, kredi/banka kartı harcaması (haftalıktan
-  aylığa ortalanmış), reel kesim güven endeksi, M2 para arzı
-  (haftalıktan aylığa), birleşik tüketici kredisi faiz oranı
-  (ihtiyaç+taşıt+konut birlikte). Hepsi `--discover` ile gerçek
-  verilerden bulundu, kod uydurulmadı (bkz. `config/evds_series.py`
-  yorumları).
-- **TUIK (1 seri):** işsizlik oranı.
-- **BDDK Aylık (4 seri):** konut kredisi (tablo_4), **toplam krediler**
-  (tablo_3, yeni), **toplam mevduat** (tablo_9, yeni), **sermaye
-  yeterliliği standart rasyosu** (tablo_12, yeni, `%`). Hepsi gerçek
-  `Column_2` metniyle birebir eşleştirildi ve `cumulative_scan_report_
-  bddk_monthly.csv`'ye karşı "kümülatif değil" diye doğrulandı.
-- **BDDK Haftalık (1 seri):** konut kredisi haftalık yeni kullandırım
-  (akış, tablo_289 - aşağıya bkz., aylığa toplanarak).
-- **BDDK FinTürk (1 seri):** toplam nakdi kredi, Türkiye geneli
-  (82 il/yurtdışı toplamı, çeyreklikten aylığa forward-fill).
+- **EVDS (11 series):** house price index, housing loan interest rate,
+  TCMB policy rate, CPI, industrial production index, USD/TRY,
+  TRY deposit interest rate, credit/debit card spending (averaged
+  from weekly to monthly), real-sector confidence index, M2 money
+  supply (weekly to monthly), combined consumer loan interest rate
+  (needs+auto+housing combined). All found via `--discover` against
+  real data, none guessed (see the comments in `config/evds_series.py`).
+- **TUIK (1 series):** unemployment rate.
+- **BDDK Monthly (10 series):** housing credit (tablo_4), **total
+  loans** (tablo_3), **total deposits** (tablo_9), **capital adequacy
+  standard ratio** (tablo_12, `%`), **total assets**, **total
+  liabilities**, **total equity** (tablo_1/Balance Sheet), **total SME
+  loans** (tablo_6), **liquidity coverage ratio** (tablo_11, `%`),
+  **non-performing loan ratio / NPL** (tablo_15, `%`). Each was matched
+  exactly against the real `Column_2` text and confirmed "not
+  cumulative" against `cumulative_scan_report_bddk_monthly.csv` - none
+  of these needed a new network call, bronze/silver were already
+  complete on disk (1122/1122 files). Total assets/liabilities were
+  cross-checked against the balance sheet's own accounting identity:
+  assets == liabilities in every one of the 66 months (diff = 0), see
+  `tests/test_gold_data_integrity.py::test_bddk_balance_sheet_assets_equal_liabilities`.
+  **Deliberately left out:** tablo_15's ROA/ROE-style rows ("period net
+  profit / average total assets (%)" etc.) came back `is_cumulative=True`
+  in the scan report - since their numerator (period net profit) is
+  itself YTD-cumulative, the ratio behaves as YTD-cumulative too, and a
+  proper month-by-month figure would require decumulating the numerator
+  first - not added (reporting it wrong was worse than not having it).
+  **tablo_6 (SME Loans) caused a separate bug:** this table has no
+  column named exactly "Toplam" (it has sub-columns instead: domestic/
+  foreign-currency cash loans, past-due loans, customer count, etc.),
+  and `load_table_long()`'s generic "last numeric column" fallback
+  silently picked the customer COUNT (0 in most months) - caught live
+  (it was reporting 0.0 TL for all 66 months), fixed with a dedicated
+  loader (`build_bddk_monthly_kobi_facts()`) that reads the "Toplam
+  Nakdi Krediler" column directly. `load_table_long()` now logs a
+  WARNING whenever this fallback triggers.
+- **BDDK Weekly (1 series):** weekly new housing-loan originations
+  (flow, tablo_289 - see below, summed to monthly).
+- **BDDK FinTurk (1 series):** total cash loans, Turkey-wide (sum of
+  82 provinces/abroad, forward-filled from quarterly to monthly).
 
-Ayrıca **`gold_health_life_expectancy`** (yeni, aşağıya bkz.) `gold_fact_long`'a
-dahil değil - doğal yıllık çözünürlüğünde ayrı tabloda, FinTürk'ün bölgesel
-tablosuyla aynı mantıkla (aylığa zorlamak veri uydurmak olurdu).
+Also, **`gold_health_life_expectancy`** (new, see below) is NOT part of
+`gold_fact_long` - it lives in its own table at its native annual
+resolution, same reasoning as the FinTurk regional table (forcing it
+onto the monthly axis would mean inventing data).
 
 ### `gold_bddk_net_profit_monthly`
-Faz A2'nin somut çıktısı: BDDK Aylık `tablo_2` içindeki "DÖNEM NET KARI
-(ZARARI)" satırı, gerçek veriden **kümülatif olduğu tespit edilip**
-(`src/gold/scan_cumulative.py`, bkz. `cumulative_scan_report.csv`)
-aylık akışa çevrilmiş hali. `Value_Cumulative` = orijinal YTD değer,
-`Value_Monthly` = o aya ait gerçek kâr/zarar.
+Phase A2's concrete output: the "PERIOD NET PROFIT (LOSS)" line inside
+BDDK Monthly `tablo_2`, **detected as cumulative from the real data**
+(`src/gold/scan_cumulative.py`, see `cumulative_scan_report.csv`) and
+converted into a true monthly flow. `Value_Cumulative` = the original
+YTD value, `Value_Monthly` = the real profit/loss for that month.
 
 ### `gold_konut_demo`
-Hackathon brifinginin kendi örnek senaryosunu (konut kredisi + faiz +
-fiyat endeksi + enflasyondan arındırma) uçtan uca üreten geniş tablo.
-`Konut_Kredisi_Reel_Milyon_TL` = TÜFE ile 2021-01 bazına deflate
-edilmiş. **Birim `milyon TL`** (bkz. aşağıdaki "Birim düzeltmesi" notu
-- sütun adı da buna göre `_Milyon_TL` olarak düzeltildi).
+A wide table built end-to-end for the hackathon brief's own worked
+example (housing credit + interest rate + price index + CPI
+deflation). `Konut_Kredisi_Reel_Milyon_TL` = deflated to the 2021-01
+base using CPI. **Unit is `milyon TL`** (million TRY - see the "Unit
+fix" note below - the column name was corrected accordingly to
+`_Milyon_TL`).
 
-**Gerçek veriden çıkan dikkat çekici bulgu:** nominal konut kredisi
-2021-01→2026-06 arası ~2.9x büyümüş (276.785 → 801.438 milyon TL), ama
-enflasyondan arındırılmış hali aynı dönemde ~3'te 1'e küçülmüş
-(276.785 → 99.416 "2021-01 fiyatlarıyla" milyon TL). Bu, Causality
-Tool'un vitrin örneği için hazır, gerçek bir hikaye.
+**A notable finding from the real data:** nominal housing credit grew
+~2.9x between 2021-01 and 2026-06 (276,785 → 801,438 million TRY), but
+the inflation-adjusted figure over the same period shrank to about a
+third (276,785 → 99,416 million TRY "at 2021-01 prices"). This is a
+real, ready-made story for the Causality Tool's showcase example.
 
-### `gold_finturk_regional_quarterly` (yeni)
-BDDK FinTürk `tablo_1` (Krediler), **il bazında**, kendi doğal
-çeyreklik çözünürlüğünde tutuluyor - 81 il × yurt dışı, aylığa
-zorlanmadı (81 il × aylık forward-fill, gerçek bilgi katmadan satır
-sayısını 3 katına çıkarırdı). Gold katmanındaki ilk bölgesel (`Bolge`)
-boyut. Kolonlar: `Period` (`YYYY-Q`, Q∈{3,6,9,12}), `Bolge` (il adı),
-`Toplam_Nakdi_Kredi_Bin_TL`, `Takipteki_Alacak_Bin_TL`,
-`NPL_Orani_Yaklasik`. 1804 satır (82 bölge × 22 çeyrek). Ulusal toplamla
-çapraz kontrol edildi: `gold_fact_long`'daki `tablo_1.toplam_nakdi_kredi_ulusal`
-== bu tablonun 82 ilin toplamı (2021-Q1 için doğrulandı, tam eşleşiyor).
+### `gold_finturk_regional_quarterly` (new)
+BDDK FinTurk `tablo_1` (Loans), **by province**, kept at its own native
+quarterly resolution - not forced onto the monthly axis (81 provinces
+× monthly forward-fill would triple the row count without adding any
+real information). The first regional (`Bolge`) dimension in the gold
+layer. Columns: `Period` (`YYYY-Q`, Q∈{3,6,9,12}), `Bolge` (province
+name), `Toplam_Nakdi_Kredi_Bin_TL`, `Takipteki_Alacak_Bin_TL`,
+`NPL_Orani_Yaklasik`. 1804 rows (82 regions × 22 quarters). Cross-
+checked against the national total: `gold_fact_long`'s
+`tablo_1.toplam_nakdi_kredi_ulusal` == this table's sum across the 82
+provinces (confirmed for 2021-Q1, exact match).
 
-### `gold_health_life_expectancy` (yeni)
-Hackathon'un "sadece finans değil" şartına karşılık: TÜİK SDMX
-API'sinde `saglik`/`hastane` ile eşleşen hiçbir dataflow yok (427
-dataflow'un tamamı tarandı, konut/emlak taramasıyla aynı yöntem), ama
-`DF_DNG_YS` ("Doğuşta Beklenen Yaşam Süresi") gerçek ve çalışıyor.
-Doğal **yıllık** çözünürlüğünde, ayrı tabloda (aylığa zorlamak veri
-uydurmak olurdu - FinTürk bölgesel tablosuyla aynı gerekçe). Kolonlar:
-`Period` (`YYYY`), `Bolge` (`TR`), `Deger` (yıl), `Birim` (`Yil`).
-4 satır: 2021-2024. **2025/2026 yok** - TÜİK henüz yayınlamamış, bu
-gerçek bir boşluk, dolduruLMADI.
+### `gold_health_life_expectancy` (new)
+Answers the hackathon's "not just finance" requirement: TUIK's SDMX
+API has no dataflow matching "health"/"hospital" (all 427 dataflows
+were scanned, same method as the housing/real-estate scan), but
+`DF_DNG_YS` ("Life Expectancy at Birth") is real and works. Kept at
+its native **annual** resolution, in its own table (forcing it to
+monthly would mean inventing data - same reasoning as the FinTurk
+regional table). Columns: `Period` (`YYYY`), `Bolge` (`TR`), `Deger`
+(years), `Birim` (`Yil`, i.e. "Years"). 4 rows: 2021-2024. **No
+2025/2026** - TUIK hasn't published those yet; this is a real gap, not
+filled in.
 
-İkinci bir aday (`DF_DOGUM_KDH_C`, il bazlı kaba doğum hızı) araştırıldı
-ama eklenmedi: 19 boyutlu paylaşılan bir doğum-istatistiği DSD'sinin
-parçası, her boyutun "_T" (Toplam) kodu DSD'nin kendi codelist'lerinden
-bulunup denendiği halde sorgu "NoRecordsFound" döndü - muhtemelen
-`YAYIM_DONEMI` (528 değerli, "toplam"ı olmayan bir yayın-dönemi boyutu)
-gerçek bir değer istiyor. `config/tuik_series.py`'de bir sonraki adım
-olarak not edildi, uydurulmadı.
+A second candidate (`DF_DOGUM_KDH_C`, province-level crude birth rate)
+was investigated but not added: it's part of a shared 19-dimension
+birth-statistics DSD, and even after resolving every dimension's "_T"
+(Total) code from the DSD's own codelists, the query still returned
+"NoRecordsFound" - most likely `YAYIM_DONEMI` (a 528-value
+release-period dimension with no total code) needs a specific real
+value. Noted as a follow-up in `config/tuik_series.py`, not guessed at.
 
-## Çözülen bulgu — haftalık "Konut" satırı stok değil, akış
+## Finding resolved — the weekly "Konut" (Housing) line is a flow, not a stock
 
-BDDK Haftalık bülten `tablo_289` ("Loans") / "a) Konut" satırı ile BDDK
-Aylık `tablo_4` / "Tüketici Kredileri - Konut" satırı aynı ay için
-uyuşmuyordu. Sebebi bulundu: haftalık rakam hafta hafta düz/dalgalı
-seyrediyor (38091 → 37319 → 37621 → 38075 → 39452 ...), aylık stok gibi
-düzgün büyümüyor - bu, bir bakiye değil, **o hafta açılan yeni konut
-kredisi** (akış) imzası. `build_gold.py`'da `Tip='flow'` olarak
-düzeltildi ve etiketi netleştirildi ("Haftalik Yeni Kullandirim Toplami
-(Bilgi: stok DEGIL)"). Kesin resmi tanım BDDK'nın tablo
-dokümantasyonundan/Slack'ten teyit edilebilir ama davranışsal kanıt
-güçlü.
+BDDK Weekly Bulletin `tablo_289` ("Loans") / "a) Konut" (Housing) line
+didn't reconcile with BDDK Monthly `tablo_4` / "Consumer Loans -
+Housing" for the same month. The cause was found: the weekly figure
+moves flat/choppy week to week (38091 → 37319 → 37621 → 38075 → 39452
+...) instead of growing smoothly like a monthly stock does - this is
+the signature of newly originated housing loans **that week** (a flow),
+not a balance. Fixed in `build_gold.py` with `Tip='flow'` and the label
+clarified accordingly. The exact official definition could be confirmed
+from BDDK's own table documentation/Slack, but the behavioral evidence
+is strong.
 
-## Birim düzeltmesi — BDDK Aylık'ın gerçek isimleri ve birimleri bulundu
+## Unit fix — BDDK Monthly's real names and units were found
 
-`config/settings.py`'ye `BDDK_MONTHLY_TABLES` eklendi: BDDK Aylık'ın 17
-tablosunun resmi adı ve birimi, **uydurulmadan** doğrudan bronze
-JSON'ın kendi `Json.caption` alanından çıkarıldı (ör.
-`data/bronze/bddk_monthly/2021/01/tablo_4_p1.json` →
-`"Tuketici Kredileri (milyon TL), Donem:2021/1"`). Bu, tablo_1-17'nin
-artık sadece numarayla değil gerçek isimleriyle anılabileceği anlamına
-geliyor (Bilanço, Kar Zarar, Krediler, Tüketici Kredileri, Sektörel
-Kredi Dağılımı, KOBİ Kredileri, Sendikasyon Seküritizasyon Kredileri,
-Menkul Kıymetler, Mevduat Türler İtibarıyla, Mevduat Vade İtibarıyla,
-Likidite Durumu, Sermaye Yeterliliği, Yabancı Para Pozisyonu, Bilanço
-Dışı İşlemler, Rasyolar, Diğer Bilgiler, Yurt Dışı Şube Rasyoları).
+`BDDK_MONTHLY_TABLES` was added to `config/settings.py`: the official
+name and unit of each of BDDK Monthly's 17 tables, extracted **without
+guessing** directly from the bronze JSON's own `Json.caption` field
+(e.g. `data/bronze/bddk_monthly/2021/01/tablo_4_p1.json` →
+`"Tuketici Kredileri (milyon TL), Donem:2021/1"`). This means tablo_1-17
+can now be referred to by their real names, not just their numbers
+(Balance Sheet, Profit & Loss, Loans, Consumer Loans, Sectoral Loan
+Distribution, SME Loans, Syndication/Securitization Loans, Securities,
+Deposits by Type, Deposits by Maturity, Liquidity Position, Capital
+Adequacy, Foreign Currency Position, Off-Balance-Sheet Transactions,
+Ratios, Other Information, Foreign Branch Ratios).
 
-**Bunu yaparken gerçek bir hata bulundu ve düzeltildi:** `tablo_4`'ün
-gerçek birimi **"milyon TL"**, önceki gold kodunda yanlışlıkla "Bin TL"
-etiketlenmişti. `gold_fact_long`'daki `Deger` sayısı hiç değişmedi,
-sadece `Birim` etiketi ve `gold_konut_demo`'daki sütun adları
-(`Konut_Kredisi_Bin_TL` → `Konut_Kredisi_Milyon_TL`) düzeltildi. Yani
-276.785 rakamı her zaman doğruydu, ama "276.785 bin TL" demek yanlıştı
-- doğrusu "276.785 milyon TL" (~277 milyar TL).
+**A real bug was found and fixed while doing this:** `tablo_4`'s real
+unit is **"million TRY"**; the earlier gold code had mislabeled it as
+"thousand TRY". The `Deger` number in `gold_fact_long` never changed -
+only the `Birim` label and the column names in `gold_konut_demo`
+(`Konut_Kredisi_Bin_TL` → `Konut_Kredisi_Milyon_TL`) were corrected.
+In other words, the number 276,785 was always correct, but calling it
+"276,785 thousand TRY" was wrong - it's "276,785 million TRY" (~277
+billion TRY).
 
-**Not:** birim doğrulaması sadece BDDK Aylık için mümkün oldu (caption
-alanı sadece orada var). BDDK Haftalık'ın HTML sayfasında hiçbir yerde
-birim yazmıyor (kontrol edildi) - `tablo_289.konut`'un `Birim`'i bu
-yüzden `NULL` bırakıldı, "Bin TL" gibi bir şey iddia edilmedi. BDDK
-FinTürk'ün JSON'ında da caption yok; `tablo_1.toplam_nakdi_kredi_ulusal`
-ve `gold_finturk_regional_quarterly`'nin "Bin TL" etiketi
-`config/settings.py`'deki `BDDK_FINTURK_TABLES` sözlüğünden miras
-kalan, **doğrulanmamış** bir varsayım - `gold_fact_long`'da
-`"Bin TL (dogrulanmadi)"` olarak işaretlendi.
+**Note:** unit confirmation was only possible for BDDK Monthly (only
+that source has a caption field). BDDK Weekly's HTML page states no
+unit anywhere (checked) - `tablo_289.konut`'s `Birim` was therefore
+left `NULL` rather than claiming something like "thousand TRY". BDDK
+FinTurk's JSON also has no caption; the "thousand TRY" label on
+`tablo_1.toplam_nakdi_kredi_ulusal` and
+`gold_finturk_regional_quarterly` is an **unconfirmed** assumption
+inherited from the `BDDK_FINTURK_TABLES` dictionary in
+`config/settings.py` - marked as `"Bin TL (dogrulanmadi)"` (thousand
+TRY, unconfirmed) in `gold_fact_long`.
 
-## Bilinçli olarak dışarıda bırakılan veri — altın fiyatı (EVDS)
+## Data deliberately left out — gold price (EVDS)
 
-`TP.ALTINPIYASA.KAP05` (Borsa İstanbul altın kapanış fiyatı, TL/gr)
-toplandı ve silver'a işlendi ama **gold'a dahil edilmedi**: sadece 207
-düzensiz gözlem (28 güne varan boşluklar), ve **2026'da hiç veri yok**
-(son gözlem 2025-11-24). Bunu aylığa zorlamak (forward-fill) veri
-uydurmak olurdu. Hackathon brifinginin kendi demo senaryosu zaten bu
-ihtiyacı Web URL Agent Tool ile Borsa İstanbul'un kendi sayfasından
-canlı çekmeyi öngörüyor (slayt 13) - daha doğru kaynak o.
+`TP.ALTINPIYASA.KAP05` (Borsa Istanbul gold closing price, TRY/gram)
+was collected and processed into silver but **not included in gold**:
+only 207 irregular observations (gaps up to 28 days), and **no data at
+all in 2026** (last observation 2025-11-24). Forcing this onto the
+monthly axis (forward-fill) would mean inventing data. The hackathon
+brief's own demo scenario already expects this need to be met by
+fetching live from Borsa Istanbul's own page via the Web URL Agent
+Tool (slide 13) - that's the more accurate source anyway.
 
-## Bilinen sınırlama — kümülatif tespiti oran (%) tablolarında
+## Known limitation — cumulative detection on ratio (%) tables
 
-`scan_cumulative.py`, `tablo_15` (rasyo/yüzde tablosu) içindeki 9
-satırı da "kümülatif" olarak işaretledi, ama bunlar ortalama bazlı
-oranlar - basit fark alma (`decumulate()`) bir yüzdeyi anlamlı bir
-aylık yüzdeye çevirmez. Bu yüzden `build_gold.py` şu an sadece
-`tablo_2` (mutlak TL tutarları) üzerinde decumulate çalıştırıyor;
-rasyo tabloları bilinçli olarak dışarıda bırakıldı.
+`scan_cumulative.py` also flagged 9 rows inside `tablo_15` (the
+ratio/percentage table) as "cumulative", but these are average-based
+ratios - a simple difference (`decumulate()`) doesn't turn a percentage
+into a meaningful monthly percentage. Because of this, `build_gold.py`
+currently only runs decumulation on `tablo_2` (absolute TRY amounts);
+ratio tables are deliberately excluded.
 
-## Kümülatif tarama artık 3 kaynakta da çalışıyor
+## Cumulative scanning now runs across all 3 sources
 
-`scan_cumulative.py` önceden sadece BDDK Aylık'ı tarıyordu; artık
-`run_weekly()` ve `run_finturk()` ile Haftalık (114 kalem, `donemId`→
-gerçek tarih çevrimiyle) ve FinTürk (60 kalem, ulusal toplam bazında,
-oran sütunları hariç) de taranıyor. Sonuç: **ikisinde de kümülatif
-kalem bulunamadı** (`cumulative_scan_report_bddk_weekly.csv`,
-`cumulative_scan_report_bddk_finturk.csv`) - BDDK Aylık'taki gibi
-YTD-kümülatif bir gelir tablosu deseni yok.
+`scan_cumulative.py` used to scan only BDDK Monthly; it now also scans
+Weekly (114 items, via `run_weekly()`, converting `donemId` to a real
+date) and FinTurk (60 items, via `run_finturk()`, on the national-total
+basis, excluding ratio columns). Result: **no cumulative items were
+found in either** (`cumulative_scan_report_bddk_weekly.csv`,
+`cumulative_scan_report_bddk_finturk.csv`) - neither has a
+YTD-cumulative income-statement-style pattern like BDDK Monthly does.
 
-## Veri tazeliği kontrolü (yeni) — `src/gold/check_freshness.py`
+## Data-freshness check (new) — `src/gold/check_freshness.py`
 
-`agent_controller.py` pipeline'ına eklendi (gold build'den sonra çalışır).
-İki şeyi kontrol ediyor: (1) `gold_fact_long`'un son dönemi gerçekten
-`FULL_END_YEAR/MONTH`'a (2026-06) ulaşıyor mu - ulaşmıyorsa büyük
-ihtimalle eksik/yarım bir silver'dan build alınmış demektir; (2) 30
-günden eski silver dosyası var mı - bir kaynağın yeniden çekilmesi
-gerekip gerekmediğine dair erken uyarı, hata değil.
+Wired into the `agent_controller.py` pipeline (runs after the gold
+build). Checks two things: (1) whether `gold_fact_long`'s latest period
+actually reaches `FULL_END_YEAR/MONTH` (2026-06) - if not, the build
+most likely ran against an incomplete/partial silver layer; (2) whether
+any silver file is older than 30 days - an early warning that a source
+may need re-fetching, not an error.
 
-## Sıradaki adımlar (Faz A'nın kalanı)
+## Next steps (rest of Phase A)
 
-1. BDDK Aylık'ın 13 tablosu, BDDK Haftalık'ın 8 tablosu, FinTürk'ün 6
-   tablosu (Mevduat, Bireysel Bankacılık, Seçilmiş Sektörel Krediler,
-   Rasyolar, Şube/Nüfus, Altın) hâlâ `gold_fact_long`'a hiç girmedi -
-   şema/desen hazır (`build_bddk_monthly_item_facts()`), satır eklemek
-   ucuz, ama bunların hangisinin gerçekten gerekli olduğu ürün kararı.
-2. `DF_DOGUM_KDH_C` (il bazlı kaba doğum hızı) - 19 boyutlu key'in son
-   parçası (`YAYIM_DONEMI`) çözülebilirse ikinci bir sağlık serisi
-   olur, hem de il bazlı.
-3. Yeni EVDS/TUIK seri eklemek için: ASLA kod uydurma - önce
-   `python -m src.collectors.evds --discover --search <kelime>` (EVDS)
-   ya da dataflow→DSD→codelist zincirini (TUIK, bkz.
-   `config/tuik_series.py`) takip et, sonra ilgili config dosyasına ekle.
+1. BDDK Monthly's remaining 13 tables (now 12 after the additions
+   above), BDDK Weekly's 8 tables, and FinTurk's 6 tables (Deposits,
+   Retail Banking, Selected Sectoral Loans, Ratios, Branches/
+   Population, Gold) still haven't been pulled into `gold_fact_long` at
+   all - the schema/pattern is ready (`build_bddk_monthly_item_facts()`),
+   adding a row is cheap, but which of these are actually needed is a
+   product decision.
+2. `DF_DOGUM_KDH_C` (province-level crude birth rate) - if the last
+   piece of the 19-dimension key (`YAYIM_DONEMI`) can be resolved, this
+   becomes a second health series, and a province-level one at that.
+3. For adding a new EVDS/TUIK series: NEVER guess a code - first run
+   `python -m src.collectors.evds --discover --search <term>` (EVDS) or
+   follow the dataflow→DSD→codelist chain (TUIK, see
+   `config/tuik_series.py`), then add it to the relevant config file.

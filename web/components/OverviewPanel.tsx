@@ -1,4 +1,5 @@
 import type { DashboardResponse } from "@/lib/api";
+import { formatNumber } from "@/lib/format";
 import StatTile from "@/components/StatTile";
 import SeriesLineChart from "@/components/SeriesLineChart";
 import CausalityPanel from "@/components/CausalityPanel";
@@ -20,19 +21,19 @@ export default function OverviewPanel({ data }: OverviewPanelProps) {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatTile
           label="Konut Kredisi (Nominal)"
-          value={latestKonut?.Konut_Kredisi_Milyon_TL != null ? `${latestKonut.Konut_Kredisi_Milyon_TL.toLocaleString("tr-TR")} M TL` : "-"}
+          value={latestKonut?.Konut_Kredisi_Milyon_TL != null ? `${formatNumber(latestKonut.Konut_Kredisi_Milyon_TL, 0)} M TL` : "-"}
           hint={latestKonut?.Period}
           accent="bronze"
         />
         <StatTile
           label="Politika Faizi"
-          value={latestPolicyRate?.Deger != null ? `%${latestPolicyRate.Deger}` : "-"}
+          value={latestPolicyRate?.Deger != null ? `%${formatNumber(latestPolicyRate.Deger, 1)}` : "-"}
           hint={latestPolicyRate?.Period}
           accent="gold"
         />
         <StatTile
           label="Beklenen Yasam Suresi"
-          value={latestHealth?.Deger != null ? `${latestHealth.Deger} yil` : "-"}
+          value={latestHealth?.Deger != null ? `${formatNumber(latestHealth.Deger, 1)} yil` : "-"}
           hint={latestHealth?.Period}
           accent="silver"
         />
@@ -76,7 +77,7 @@ export default function OverviewPanel({ data }: OverviewPanelProps) {
             },
           ]}
         />
-        <div className="rounded-lg border p-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+        <div className="card">
           <h3 className="mb-3 text-sm font-semibold" style={{ color: "var(--text)" }}>
             En Buyuk Degisimler (Politika Faizi)
           </h3>
@@ -86,7 +87,7 @@ export default function OverviewPanel({ data }: OverviewPanelProps) {
 
       <SeriesLineChart
         title="Net Kar (BDDK, Aylik)"
-        yLabel="TL"
+        yLabel="Milyon TL"
         series={[
           {
             key: "net_profit",

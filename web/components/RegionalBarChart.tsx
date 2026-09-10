@@ -3,6 +3,7 @@
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import type { RegionalTopRow } from "@/lib/api";
+import { formatNumber } from "@/lib/format";
 
 interface RegionalBarChartProps {
   rows: RegionalTopRow[];
@@ -26,7 +27,7 @@ export default function RegionalBarChart({ rows }: RegionalBarChartProps) {
   }));
 
   return (
-    <div className="rounded-lg border p-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+    <div className="card">
       <h3 className="mb-3 text-sm font-semibold" style={{ color: "var(--text)" }}>
         Bolgesel Nakdi Kredi (Top {rows.length})
       </h3>
@@ -37,7 +38,10 @@ export default function RegionalBarChart({ rows }: RegionalBarChartProps) {
             type="number"
             tick={{ fontSize: 11, fill: "var(--text-dim)" }}
             stroke="var(--border)"
-            tickFormatter={(v) => `${(v / 1_000_000).toFixed(1)}M`}
+            // Raw values are in BIN TL (thousand TL), so /1e6 lands in
+            // billions of TL, not millions - dividing by 1e6 and
+            // labeling "M" (million) was silently off by 1000x.
+            tickFormatter={(v) => `${formatNumber(v / 1_000_000, 1)} Mlyr`}
           />
           <YAxis
             type="category"
@@ -47,7 +51,7 @@ export default function RegionalBarChart({ rows }: RegionalBarChartProps) {
             width={90}
           />
           <Tooltip
-            formatter={(value) => [`${Number(value).toLocaleString("tr-TR")} bin TL`, "Nakdi Kredi"]}
+            formatter={(value) => [`${formatNumber(Number(value), 0)} bin TL`, "Nakdi Kredi"]}
             contentStyle={{
               background: "var(--surface)",
               border: "1px solid var(--border)",

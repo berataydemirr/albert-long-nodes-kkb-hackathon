@@ -19,13 +19,23 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #14181A; --surface: #1C2123; --surface-2: #242B2C;
     --text: #E9E7DD; --text-dim: #9BA59C; --border: #333B3A;
     --bronze: #CC8149; --silver: #8FA0A5; --gold: #D9A94A; --gold-soft: #35300F;
     --s1: #3987e5; --s2: #d95926; --good: #0ca30c; --critical: #e66767;
     --chart-grid: #2c332c;
   }
+}
+
+/* Explicit user choice (ThemeToggle) always wins over prefers-color-scheme,
+   in both directions - see web/components/ThemeToggle.tsx. */
+:root[data-theme="dark"] {
+  --bg: #14181A; --surface: #1C2123; --surface-2: #242B2C;
+  --text: #E9E7DD; --text-dim: #9BA59C; --border: #333B3A;
+  --bronze: #CC8149; --silver: #8FA0A5; --gold: #D9A94A; --gold-soft: #35300F;
+  --s1: #3987e5; --s2: #d95926; --good: #0ca30c; --critical: #e66767;
+  --chart-grid: #2c332c;
 }
 
 @theme inline {
@@ -52,4 +62,12 @@ body {
 .mono {
   font-family: var(--font-plex-mono), ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  padding: 1rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 1px 1px rgba(0, 0, 0, 0.03);
 }
