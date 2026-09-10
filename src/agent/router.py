@@ -40,13 +40,15 @@ class RouteDecision:
 # depth.
 _UNSAFE_PATTERNS = (
     r"\b(drop|delete|truncate|alter|insert|update|create)\s+(table|database|schema|from|into)\b",
-    r"\b(ignore|forget|override)\b.{0,60}\b(previous|system|instructions?|rules?)\b",
+    r"\bupdate\s+(?:\w+\.)?\w+\s+set\b",
+    r"\b(ignore|forget|override|unut|atla)\b.{0,60}\b(previous|system|instructions?|rules?|onceki|talimatlar?(?:ı|i|in|ın)?|kurallar?(?:ı|i|in|ın)?)\b",
+    r"\b(previous|system|instructions?|rules?|onceki|talimatlar?(?:ı|i|in|ın)?|kurallar?(?:ı|i|in|ın)?)\b.{0,60}\b(ignore|forget|override|unut|atla)\b",
     r"\b(system prompt|prompt injection|jailbreak)\b",
 )
 _URL_RE = re.compile(r"https?://[^\s<>\]\[\"']+", re.IGNORECASE)
 _WEB_SEARCH_PATTERNS = (
     r"\b(web\w*|internet\w*|google\w*|arama\w*|araştır\w*|haber\w*)\b",
-    r"\b(güncel|bugün|son durum|latest|current|live|real[ -]?time)\b",
+    r"\b(güncel\w*|bugün\w*|son durum|latest|current|live|real[ -]?time)\b",
 )
 
 
@@ -69,7 +71,11 @@ def route_question(question: str, tool_schemas: Iterable[dict]) -> RouteDecision
     if not isinstance(question, str) or not question.strip():
         return RouteDecision(Route.REFUSE, "Boş veya geçersiz soru.")
 
-    normalized = " ".join(question.casefold().split())
+    # Turkish capital İ casefolds to ``i`` plus a combining dot.  Normalize
+    # only that sequence: general accent stripping would turn ``ü`` into
+    # ``u`` and break Turkish keywords such as ``güncel``.
+    normalized = question.casefold().replace("i\u0307", "i")
+    normalized = " ".join(normalized.split())
     if any(re.search(pattern, normalized, re.IGNORECASE) for pattern in _UNSAFE_PATTERNS):
         return RouteDecision(
             Route.REFUSE,
