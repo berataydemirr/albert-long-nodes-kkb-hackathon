@@ -11,6 +11,17 @@ def test_browser_ui_is_served():
     assert "/api/ask" in response.text
     assert "Function calls" in response.text
     assert "Tool chain" in response.text
+    assert "C4 Anomaly" in response.text
+
+
+def test_tool_registry_endpoint_includes_c4_and_c6():
+    response = TestClient(web_app.app).get("/api/tools")
+
+    assert response.status_code == 200
+    body = response.json()
+    names = {tool["name"] for tool in body["tools"]}
+    assert body["count"] == len(body["tools"])
+    assert {"anomaly_analysis", "change_detection"} <= names
 
 
 def test_ask_endpoint_returns_agent_answer(monkeypatch):

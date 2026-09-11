@@ -24,6 +24,7 @@ def index() -> str:
 </style></head><body><main class="shell"><h1>KKB Agentic Analytics</h1><p class="lead">Agent Lab — router kararını ve modelin gerçek function-call zincirini canlı izle.</p>
 <section class="grid"><div class="panel"><div class="label">Prompt</div><div class="examples">
 <button class="example" data-prompt="Lakehouse'daki tabloları ve mevcut serileri listele.">Lakehouse</button>
+<button class="example" data-prompt="Konut kredisi faiz oranı serisindeki aykırı dönemleri anomaly_analysis ile bul ve açıkla.">C4 Anomaly</button>
 <button class="example" data-prompt="Konut kredisi faiz oranındaki en büyük değişimleri bul ve yorumla.">Change detection</button>
 <button class="example" data-prompt="Konut kredisi faiz oranı ile konut kredisi hacmi arasında nedensellik var mı? Kaynak dönemleriyle analiz et.">Causality</button>
 <button class="example" data-prompt="TCMB'nin güncel politika faizini web'de ara; güvenilir kaynak URL'lerini ver.">Web search</button>
@@ -37,13 +38,29 @@ const form=document.querySelector('#ask-form'),q=document.querySelector('#questi
 document.querySelectorAll('.example').forEach(x=>x.addEventListener('click',()=>{q.value=x.dataset.prompt;q.focus()}));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pretty=s=>{try{return JSON.stringify(JSON.parse(s),null,2)}catch{return s||'{}'}};
-form.addEventListener('submit',async e=>{e.preventDefault();submit.disabled=true;answer.textContent='Yanıt hazırlanıyor…';trace.innerHTML='<div class="empty">Model çalışıyor…</div>';route.innerHTML='<span class="muted">Router bekleniyor…</span>';try{const r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q.value})}),d=await r.json();if(!r.ok)throw new Error(d.detail||'İstek başarısız oldu.');answer.textContent=d.answer;route.innerHTML=`<div class="route"><span class="badge">${esc(d.route.name)}</span><span class="muted">${esc(d.route.reason)}</span></div><div class="muted">Erişilebilir tool: ${d.route.allowed_tools.length}</div>`;trace.innerHTML=d.trace.length?d.trace.map((x,i)=>`<article class="call ${x.error?'error':''}"><div class="callhead"><span class="tool">${i+1}. ${esc(x.name)}</span><span class="muted">round ${esc(x.round)}</span></div><div class="muted">arguments</div><pre>${esc(pretty(x.arguments))}</pre><div class="muted" style="margin-top:8px">result preview</div><pre>${esc(pretty(x.output_preview))}</pre>${x.error?`<pre>${esc(x.error)}</pre>`:''}</article>`).join(''):'<div class="empty">Model hiçbir tool çağırmadı.</div>'}catch(err){answer.textContent='Hata: '+err.message;trace.innerHTML='<div class="empty">Trace üretilemedi.</div>'}finally{submit.disabled=false}});
+form.addEventListener('submit',async e=>{e.preventDefault();submit.disabled=true;answer.textContent='Yanıt hazırlanıyor…';trace.innerHTML='<div class="empty">Model çalışıyor…</div>';route.innerHTML='<span class="muted">Router bekleniyor…</span>';try{const r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q.value})}),d=await r.json();if(!r.ok)throw new Error(d.detail||'İstek başarısız oldu.');answer.textContent=d.answer;route.innerHTML=`<div class="route"><span class="badge">${esc(d.route.name)}</span><span class="muted">${esc(d.route.reason)}</span></div><div class="muted">Erişilebilir tool (${d.route.allowed_tools.length}): ${d.route.allowed_tools.map(esc).join(', ')}</div>`;trace.innerHTML=d.trace.length?d.trace.map((x,i)=>`<article class="call ${x.error?'error':''}"><div class="callhead"><span class="tool">${i+1}. ${esc(x.name)}</span><span class="muted">round ${esc(x.round)}</span></div><div class="muted">arguments</div><pre>${esc(pretty(x.arguments))}</pre><div class="muted" style="margin-top:8px">result preview</div><pre>${esc(pretty(x.output_preview))}</pre>${x.error?`<pre>${esc(x.error)}</pre>`:''}</article>`).join(''):'<div class="empty">Model hiçbir tool çağırmadı.</div>'}catch(err){answer.textContent='Hata: '+err.message;trace.innerHTML='<div class="empty">Trace üretilemedi.</div>'}finally{submit.disabled=false}});
 </script></body></html>"""
 
 
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/api/tools")
+def list_tools() -> dict:
+    """Expose the model-visible registry for local MVP inspection."""
+    return {
+        "count": len(TOOL_SCHEMAS),
+        "tools": [
+            {
+                "name": schema["function"]["name"],
+                "description": schema["function"].get("description", ""),
+                "parameters": schema["function"].get("parameters", {}),
+            }
+            for schema in TOOL_SCHEMAS
+        ],
+    }
 
 
 @app.post("/api/ask")
