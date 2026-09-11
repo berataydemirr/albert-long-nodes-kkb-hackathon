@@ -14,6 +14,11 @@ LOCAL_SCHEMAS = [
     )
 ]
 
+ALL_SCHEMAS = LOCAL_SCHEMAS + [
+    {"type": "function", "function": {"name": "web_search"}},
+    {"type": "function", "function": {"name": "web_url_extract"}},
+]
+
 
 @pytest.mark.parametrize(
     ("prompt", "expected"),
@@ -46,12 +51,18 @@ LOCAL_SCHEMAS = [
     ],
 )
 def test_router_prompt_matrix(prompt, expected):
-    decision = route_question(prompt, LOCAL_SCHEMAS)
+    decision = route_question(prompt, ALL_SCHEMAS)
 
     assert decision.route is expected
     if expected is Route.LOCAL_ANALYTICS:
         assert decision.available is True
-        assert decision.allowed_tool_names == tuple(schema["function"]["name"] for schema in LOCAL_SCHEMAS)
+        assert decision.allowed_tool_names == tuple(schema["function"]["name"] for schema in ALL_SCHEMAS)
+    elif expected is Route.WEB_SEARCH:
+        assert decision.available is True
+        assert decision.allowed_tool_names == ("web_search",)
+    elif expected is Route.WEB_URL:
+        assert decision.available is True
+        assert decision.allowed_tool_names == ("web_url_extract",)
     else:
         assert decision.available is (expected is Route.REFUSE)
         assert decision.allowed_tool_names == ()

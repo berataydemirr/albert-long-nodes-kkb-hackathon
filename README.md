@@ -89,7 +89,7 @@ Tools (`src/agent/tools.py`): `lakehouse_schema`, `lakehouse_query`
 (guardrail: single SELECT only, known tables only, automatic LIMIT),
 `anomaly_analysis`, `change_detection`, `correlation_analysis`,
 `causality_analysis` (lag correlation + Granger test),
-`threshold_filter_compare`. All calls are logged to
+`threshold_filter_compare`, `web_search` and `web_url_extract`. All calls are logged to
 `logs/agent_tools_*.log` and `logs/orchestrator_*.log`.
 
 ### Benchmark
@@ -162,8 +162,8 @@ python agent.py "2021-2026 arasında konut kredileri ile faiz oranları nasıl d
 
 The first agent iteration exposes read-only Lakehouse queries, robust anomaly
 detection, period-over-period change detection, correlation analysis, and a
-citation-ready web search. A correlation is explicitly reported as correlation,
-not causality. Web URL/PDF and causality tools are planned next. Web search
+web search and URL/document extraction. A correlation is explicitly reported as correlation,
+not causality. Web search
 uses DuckDuckGo by default with no key; set `WEB_SEARCH_PROVIDER=tavily` and
 `TAVILY_API_KEY` in `.env` to use Tavily instead.
 
@@ -179,6 +179,9 @@ uvicorn web_app:app --reload
 Ask a current-information question such as “TCMB'nin güncel politika faizi
 nedir? Kaynaklarıyla ver.” The agent can select `web_search`; inspect the
 source URLs it returns. The UI is local-only and does not expose API keys.
+For a supplied public URL, the router selects `web_url_extract`, which reads
+bounded HTML, PDF, Excel, CSV, text, or image content. Remote contents and
+search snippets are treated as untrusted input.
 
 ```
 # Single collector, safe/fast test mode (2021-01, tables 1-3):

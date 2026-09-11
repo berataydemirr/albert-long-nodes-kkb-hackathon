@@ -3,6 +3,7 @@ import pytest
 from src.agent.router import Route, route_question
 from benchmarks.router_benchmark import evaluate
 from src.agent.tools import (
+    TOOL_SCHEMAS,
     anomaly_analysis, change_detection, correlation_analysis,
     causality_analysis, threshold_filter_compare,
     lakehouse_schema, lakehouse_query,
@@ -107,18 +108,20 @@ def test_router_refuses_destructive_prompt_injection_before_tool_selection():
     assert result.allowed_tool_names == ()
 
 
-def test_router_reserves_unimplemented_web_search_explicitly():
-    result = route_question("Bugünkü politika faizi için web'de ara.", [])
+def test_router_allows_registered_web_search_explicitly():
+    result = route_question("Bugünkü politika faizi için web'de ara.", TOOL_SCHEMAS)
 
     assert result.route is Route.WEB_SEARCH
-    assert result.available is False
+    assert result.available is True
+    assert result.allowed_tool_names == ("web_search",)
 
 
-def test_router_prefers_url_extraction_over_a_generic_web_request():
-    result = route_question("https://example.org/rapor.pdf adresindeki tabloyu çıkar", [])
+def test_router_prefers_registered_url_extraction_over_a_generic_web_request():
+    result = route_question("https://example.org/rapor.pdf adresindeki tabloyu çıkar", TOOL_SCHEMAS)
 
     assert result.route is Route.WEB_URL
-    assert result.available is False
+    assert result.available is True
+    assert result.allowed_tool_names == ("web_url_extract",)
 
 
 def test_router_benchmark_is_perfect_for_the_current_routing_contract():
