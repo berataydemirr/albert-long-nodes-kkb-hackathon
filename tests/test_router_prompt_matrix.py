@@ -59,10 +59,10 @@ def test_router_prompt_matrix(prompt, expected):
         assert decision.allowed_tool_names == tuple(schema["function"]["name"] for schema in ALL_SCHEMAS)
     elif expected is Route.WEB_SEARCH:
         assert decision.available is True
-        assert decision.allowed_tool_names == ("web_search",)
+        assert decision.allowed_tool_names == tuple(schema["function"]["name"] for schema in ALL_SCHEMAS)
     elif expected is Route.WEB_URL:
         assert decision.available is True
-        assert decision.allowed_tool_names == ("web_url_extract",)
+        assert decision.allowed_tool_names == tuple(schema["function"]["name"] for schema in ALL_SCHEMAS)
     else:
         assert decision.available is (expected is Route.REFUSE)
         assert decision.allowed_tool_names == ()
@@ -78,4 +78,4 @@ def test_url_has_priority_over_web_search_words():
 
     assert decision.route is Route.WEB_URL
     assert decision.available is True
-    assert decision.allowed_tool_names == ("web_url_extract",)
+    assert decision.allowed_tool_names == tuple(schema["function"]["name"] for schema in schemas)

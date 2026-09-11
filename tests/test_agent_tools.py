@@ -113,7 +113,7 @@ def test_router_allows_registered_web_search_explicitly():
 
     assert result.route is Route.WEB_SEARCH
     assert result.available is True
-    assert result.allowed_tool_names == ("web_search",)
+    assert result.allowed_tool_names == tuple(schema["function"]["name"] for schema in TOOL_SCHEMAS)
 
 
 def test_router_prefers_registered_url_extraction_over_a_generic_web_request():
@@ -121,7 +121,7 @@ def test_router_prefers_registered_url_extraction_over_a_generic_web_request():
 
     assert result.route is Route.WEB_URL
     assert result.available is True
-    assert result.allowed_tool_names == ("web_url_extract",)
+    assert result.allowed_tool_names == tuple(schema["function"]["name"] for schema in TOOL_SCHEMAS)
 
 
 def test_router_benchmark_is_perfect_for_the_current_routing_contract():

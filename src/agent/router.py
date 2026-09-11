@@ -1,15 +1,9 @@
 """Deterministic, policy-first routing for the agent's tool loop.
 
-The LLM still chooses the *specific* local analytical tool.  This module
-decides which capability family it is allowed to see.  That keeps a request
-for a live web source from silently being answered with stale lakehouse data,
-and makes destructive prompt-injection requests fail before they ever reach
-the model or DuckDB.
-
-Web routes are intentionally defined now, but marked unavailable until the
-corresponding C2/C3 tools are implemented and registered.  This gives later
-web-tool work one stable integration point instead of scattering keyword
-checks through the orchestrator.
+The router classifies intent for policy, prompting, and observability. Every
+safe request receives the complete registered tool set so the model can chain
+capabilities (for example web search -> URL extraction -> local analysis).
+Unsafe requests are refused before the model or DuckDB is reached.
 """
 
 from __future__ import annotations
@@ -85,12 +79,12 @@ def route_question(question: str, tool_schemas: Iterable[dict]) -> RouteDecision
     names = _tool_names(tool_schemas)
     if _URL_RE.search(question):
         if "web_url_extract" in names:
-            return RouteDecision(Route.WEB_URL, "Kullanıcı bir URL içeriği istiyor.", ("web_url_extract",))
+            return RouteDecision(Route.WEB_URL, "Kullanıcı bir URL içeriği istiyor; tüm araçlar zincirlenebilir.", names)
         return RouteDecision(Route.WEB_URL, "URL çıkarma aracı henüz yapılandırılmadı.", available=False)
 
     if any(re.search(pattern, normalized, re.IGNORECASE) for pattern in _WEB_SEARCH_PATTERNS):
         if "web_search" in names:
-            return RouteDecision(Route.WEB_SEARCH, "Güncel/web kaynağı isteniyor.", ("web_search",))
+            return RouteDecision(Route.WEB_SEARCH, "Güncel/web kaynağı isteniyor; tüm araçlar zincirlenebilir.", names)
         return RouteDecision(Route.WEB_SEARCH, "Web arama aracı henüz yapılandırılmadı.", available=False)
 
-    return RouteDecision(Route.LOCAL_ANALYTICS, "Yerel lakehouse ve analiz araçları kullanılabilir.", names)
+    return RouteDecision(Route.LOCAL_ANALYTICS, "Tüm kayıtlı araçlar kullanılabilir ve zincirlenebilir.", names)
