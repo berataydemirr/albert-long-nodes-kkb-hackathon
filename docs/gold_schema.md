@@ -155,7 +155,7 @@ aylık yüzdeye çevirmez. Bu yüzden `build_gold.py` şu an sadece
 `tablo_2` (mutlak TL tutarları) üzerinde decumulate çalıştırıyor;
 rasyo tabloları bilinçli olarak dışarıda bırakıldı.
 
-## Sıradaki adımlar (Faz A'nın kalanı)
+## Next steps (rest of Phase A)
 
 1. Diğer 16 BDDK Aylık tablosundan (artık hepsinin gerçek adı/birimi
    `BDDK_MONTHLY_TABLES`'da var) + BDDK Haftalık'tan ihtiyaç duyulan
