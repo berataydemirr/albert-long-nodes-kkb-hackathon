@@ -52,7 +52,7 @@ Web search uses DuckDuckGo by default. To use Tavily instead, set
 - `src/processing/` — bronze → silver conversion
 - `src/gold/` — silver → DuckDB build
 - `src/agent/` — router, model loop and tools
-- `docs/` — schema and routing notes
+- `docs/` — schema, routing and [agent architecture](docs/agent_architecture.md)
 
 The gold build is network-free; it reads the checked-in silver files. The
 collectors need the relevant source keys in `.env` and should be run with care.
