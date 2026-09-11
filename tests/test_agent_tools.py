@@ -1,6 +1,7 @@
 import pytest
 
 from src.agent.router import Route, route_question
+from benchmarks.router_benchmark import evaluate
 from src.agent.tools import (
     anomaly_analysis, change_detection, correlation_analysis,
     causality_analysis, threshold_filter_compare,
@@ -118,3 +119,10 @@ def test_router_prefers_url_extraction_over_a_generic_web_request():
 
     assert result.route is Route.WEB_URL
     assert result.available is False
+
+
+def test_router_benchmark_is_perfect_for_the_current_routing_contract():
+    report = evaluate()
+
+    assert report["accuracy"] == 1.0
+    assert report["correct"] == report["total"]
