@@ -295,8 +295,8 @@ CHANGE_DETECTION_TOOL_SCHEMA = {"type": "function", "function": {
         "periods": {"type": "array", "items": {"type": "string"}, "description": "Chronological periods, e.g. 'YYYY-MM'."},
         "values": {"type": "array", "items": {"type": "number"}},
         "method": {"type": "string", "enum": list(METHODS), "default": "auto"},
-        "signal": {"type": "string", "enum": list(SIGNALS), "default": "level"},
-        "sensitivity": {"type": "string", "enum": list(PELT_PENALTY_FACTOR), "default": "medium", "description": "'low' = only major breaks, 'high' = more breaks."},
+        "signal": {"type": "string", "enum": list(SIGNALS), "default": "level", "description": "'level' (default) = when did the level shift; 'pct_change' = when did the growth pace change ('ne zaman hizlandi / yavasladi', e.g. inflation or credit growth); 'diff' = same in absolute units, for series that can be zero or negative."},
+        "sensitivity": {"type": "string", "enum": list(PELT_PENALTY_FACTOR), "default": "medium", "description": "'low' = only major breaks ('buyuk kirilmalar'), 'medium' = default, 'high' = more/finer breaks ('tum degisimler / detayli')."},
         "min_segment": {"type": "integer", "default": 3, "description": "Shortest allowed regime, in periods."},
     }, "required": ["periods", "values"], "additionalProperties": False},
 }}

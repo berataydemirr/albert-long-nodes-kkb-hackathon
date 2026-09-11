@@ -374,14 +374,16 @@ ANOMALY_TOOL_SCHEMA = {"type": "function", "function": {
     "description": (
         "C4 Anomaly Tool: find statistically unusual points (spikes/drops) in ONE ordered time series and group them into episodes "
         "with start/end, peak, severity (warning/critical), status (active/resolved) and recovery period. Default method='auto' scores "
-        "deviation from a trailing moving median (median/MAD for very short series); 'stl' removes monthly seasonality. "
+        "deviation from a trailing moving median (median/MAD for very short series). Use method='stl' for seasonal flow series "
+        "(Tip='flow', e.g. card spending, industrial production) or when the user asks to remove seasonality ('mevsimsellikten arindir'); "
+        "use method='rolling_iqr' only when the user asks for IQR/quartile fences. "
         "Use for 'olagan disi / anormal / sapma / beklenmedik' questions. Answer from 'episodes' and 'event_signatures'."
     ),
     "parameters": {"type": "object", "properties": {
         "periods": {"type": "array", "items": {"type": "string"}, "description": "Chronological periods, e.g. 'YYYY-MM'."},
         "values": {"type": "array", "items": {"type": "number"}},
         "threshold": {"type": "number", "default": 3.0, "description": "Robust z-score cutoff (2.5 = more sensitive, 3.5 = stricter)."},
-        "method": {"type": "string", "enum": list(METHODS), "default": "auto"},
+        "method": {"type": "string", "enum": list(METHODS), "default": "auto", "description": "auto (default) = deviation from trailing moving median; stl = seasonal flow series / 'mevsimsellikten arindir'; rolling_iqr = user asks for IQR / 'ceyrekler arasi'; mad = whole-history median, very short series."},
         "direction": {"type": "string", "enum": list(DIRECTIONS), "default": "both", "description": "'up' = only spikes, 'down' = only drops."},
         "window": {"type": "integer", "default": DEFAULT_WINDOW, "description": "Moving-average window for rolling methods."},
         "min_deviation_pct": {"type": "number", "default": 0.0, "description": "Ignore anomalies deviating less than this % from expected."},
