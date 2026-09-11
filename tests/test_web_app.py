@@ -12,6 +12,8 @@ def test_browser_ui_is_served():
     assert "Function calls" in response.text
     assert "Tool chain" in response.text
     assert "C4 Anomaly" in response.text
+    assert "Örnek Promptlar" in response.text
+    assert "Kullanılabilir Tool'lar" in response.text
 
 
 def test_tool_registry_endpoint_includes_c4_and_c6():
