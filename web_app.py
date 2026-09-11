@@ -1,7 +1,8 @@
 """Local browser UI for exercising routing and function calling."""
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from src.agent.orchestrator import ask
@@ -10,13 +11,22 @@ from src.agent.tools import TOOL_SCHEMAS
 
 app = FastAPI(title="KKB Agentic Analytics", docs_url=None, redoc_url=None)
 
+# Design-canvas UI (KKB Agent Lab), wired to the same /api endpoints below.
+# Served from this app (not a separate origin) so its fetch() calls need no CORS.
+app.mount("/lab", StaticFiles(directory="static/design", html=True), name="lab")
+
 
 class AskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2_000)
 
 
-@app.get("/", response_class=HTMLResponse)
-def index() -> str:
+@app.get("/")
+def index_redirect() -> RedirectResponse:
+    return RedirectResponse(url="/lab/")
+
+
+@app.get("/classic", response_class=HTMLResponse)
+def classic_ui() -> str:
     return r"""<!doctype html>
 <html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>KKB Agent Lab</title><style>

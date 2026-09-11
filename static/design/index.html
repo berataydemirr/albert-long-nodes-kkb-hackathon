@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-4e3e40ac-656b-4539-b0f8-5d272089c912/styles.css">
+<script src="_ds/industry-4e3e40ac-656b-4539-b0f8-5d272089c912/_ds_bundle.js"></script>
+<style>
+body { margin: 0; }
+
+/* — thinking orb: a small breathing/glowing dot with an expanding
+     pulse ring, inspired by thinking-orbs (libraries.dev/orbs) — used
+     in place of a static spinner for the assistant's "thinking" state. */
+@keyframes orb-breathe {
+  0%, 100% { transform: scale(0.82); opacity: 0.78; }
+  50% { transform: scale(1.18); opacity: 1; }
+}
+@keyframes orb-drift {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+@keyframes orb-ring {
+  0% { transform: scale(0.55); opacity: 0.55; }
+  100% { transform: scale(2.1); opacity: 0; }
+}
+@keyframes orb-label-fade {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+.thinking-orb {
+  position: relative;
+  width: 16px; height: 16px; flex: none;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 32%, var(--color-accent-300), var(--color-accent) 55%, var(--color-accent-800) 100%);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--color-accent) 55%, transparent);
+  animation: orb-breathe 1.8s ease-in-out infinite, orb-drift 3.2s ease-in-out infinite;
+}
+.thinking-orb::before {
+  content: "";
+  position: absolute; inset: -6px;
+  border-radius: 50%;
+  border: 1px solid var(--color-accent);
+  animation: orb-ring 1.8s ease-out infinite;
+}
+.thinking-label {
+  font-family: var(--font-heading); font-size: 15px; color: var(--color-text);
+  animation: orb-label-fade 1.8s ease-in-out infinite;
+}
+.error-text { color: #b5432f; }
+</style>
+</helmet>
+<div style="min-height:100vh; display:flex; flex-direction:column; background:var(--color-bg); color:var(--color-text); font-family:var(--font-body);">
+
+  <div class="nav" style="border-bottom:1px solid var(--color-divider); position:sticky; top:0; z-index:5; background:var(--color-bg);">
+    <span class="nav-brand">KKB Agent Lab <span class="tag tag-outline" style="margin-left:8px; vertical-align:middle;">live</span></span>
+    <a href="javascript:void(0)" onClick="{{ goChat }}" style="color:{{ chatLinkColor }}; font-weight:{{ chatLinkWeight }};">Chat</a>
+    <a href="javascript:void(0)" onClick="{{ goSettings }}" style="color:{{ settingsLinkColor }}; font-weight:{{ settingsLinkWeight }};">Tools &amp; Settings</a>
+  </div>
+
+  <sc-if value="{{ isChatView }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:1; display:flex; flex-direction:column; max-width:760px; width:100%; margin:0 auto; padding:24px 20px 0;">
+      <div style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:16px; padding-bottom:20px;">
+        <sc-for list="{{ messages }}" as="m" hint-placeholder-count="2">
+          <sc-if value="{{ m.isUser }}" hint-placeholder-val="{{ true }}">
+            <div style="align-self:flex-end; max-width:80%; background:var(--color-accent-900); color:var(--color-bg); padding:12px 16px; font-size:15px; line-height:1.5;">{{ m.userText }}</div>
+          </sc-if>
+          <sc-if value="{{ m.isAssistant }}" hint-placeholder-val="{{ false }}">
+            <div class="card blueprint elev-sm" style="align-self:flex-start; max-width:88%; padding:16px;">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+                <span class="tag tag-accent">{{ m.routeName }}</span>
+                <span class="text-muted" style="font-size:12px;">{{ m.routeReason }}</span>
+              </div>
+              <sc-for list="{{ m.blocks }}" as="blk" hint-placeholder-count="2">
+                <div>{{ blk }}</div>
+              </sc-for>
+              <sc-if value="{{ m.hasTools }}" hint-placeholder-val="{{ false }}">
+                <button class="btn btn-secondary" onClick="{{ m.openTrace }}" style="margin-top:4px;">View function calls · {{ m.toolsCount }}</button>
+              </sc-if>
+            </div>
+          </sc-if>
+        </sc-for>
+        <sc-if value="{{ thinking }}" hint-placeholder-val="{{ false }}">
+          <div class="blueprint" style="align-self:flex-start; max-width:70%; padding:14px 16px; display:flex; align-items:center; gap:10px;">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <span class="thinking-orb"></span>
+            <span class="thinking-label">{{ thinkingLabel }}</span>
+          </div>
+        </sc-if>
+      </div>
+
+      <div style="display:flex; gap:8px; flex-wrap:wrap; padding:6px 0 12px;">
+        <sc-for list="{{ examples }}" as="ex" hint-placeholder-count="3">
+          <button class="tag tag-outline" style="cursor:pointer; background:none; font-family:var(--font-body); padding:6px 12px; border-radius:999px;" onClick="{{ ex.use }}">{{ ex.label }}</button>
+        </sc-for>
+      </div>
+
+      <div style="display:flex; gap:10px; padding-bottom:22px;">
+        <textarea class="input" rows="1" placeholder="Yerel seriler, anomaliler veya web hakkında sor…" value="{{ input }}" onChange="{{ setInput }}" onKeyDown="{{ handleKeyDown }}" style="flex:1; font-family:var(--font-body); min-height:44px;"></textarea>
+        <button class="btn btn-primary" onClick="{{ send }}" disabled="{{ sendDisabled }}">Send</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isSettingsView }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1; max-width:960px; width:100%; margin:0 auto; padding:28px 20px 60px; display:flex; flex-direction:column; gap:28px;">
+      <div>
+        <h2 style="margin-bottom:4px;">Tool registry</h2>
+        <p class="text-muted" style="margin:0 0 16px; font-size:14px;">Backend'in <code>/api/tools</code> ucundan canlı okunan gerçek tool listesi.</p>
+        <sc-if value="{{ toolsLoading }}" hint-placeholder-val="{{ false }}">
+          <p class="text-muted">Tool registry yükleniyor…</p>
+        </sc-if>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:16px;">
+          <sc-for list="{{ tools }}" as="t" hint-placeholder-count="6">
+            <div class="card blueprint elev-sm" style="padding:16px;">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <span class="card-kicker">{{ t.tag }}</span>
+              <div class="card-title" style="font-size:16px;">{{ t.name }}</div>
+              <p class="card-body">{{ t.desc }}</p>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div class="card blueprint elev-sm" style="padding:20px; max-width:480px;">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <h3 style="margin-bottom:6px;">Router settings</h3>
+        <p class="text-muted" style="margin:0 0 14px; font-size:13px;">Bu MVP'de sağlayıcı/safe-mode sunucu tarafında <code>.env</code> ile sabit; buradaki kontroller henüz backend'e yazmıyor.</p>
+        <div class="field" style="margin-bottom:16px;">
+          <label>Web search provider</label>
+          <div class="seg">
+            <label class="seg-opt"><input type="radio" name="wsp" checked="{{ providerDuck }}" onChange="{{ setProviderDuck }}" /><span>DuckDuckGo</span></label>
+            <label class="seg-opt"><input type="radio" name="wsp" checked="{{ providerTavily }}" onChange="{{ setProviderTavily }}" /><span>Tavily</span></label>
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:16px;">
+          <label>Safe mode (block unsafe SQL &amp; injected instructions)</label>
+          <div class="seg">
+            <label class="seg-opt"><input type="radio" name="safe" checked="{{ safeOn }}" onChange="{{ setSafeOn }}" /><span>On</span></label>
+            <label class="seg-opt"><input type="radio" name="safe" checked="{{ safeOff }}" onChange="{{ setSafeOff }}" /><span>Off</span></label>
+          </div>
+        </div>
+        <div class="field">
+          <label>Function-call panel default</label>
+          <div class="seg">
+            <label class="seg-opt"><input type="radio" name="panel" checked="{{ panelCollapsed }}" onChange="{{ setPanelCollapsed }}" /><span>Collapsed</span></label>
+            <label class="seg-opt"><input type="radio" name="panel" checked="{{ panelExpanded }}" onChange="{{ setPanelExpanded }}" /><span>Expanded</span></label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ drawerOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed; inset:0; background:color-mix(in srgb, var(--color-neutral-900) 45%, transparent); z-index:20;" onClick="{{ closeDrawer }}"></div>
+  </sc-if>
+  <div style="position:fixed; top:0; right:0; height:100vh; width:min(420px,92vw); background:var(--color-bg); border-left:1px solid var(--color-divider); box-shadow:var(--shadow-lg); z-index:21; display:flex; flex-direction:column; transform:{{ drawerTransform }}; transition:transform .28s ease;">
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:16px 18px; border-bottom:1px solid var(--color-divider);">
+      <h4 style="margin:0;">Function calls</h4>
+      <button class="btn btn-icon btn-secondary" onClick="{{ closeDrawer }}" aria-label="Close">×</button>
+    </div>
+    <div style="padding:16px 18px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:14px;">
+      <div>
+        <div class="text-muted" style="font-size:11px; text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px;">Router decision</div>
+        <span class="tag tag-accent">{{ drawerRouteName }}</span>
+        <p style="font-size:13px; margin:8px 0 0;">{{ drawerRouteReason }}</p>
+      </div>
+      <div class="hr"></div>
+      <sc-for list="{{ drawerTrace }}" as="tc" hint-placeholder-count="3">
+        <div class="blueprint" style="padding:12px 14px;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px;">
+            <span style="font-family:var(--font-heading); font-weight:600; color:var(--color-accent-700);">{{ tc.index }}. {{ tc.name }}</span>
+            <span class="text-muted" style="font-size:11px;">round {{ tc.round }}</span>
+          </div>
+          <div class="text-muted" style="font-size:11px; margin-bottom:2px;">arguments</div>
+          <pre style="margin:0 0 8px; font-size:12px; background:var(--color-surface); padding:8px; overflow-x:auto; white-space:pre-wrap; word-break:break-word;">{{ tc.args }}</pre>
+          <div class="text-muted" style="font-size:11px; margin-bottom:2px;">result</div>
+          <pre style="margin:0; font-size:12px; background:var(--color-surface); padding:8px; overflow-x:auto; white-space:pre-wrap; word-break:break-word;" class="{{ tc.resultClass }}">{{ tc.result }}</pre>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const TAG_BY_NAME = {
+  lakehouse_schema: 'Data',
+  lakehouse_query: 'Data',
+  anomaly_analysis: 'Analysis',
+  change_detection: 'Analysis',
+  correlation_analysis: 'Analysis',
+  causality_analysis: 'Analysis',
+  threshold_filter_compare: 'Analysis',
+  web_search: 'Web',
+  web_url_extract: 'Web'
+};
+
+const EXAMPLES = [
+  "Lakehouse'daki tabloları ve mevcut serileri listele.",
+  'Konut kredisi faiz oranı ile konut kredisi hacmi arasında nedensellik var mı?',
+  'Konut kredisi faiz oranı serisindeki aykırı dönemleri bul ve açıkla.',
+  "TCMB'nin güncel politika faizini web'de ara."
+];
+
+function prettyJson(raw) {
+  if (raw == null) return '';
+  if (typeof raw !== 'string') {
+    try { return JSON.stringify(raw, null, 2); } catch { return String(raw); }
+  }
+  try { return JSON.stringify(JSON.parse(raw), null, 2); } catch { return raw; }
+}
+
+/* Renders **bold**, `code`, and [text](url) links as real React nodes
+   (not raw markdown text) - the template's {{ }} interpolation accepts
+   React elements/arrays directly, so no HTML string / innerHTML needed. */
+function inlineToNodes(text) {
+  const nodes = [];
+  const re = /(\*\*(.+?)\*\*)|(`([^`]+)`)|(\[([^\]]+)\]\((https?:\/\/[^\s)]+)\))/g;
+  let lastIndex = 0, key = 0, m;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > lastIndex) nodes.push(text.slice(lastIndex, m.index));
+    if (m[1]) {
+      nodes.push(React.createElement('strong', {key: key++}, m[2]));
+    } else if (m[3]) {
+      nodes.push(React.createElement('code', {key: key++, style:{background:'var(--color-surface)', padding:'1px 5px', borderRadius:'3px', fontSize:'13px'}}, m[4]));
+    } else {
+      nodes.push(React.createElement('a', {key: key++, href: m[7], target:'_blank', rel:'noreferrer'}, m[6]));
+    }
+    lastIndex = re.lastIndex;
+  }
+  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
+  return nodes;
+}
+
+function mdToBlocks(markdown) {
+  const lines = String(markdown || '').replace(/\r\n/g, '\n').split('\n');
+  const blocks = [];
+  let key = 0;
+  let paraBuf = [];
+  const flushParagraph = () => {
+    const text = paraBuf.join(' ').trim();
+    paraBuf = [];
+    if (text) blocks.push(React.createElement('p', {key: key++, style:{margin:'0 0 10px', fontSize:'15px', lineHeight:'1.6'}}, inlineToNodes(text)));
+  };
+  const isTableRow = (l) => /^\s*\|.*\|\s*$/.test(l);
+  const isBullet = (l) => /^\s*[-*]\s+/.test(l);
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    const heading = /^(#{1,6})\s+(.*)$/.exec(line);
+    if (!line.trim()) { flushParagraph(); i++; continue; }
+    if (heading) {
+      flushParagraph();
+      const tag = 'h' + Math.min(heading[1].length + 2, 6);
+      blocks.push(React.createElement(tag, {key: key++, style:{margin:'12px 0 6px'}}, inlineToNodes(heading[2])));
+      i++; continue;
+    }
+    if (isTableRow(line)) {
+      flushParagraph();
+      const tableLines = [];
+      while (i < lines.length && isTableRow(lines[i])) { tableLines.push(lines[i]); i++; }
+      const rows = tableLines.map(l => l.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim()));
+      const isSep = (row) => row.every(c => /^:?-{2,}:?$/.test(c));
+      let headerRow = null, bodyRows = rows;
+      if (rows.length > 1 && isSep(rows[1])) { headerRow = rows[0]; bodyRows = rows.slice(2); }
+      blocks.push(React.createElement('div', {key: key++, style:{overflowX:'auto', margin:'8px 0'}},
+        React.createElement('table', {className:'table'},
+          headerRow ? React.createElement('thead', null, React.createElement('tr', null, headerRow.map((c, ci) => React.createElement('th', {key: ci}, inlineToNodes(c))))) : null,
+          React.createElement('tbody', null, bodyRows.map((r, ri) => React.createElement('tr', {key: ri}, r.map((c, ci) => React.createElement('td', {key: ci}, inlineToNodes(c))))))
+        )
+      ));
+      continue;
+    }
+    if (isBullet(line)) {
+      flushParagraph();
+      const items = [];
+      while (i < lines.length && isBullet(lines[i])) { items.push(lines[i].replace(/^\s*[-*]\s+/, '')); i++; }
+      blocks.push(React.createElement('ul', {key: key++, style:{margin:'0 0 10px', paddingLeft:'20px'}},
+        items.map((it, ii) => React.createElement('li', {key: ii, style:{marginBottom:'4px'}}, inlineToNodes(it)))
+      ));
+      continue;
+    }
+    paraBuf.push(line.trim());
+    i++;
+  }
+  flushParagraph();
+  return blocks.length ? blocks : [React.createElement('p', {key: 0}, '(boş yanıt)')];
+}
+
+class Component extends DCLogic {
+  state = {
+    view: 'chat',
+    input: '',
+    thinking: false,
+    drawerMsgId: null,
+    nextId: 1,
+    provider: 'duck',
+    safe: 'on',
+    panel: 'collapsed',
+    messages: [],
+    tools: [],
+    toolsLoading: true
+  };
+
+  componentDidMount() {
+    fetch('/api/tools')
+      .then(r => r.json())
+      .then(d => {
+        const tools = (d.tools || []).map(t => ({
+          name: t.name,
+          desc: t.description,
+          tag: TAG_BY_NAME[t.name] || 'Tool'
+        }));
+        this.setState({ tools, toolsLoading: false });
+      })
+      .catch(() => this.setState({ toolsLoading: false }));
+  }
+
+  goChat = () => this.setState({view:'chat'});
+  goSettings = () => this.setState({view:'settings'});
+  setInput = (e) => this.setState({input: e.target.value});
+  handleKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); } };
+  openDrawer = (id) => this.setState({drawerMsgId: id});
+  closeDrawer = () => this.setState({drawerMsgId: null});
+
+  send = (overrideText) => {
+    const text = (overrideText !== undefined ? overrideText : this.state.input).trim();
+    if (!text || this.state.thinking) return;
+    const userId = this.state.nextId;
+    this.setState(s => ({
+      messages: [...s.messages, {id: userId, role:'user', text}],
+      input: '', thinking: true, nextId: s.nextId + 1
+    }));
+
+    fetch('/api/ask', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({question: text})
+    })
+      .then(async r => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.detail || 'İstek başarısız oldu.');
+        return data;
+      })
+      .then(data => {
+        const trace = (data.trace || []).map(tc => ({
+          name: tc.name,
+          round: tc.round,
+          args: prettyJson(tc.arguments),
+          result: tc.error ? `hata: ${tc.error}` : prettyJson(tc.output_preview),
+          error: !!tc.error
+        }));
+        this.setState(s => ({
+          messages: [...s.messages, {
+            id: s.nextId, role: 'assistant',
+            routeName: data.route ? data.route.name : '',
+            routeReason: data.route ? data.route.reason : '',
+            blocks: mdToBlocks(data.answer),
+            trace
+          }],
+          thinking: false, nextId: s.nextId + 1
+        }));
+      })
+      .catch(err => {
+        this.setState(s => ({
+          messages: [...s.messages, {
+            id: s.nextId, role: 'assistant',
+            routeName: 'error', routeReason: 'İstek başarısız oldu',
+            blocks: [React.createElement('p', {key: 0, className: 'error-text'}, String(err.message || err))],
+            trace: []
+          }],
+          thinking: false, nextId: s.nextId + 1
+        }));
+      });
+  };
+
+  setProviderDuck = () => this.setState({provider:'duck'});
+  setProviderTavily = () => this.setState({provider:'tavily'});
+  setSafeOn = () => this.setState({safe:'on'});
+  setSafeOff = () => this.setState({safe:'off'});
+  setPanelCollapsed = () => this.setState({panel:'collapsed'});
+  setPanelExpanded = () => this.setState({panel:'expanded'});
+
+  renderVals() {
+    const s = this.state;
+    const messages = s.messages.map(m => {
+      if (m.role === 'user') {
+        return {id: m.id, isUser: true, isAssistant: false, userText: m.text};
+      }
+      return {
+        id: m.id, isUser: false, isAssistant: true,
+        blocks: m.blocks, routeName: m.routeName, routeReason: m.routeReason,
+        hasTools: m.trace.length > 0,
+        toolsCount: m.trace.length,
+        openTrace: () => this.openDrawer(m.id)
+      };
+    });
+    const drawerMsgRaw = s.drawerMsgId != null ? s.messages.find(m => m.id === s.drawerMsgId) : null;
+    const drawerTrace = drawerMsgRaw ? drawerMsgRaw.trace.map((tc, i) => ({...tc, index: i + 1, resultClass: tc.error ? 'error-text' : ''})) : [];
+
+    return {
+      isChatView: s.view === 'chat',
+      isSettingsView: s.view === 'settings',
+      goChat: this.goChat, goSettings: this.goSettings,
+      chatLinkColor: s.view === 'chat' ? 'var(--color-accent)' : 'inherit',
+      chatLinkWeight: s.view === 'chat' ? '600' : '400',
+      settingsLinkColor: s.view === 'settings' ? 'var(--color-accent)' : 'inherit',
+      settingsLinkWeight: s.view === 'settings' ? '600' : '400',
+      messages,
+      thinking: s.thinking,
+      thinkingLabel: 'Router karar veriyor, tool zinciri çalışıyor…',
+      examples: EXAMPLES.map(label => ({label, use: () => this.send(label)})),
+      input: s.input,
+      setInput: this.setInput,
+      handleKeyDown: this.handleKeyDown,
+      send: () => this.send(),
+      sendDisabled: s.thinking,
+      drawerOpen: !!drawerMsgRaw,
+      drawerTransform: drawerMsgRaw ? 'translateX(0)' : 'translateX(105%)',
+      closeDrawer: this.closeDrawer,
+      drawerRouteName: drawerMsgRaw ? drawerMsgRaw.routeName : '',
+      drawerRouteReason: drawerMsgRaw ? drawerMsgRaw.routeReason : '',
+      drawerTrace,
+      tools: s.tools,
+      toolsLoading: s.toolsLoading,
+      providerDuck: s.provider === 'duck', providerTavily: s.provider === 'tavily',
+      setProviderDuck: this.setProviderDuck, setProviderTavily: this.setProviderTavily,
+      safeOn: s.safe === 'on', safeOff: s.safe === 'off',
+      setSafeOn: this.setSafeOn, setSafeOff: this.setSafeOff,
+      panelCollapsed: s.panel === 'collapsed', panelExpanded: s.panel === 'expanded',
+      setPanelCollapsed: this.setPanelCollapsed, setPanelExpanded: this.setPanelExpanded
+    };
+  }
+}
+</script>
+</body>
+</html>
