@@ -100,7 +100,7 @@ def anomaly_chart(periods: list, values: list, anomaly_result: dict) -> go.Figur
     if not flagged.empty:
         fig.add_trace(go.Scatter(x=flagged["Period"], y=flagged["Deger"], mode="markers",
                                   name="anomali", marker=dict(color="crimson", size=11, symbol="x")))
-    fig.update_layout(title="Anomali Tespiti (MAD)", xaxis_title="Donem", yaxis_title="Deger", hovermode="x unified")
+    fig.update_layout(title=f"Anomali Tespiti ({anomaly_result.get('method', 'mad')})", xaxis_title="Donem", yaxis_title="Deger", hovermode="x unified")
     return fig
 
 

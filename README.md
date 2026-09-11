@@ -87,9 +87,13 @@ python agent.py "How did the housing credit interest rate change between 2021 an
 
 Tools (`src/agent/tools.py`): `lakehouse_schema`, `lakehouse_query`
 (guardrail: single SELECT only, known tables only, automatic LIMIT),
-`anomaly_analysis`, `change_detection`, `correlation_analysis`,
-`causality_analysis` (lag correlation + Granger test),
-`threshold_filter_compare`. All calls are logged to
+`anomaly_analysis` (C4, `src/agent/anomaly_tool.py`: robust z-score
+around a trailing moving median / IQR / STL / MAD, grouped into
+episodes with severity, status and recovery), `change_detection` (C6,
+`src/agent/change_detection_tool.py`: ruptures PELT break points,
+regimes, latest regime, largest period-over-period moves),
+`correlation_analysis`, `causality_analysis` (lag correlation + Granger
+test), `threshold_filter_compare`. All calls are logged to
 `logs/agent_tools_*.log` and `logs/orchestrator_*.log`.
 
 ### Benchmark

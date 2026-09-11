@@ -12,6 +12,8 @@ import pandas as pd
 from statsmodels.tsa.stattools import grangercausalitytests
 
 from config.settings import GOLD_DIR
+from src.agent.anomaly_tool import ANOMALY_TOOL_SCHEMA, anomaly_analysis  # C4
+from src.agent.change_detection_tool import CHANGE_DETECTION_TOOL_SCHEMA, change_detection  # C6
 from src.common.logging_setup import get_logger
 
 DB_PATH = GOLD_DIR / "lakehouse.duckdb"
@@ -188,88 +190,6 @@ def lakehouse_query(sql: str) -> dict:
         raise
     finally:
         con.close()
-
-
-def anomaly_analysis(periods: list[str], values: list[float], threshold: float = 3.0) -> dict:
-    """Detect robust outliers using median absolute deviation."""
-    logger.info(f"anomaly_analysis start: n={len(values)}, threshold={threshold}")
-    if len(periods) != len(values) or len(values) < 3:
-        logger.error("anomaly_analysis: bad input lengths")
-        raise ValueError("periods and values must have equal length and at least 3 points")
-    series = pd.Series(values, dtype="float64")
-    median = float(series.median())
-    mad = float((series - median).abs().median())
-    # MAD==0 means over half the series shares one value (common here: a
-    # policy rate held flat for months, then one real move/outlier). The
-    # old code treated this as "nothing to score" and returned all-zero
-    # scores - which made the method BLIND to a genuine outlier sitting
-    # right next to a flat run (confirmed live: 9x 5.0 + one 500.0
-    # produced zero anomalies). std was tried as a fallback first and
-    # rejected: std is QUADRATICALLY sensitive to the outlier itself, so
-    # one huge point inflates std enough to partially mask its own
-    # z-score (confirmed live: that same 9x5.0+500.0 case scored 2.85,
-    # just under the default threshold=3.0 - the classic outlier-masking
-    # problem std-based detection is known for). Mean absolute deviation
-    # from the median grows only linearly with one outlier, so it stays
-    # sensitive (same case scores 10.0 with this fallback) while still
-    # degenerating to 0 only in the genuinely-constant case, same escape
-    # hatch as before.
-    if mad == 0:
-        mean_ad = float((series - median).abs().mean())
-        if mean_ad == 0:
-            scores = pd.Series([0.0] * len(series))
-            method = "median_absolute_deviation (degenerate: zero variance, no anomalies possible)"
-        else:
-            scores = (series - median).abs() / mean_ad
-            method = "median_absolute_deviation (fallback to mean-absolute-deviation scoring: MAD was 0)"
-        logger.warning(f"anomaly_analysis: MAD=0 (>=half the series shares one value), used mean-AD fallback (mean_ad={mean_ad})")
-    else:
-        scores = 0.6745 * (series - median).abs() / mad
-        method = "median_absolute_deviation"
-    anomalies = [
-        {"period": period, "value": float(value), "score": round(float(score), 3)}
-        for period, value, score in zip(periods, values, scores)
-        if score >= threshold
-    ]
-    logger.info(f"anomaly_analysis done: {len(anomalies)} anomalies found, method={method}")
-    return {"method": method, "threshold": threshold, "anomalies": anomalies}
-
-
-def change_detection(periods: list[str], values: list[float]) -> dict:
-    """Return the largest period-over-period changes."""
-    logger.info(f"change_detection start: n={len(values)}")
-    if len(periods) != len(values) or len(values) < 2:
-        logger.error("change_detection: bad input lengths")
-        raise ValueError("periods and values must have equal length and at least 2 points")
-    changes = []
-    for previous, current, period in zip(values, values[1:], periods[1:]):
-        # A None/NaN value (a real gap in the gold layer, e.g. a
-        # forward-fill boundary) used to reach the bare 'current -
-        # previous' subtraction below and crash with an unhandled
-        # TypeError - skip the pair instead, same as a missing point
-        # would be skipped anywhere else in this codebase.
-        if previous is None or current is None:
-            logger.debug(f"change_detection: skipping period={period} (missing value)")
-            continue
-        if (isinstance(previous, float) and math.isnan(previous)) or (isinstance(current, float) and math.isnan(current)):
-            logger.debug(f"change_detection: skipping period={period} (NaN value)")
-            continue
-        absolute_change = current - previous
-        if previous == 0:
-            if absolute_change == 0:
-                continue  # 0 -> 0 is a real no-op, not a change to report
-            # Previously silently dropped (can't divide by zero for a
-            # percent change) - but a series starting from exactly zero
-            # (e.g. a rate introduced mid-series) is usually the MOST
-            # significant move, not one to hide. Report it with
-            # percent_change=None (honest: genuinely undefined) instead
-            # of omitting the period entirely.
-            changes.append({"period": period, "absolute_change": absolute_change, "percent_change": None})
-            continue
-        changes.append({"period": period, "absolute_change": absolute_change, "percent_change": absolute_change / abs(previous) * 100})
-    changes.sort(key=lambda item: abs(item["percent_change"]) if item["percent_change"] is not None else float("inf"), reverse=True)
-    logger.info(f"change_detection done: top={changes[:1]}")
-    return {"largest_changes": changes[:10]}
 
 
 def correlation_analysis(x_periods: list[str], x_values: list[float], y_periods: list[str], y_values: list[float]) -> dict:
@@ -566,8 +486,8 @@ TOOL_FUNCTIONS = {
 TOOL_SCHEMAS = [
     {"type": "function", "function": {"name": "lakehouse_schema", "description": "List tables/columns and (for gold_fact_long) the real Seri_Kod/Seri_Adi/Kaynak/Birim catalog in the local DuckDB gold layer. Call this before writing SQL - Seri_Kod values must come from here, never guessed.", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}}},
     {"type": "function", "function": {"name": "lakehouse_query", "description": "Run a single read-only SELECT query against the local DuckDB gold layer. Only tables returned by lakehouse_schema may be referenced. Results are limited to 200 rows.", "parameters": {"type": "object", "properties": {"sql": {"type": "string"}}, "required": ["sql"], "additionalProperties": False}}},
-    {"type": "function", "function": {"name": "anomaly_analysis", "description": "Find robust outliers in an ordered time series.", "parameters": {"type": "object", "properties": {"periods": {"type": "array", "items": {"type": "string"}}, "values": {"type": "array", "items": {"type": "number"}}, "threshold": {"type": "number", "default": 3.0}}, "required": ["periods", "values"], "additionalProperties": False}}},
-    {"type": "function", "function": {"name": "change_detection", "description": "Find the largest period-over-period percentage changes.", "parameters": {"type": "object", "properties": {"periods": {"type": "array", "items": {"type": "string"}}, "values": {"type": "array", "items": {"type": "number"}}}, "required": ["periods", "values"], "additionalProperties": False}}},
+    ANOMALY_TOOL_SCHEMA,
+    CHANGE_DETECTION_TOOL_SCHEMA,
     {"type": "function", "function": {"name": "correlation_analysis", "description": "Calculate aligned Pearson correlation between two series; never call it causation.", "parameters": {"type": "object", "properties": {"x_periods": {"type": "array", "items": {"type": "string"}}, "x_values": {"type": "array", "items": {"type": "number"}}, "y_periods": {"type": "array", "items": {"type": "string"}}, "y_values": {"type": "array", "items": {"type": "number"}}}, "required": ["x_periods", "x_values", "y_periods", "y_values"], "additionalProperties": False}}},
     {"type": "function", "function": {"name": "causality_analysis", "description": "Test whether series x is a statistically useful predictor of series y: best-aligned lag correlation plus a Granger causality test (p-values per lag). Not proof of true causation.", "parameters": {"type": "object", "properties": {"x_periods": {"type": "array", "items": {"type": "string"}}, "x_values": {"type": "array", "items": {"type": "number"}}, "y_periods": {"type": "array", "items": {"type": "string"}}, "y_values": {"type": "array", "items": {"type": "number"}}, "max_lag": {"type": "integer", "default": 6}}, "required": ["x_periods", "x_values", "y_periods", "y_values"], "additionalProperties": False}}},
     {"type": "function", "function": {"name": "threshold_filter_compare", "description": "Filter periods where filter_values falls in [low, high] (e.g. an interest rate range), then compare the average period-over-period change of compare_values inside vs outside that window. Matches the hackathon demo's 'faiz X ile Y arasindayken kredi nasil degisti' pattern.", "parameters": {"type": "object", "properties": {"filter_periods": {"type": "array", "items": {"type": "string"}}, "filter_values": {"type": "array", "items": {"type": "number"}}, "compare_periods": {"type": "array", "items": {"type": "string"}}, "compare_values": {"type": "array", "items": {"type": "number"}}, "low": {"type": "number"}, "high": {"type": "number"}}, "required": ["filter_periods", "filter_values", "compare_periods", "compare_values", "low", "high"], "additionalProperties": False}}},

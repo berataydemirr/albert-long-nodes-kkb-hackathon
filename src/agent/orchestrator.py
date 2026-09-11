@@ -36,6 +36,9 @@ tool'larına yaptır. Correlation/causality sonucunu kesin nedensellik diye
 sunma - tool'un kendi warning'ini oldugu gibi aktar. Her yanıtta kullanılan
 kaynak tablosunu, seriyi, dönemi ve gerekiyorsa forward-fill veya birim
 belirsizliğini açıkça belirt. Veri yetersizse uydurma; eksikliği söyle.
+Olağandışı değer/sapma sorularında anomaly_analysis, trend kırılması /
+"ne zaman değişti" sorularında change_detection kullan; bu iki tool'un
+event_signatures satırlarını yorumla, sayıları yeniden hesaplama.
 Yanıtı Türkçe, kısa ama kanıtlı ver."""
 
 MODEL_CALL_MAX_ATTEMPTS = 3
