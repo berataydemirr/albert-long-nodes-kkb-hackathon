@@ -137,6 +137,7 @@ def ask(question: str, max_rounds: int = 8, return_trace: bool = False):
                 logger.warning(f"ask: tool '{call.function.name}' failed: {exc}")
                 output = json.dumps({"error": str(exc)}, ensure_ascii=False)
                 entry["error"] = str(exc)
+            entry["output_preview"] = output[:4_000]
             trace.append(entry)
             messages.append({"role": "tool", "tool_call_id": call.id, "content": output})
 
