@@ -160,25 +160,36 @@ python -m src.gold.build_gold
 python agent.py "2021-2026 arasında konut kredileri ile faiz oranları nasıl değişti?"
 ```
 
-The first agent iteration exposes read-only Lakehouse queries, robust anomaly
-detection, period-over-period change detection, correlation analysis, and a
-web search and URL/document extraction. A correlation is explicitly reported as correlation,
-not causality. Web search
+The agent exposes read-only Lakehouse queries, anomaly and change detection,
+correlation and causality analysis, web search, and URL/document extraction.
+The deterministic router classifies the request, then makes all registered
+tools available so the model can chain calls such as
+`web_search -> web_url_extract -> lakehouse_query -> causality_analysis`.
+A correlation is explicitly reported as correlation, not causality. Web search
 uses DuckDuckGo by default with no key; set `WEB_SEARCH_PROVIDER=tavily` and
 `TAVILY_API_KEY` in `.env` to use Tavily instead.
 
 ### Browser UI
 
-With `MIA_API_KEY` configured in `.env`, run the local UI and open the URL
-printed by Uvicorn (normally `http://127.0.0.1:8000`):
+Create the local environment, configure `MIA_API_KEY` in `.env`, build the
+gold database, and start the UI:
 
 ```
-uvicorn web_app:app --reload
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/python -m src.gold.build_gold
+.venv/bin/uvicorn web_app:app --reload
 ```
 
-Ask a current-information question such as “TCMB'nin güncel politika faizi
-nedir? Kaynaklarıyla ver.” The agent can select `web_search`; inspect the
-source URLs it returns. The UI is local-only and does not expose API keys.
+Open `http://127.0.0.1:8000`. The Agent Lab displays the router decision,
+available tools, every function call's round/name/JSON arguments, a bounded
+result preview, and the final answer. Built-in prompts exercise Lakehouse,
+change detection, causality, web search, URL extraction, and a multi-tool
+chain.
+
+For example, ask “TCMB'nin güncel politika faizi nedir? Kaynaklarıyla ver.”
+The agent can call `web_search`; inspect both the function trace and returned
+source URLs. The UI is local-only and does not expose API keys.
 For a supplied public URL, the router selects `web_url_extract`, which reads
 bounded HTML, PDF, Excel, CSV, text, or image content. Remote contents and
 search snippets are treated as untrusted input.
