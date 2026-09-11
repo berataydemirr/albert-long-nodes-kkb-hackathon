@@ -18,6 +18,8 @@ MIA_API_KEY = os.getenv("MIA_API_KEY")
 MIA_BASE_URL = os.getenv("MIA_BASE_URL", "https://mia.csp.kloudeks.com/v1")
 MIA_CHAT_MODEL = os.getenv("MIA_CHAT_MODEL", "kkbhackathon2026/Qwen3.8-27B")
 MIA_EMBEDDING_MODEL = os.getenv("MIA_EMBEDDING_MODEL", "kkbhackathon2026/Qwen3-Embedding-8B")
+WEB_SEARCH_PROVIDER = os.getenv("WEB_SEARCH_PROVIDER", "duckduckgo")
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 
 # --- Data layers (medallion architecture: bronze=raw, silver=clean, gold=analysis-ready) ---
 DATA_DIR = PROJECT_ROOT / "data"
