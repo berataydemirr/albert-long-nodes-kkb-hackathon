@@ -83,23 +83,82 @@ def _truncate_tool_output(output: str, tool_name: str) -> str:
     return output[:TOOL_OUTPUT_MAX_CHARS] + f'... [TRUNCATED: {len(output) - TOOL_OUTPUT_MAX_CHARS} more chars cut - narrow the query, e.g. add a WHERE/LIMIT]"}}'
 
 
-def ask(question: str, max_rounds: int = 8, return_trace: bool = False):
+def _timing_summary(timeline: list[dict], total_ms: float) -> dict:
+    """Roll a flat event timeline up into the numbers the UI sidebar shows:
+    how much wall time went to model thinking vs. tool execution, and how
+    much each individual tool cost across every round it was called in."""
+    llm_ms = sum(e["duration_ms"] for e in timeline if e["kind"] == "llm")
+    tool_ms = sum(e["duration_ms"] for e in timeline if e["kind"] == "tool")
+    per_tool: dict[str, dict] = {}
+    for event in timeline:
+        if event["kind"] != "tool":
+            continue
+        bucket = per_tool.setdefault(event["name"], {"name": event["name"], "calls": 0, "duration_ms": 0.0, "errors": 0})
+        bucket["calls"] += 1
+        bucket["duration_ms"] += event["duration_ms"]
+        bucket["errors"] += 1 if event.get("error") else 0
+    return {
+        "total_ms": round(total_ms, 1),
+        "llm_ms": round(llm_ms, 1),
+        "tool_ms": round(tool_ms, 1),
+        # Wall time that is neither a model call nor a tool call (routing,
+        # JSON serialization, message bookkeeping). Never negative.
+        "overhead_ms": round(max(total_ms - llm_ms - tool_ms, 0.0), 1),
+        "llm_calls": sum(1 for e in timeline if e["kind"] == "llm"),
+        "tool_calls": sum(1 for e in timeline if e["kind"] == "tool"),
+        "rounds": max((e["round"] for e in timeline), default=0),
+        "per_tool": sorted(
+            ({**b, "duration_ms": round(b["duration_ms"], 1)} for b in per_tool.values()),
+            key=lambda b: b["duration_ms"], reverse=True,
+        ),
+    }
+
+
+def ask(question: str, max_rounds: int = 8, return_trace: bool = False, return_timing: bool = False):
     """return_trace=True also returns the round-by-round tool-call trace
     (name + arguments + whether it raised) - used by benchmarks/
     agent_benchmark.py to score tool-selection accuracy and hallucinated
-    Seri_Kod values without re-parsing the log file."""
+    Seri_Kod values without re-parsing the log file.
+
+    return_timing=True additionally returns a debug timing payload:
+    {"timeline": [...], "summary": {...}}. Every model call and every tool
+    call becomes one timeline event with a start offset (ms from the moment
+    ask() began) and a duration, so the UI can draw a real gantt-style
+    timeline instead of guessing where the wall time went. Durations use
+    time.monotonic() so a clock adjustment mid-run cannot produce negative
+    spans."""
     logger.info(f"ask: question={question!r}, max_rounds={max_rounds}")
+    run_t0 = time.monotonic()
+    timeline: list[dict] = []
+
+    def _ms_since_start() -> float:
+        return (time.monotonic() - run_t0) * 1000.0
+
+    def _finish(answer: str):
+        """Single exit point so every return path carries the same shape."""
+        summary = _timing_summary(timeline, _ms_since_start())
+        logger.info(
+            "ask: timing total=%.0fms llm=%.0fms (%d calls) tools=%.0fms (%d calls)",
+            summary["total_ms"], summary["llm_ms"], summary["llm_calls"],
+            summary["tool_ms"], summary["tool_calls"],
+        )
+        result = [answer]
+        if return_trace:
+            result.append(trace)
+        if return_timing:
+            result.append({"timeline": timeline, "summary": summary})
+        return tuple(result) if len(result) > 1 else answer
+
     decision = route_question(question, TOOL_SCHEMAS)
     logger.info(
         "ask: route=%s, available=%s, allowed_tools=%s, reason=%s",
         decision.route.value, decision.available, decision.allowed_tool_names, decision.reason,
     )
+    trace: list[dict] = []
     if decision.route is Route.REFUSE:
-        answer = f"Bu isteği işleyemem: {decision.reason}"
-        return (answer, []) if return_trace else answer
+        return _finish(f"Bu isteği işleyemem: {decision.reason}")
     if not decision.available:
-        answer = f"Bu istek {decision.route.value} yeteneği gerektiriyor; {decision.reason}"
-        return (answer, []) if return_trace else answer
+        return _finish(f"Bu istek {decision.route.value} yeteneği gerektiriyor; {decision.reason}")
 
     allowed_names = set(decision.allowed_tool_names)
     routed_tool_schemas = [
@@ -108,15 +167,24 @@ def ask(question: str, max_rounds: int = 8, return_trace: bool = False):
     ]
     client = get_client()
     messages = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": question}]
-    trace = []
 
     for round_no in range(1, max_rounds + 1):
         logger.info(f"ask: round {round_no}/{max_rounds}, calling model={MIA_CHAT_MODEL}")
+        start_ms = _ms_since_start()
         t0 = time.monotonic()
         response = _call_model(client, messages, routed_tool_schemas)
         elapsed = time.monotonic() - t0
         usage = getattr(response, "usage", None)
         logger.info(f"ask: round {round_no} model call took {elapsed:.2f}s, tokens={usage}")
+        timeline.append({
+            "kind": "llm",
+            "round": round_no,
+            "name": f"LLM düşünme (round {round_no})",
+            "start_ms": round(start_ms, 1),
+            "duration_ms": round(elapsed * 1000.0, 1),
+            "error": None,
+            "tokens": getattr(usage, "total_tokens", None) if usage else None,
+        })
 
         message = response.choices[0].message
         messages.append(message.model_dump(exclude_none=True) if hasattr(message, "model_dump") else message)
@@ -124,12 +192,14 @@ def ask(question: str, max_rounds: int = 8, return_trace: bool = False):
         if not message.tool_calls:
             content = message.content or "Model boş yanıt döndürdü."
             logger.info(f"ask: round {round_no} - no tool calls, final answer len={len(content)}")
-            return (content, trace) if return_trace else content
+            return _finish(content)
 
         logger.info(f"ask: round {round_no} - {len(message.tool_calls)} tool call(s): {[c.function.name for c in message.tool_calls]}")
         for call in message.tool_calls:
             logger.debug(f"ask: tool_call id={call.id}, name={call.function.name}, arguments={call.function.arguments}")
             entry = {"round": round_no, "name": call.function.name, "arguments": call.function.arguments, "error": None}
+            tool_start_ms = _ms_since_start()
+            tool_t0 = time.monotonic()
             try:
                 output = execute_tool(call.function.name, call.function.arguments)
                 output = _truncate_tool_output(output, call.function.name)
@@ -137,7 +207,19 @@ def ask(question: str, max_rounds: int = 8, return_trace: bool = False):
                 logger.warning(f"ask: tool '{call.function.name}' failed: {exc}")
                 output = json.dumps({"error": str(exc)}, ensure_ascii=False)
                 entry["error"] = str(exc)
+            tool_elapsed_ms = (time.monotonic() - tool_t0) * 1000.0
+            logger.info(f"ask: tool '{call.function.name}' took {tool_elapsed_ms:.0f}ms")
+            entry["start_ms"] = round(tool_start_ms, 1)
+            entry["duration_ms"] = round(tool_elapsed_ms, 1)
             entry["output_preview"] = output[:4_000]
+            timeline.append({
+                "kind": "tool",
+                "round": round_no,
+                "name": call.function.name,
+                "start_ms": round(tool_start_ms, 1),
+                "duration_ms": round(tool_elapsed_ms, 1),
+                "error": entry["error"],
+            })
             trace.append(entry)
             messages.append({"role": "tool", "tool_call_id": call.id, "content": output})
 

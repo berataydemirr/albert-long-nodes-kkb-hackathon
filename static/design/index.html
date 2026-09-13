@@ -8,198 +8,265 @@
 <body>
 <x-dc>
 <helmet>
-<link rel="stylesheet" href="_ds/industry-4e3e40ac-656b-4539-b0f8-5d272089c912/styles.css">
-<script src="_ds/industry-4e3e40ac-656b-4539-b0f8-5d272089c912/_ds_bundle.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
-body { margin: 0; }
-
-/* — thinking orb: a small breathing/glowing dot with an expanding
-     pulse ring, inspired by thinking-orbs (libraries.dev/orbs) — used
-     in place of a static spinner for the assistant's "thinking" state. */
-@keyframes orb-breathe {
-  0%, 100% { transform: scale(0.82); opacity: 0.78; }
-  50% { transform: scale(1.18); opacity: 1; }
-}
-@keyframes orb-drift {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-3px); }
-}
-@keyframes orb-ring {
-  0% { transform: scale(0.55); opacity: 0.55; }
-  100% { transform: scale(2.1); opacity: 0; }
-}
-@keyframes orb-label-fade {
-  0%, 100% { opacity: 0.55; }
-  50% { opacity: 1; }
-}
-.thinking-orb {
-  position: relative;
-  width: 16px; height: 16px; flex: none;
-  border-radius: 50%;
-  background: radial-gradient(circle at 34% 32%, var(--color-accent-300), var(--color-accent) 55%, var(--color-accent-800) 100%);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--color-accent) 55%, transparent);
-  animation: orb-breathe 1.8s ease-in-out infinite, orb-drift 3.2s ease-in-out infinite;
-}
-.thinking-orb::before {
-  content: "";
-  position: absolute; inset: -6px;
-  border-radius: 50%;
-  border: 1px solid var(--color-accent);
-  animation: orb-ring 1.8s ease-out infinite;
-}
-.thinking-label {
-  font-family: var(--font-heading); font-size: 15px; color: var(--color-text);
-  animation: orb-label-fade 1.8s ease-in-out infinite;
-}
-.error-text { color: #b5432f; }
+html, body { margin: 0; background: #0a0a0b; }
+* { box-sizing: border-box; }
+a { color: #e0aa4a; text-decoration: none; border-bottom: 1px solid rgba(224,170,74,.35); }
+a:hover { color: #f0c274; border-bottom-color: #f0c274; }
+::selection { background: rgba(224,170,74,.25); }
+textarea, button, input { font-family: inherit; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,.10); border-radius: 8px; border: 3px solid #0a0a0b; }
+::-webkit-scrollbar-track { background: transparent; }
+@keyframes orb-breathe { 0%,100% { transform: scale(.86); opacity: .85 } 50% { transform: scale(1.12); opacity: 1 } }
+@keyframes orb-ring { 0% { transform: scale(.6); opacity: .5 } 100% { transform: scale(2.4); opacity: 0 } }
+@keyframes shimmer { 0% { background-position: 120% 0 } 100% { background-position: -40% 0 } }
+@keyframes stage-in { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+@keyframes msg-in { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
+@keyframes caret { 0%,100% { opacity: 1 } 50% { opacity: .15 } }
+@keyframes sweep { 0% { transform: translateX(-100%) } 100% { transform: translateX(220%) } }
+@keyframes spin { to { transform: rotate(360deg) } }
 </style>
 </helmet>
-<div style="min-height:100vh; display:flex; flex-direction:column; background:var(--color-bg); color:var(--color-text); font-family:var(--font-body);">
+<div style="min-height:100vh; display:flex; flex-direction:column; background:radial-gradient(1100px 520px at 50% -220px, #17161a, #0a0a0b 70%); color:#ededee; font-family:'Sora',system-ui,sans-serif; font-weight:300; -webkit-font-smoothing:antialiased;">
 
-  <div class="nav" style="border-bottom:1px solid var(--color-divider); position:sticky; top:0; z-index:5; background:var(--color-bg);">
-    <span class="nav-brand">KKB Agent Lab <span class="tag tag-outline" style="margin-left:8px; vertical-align:middle;">live</span></span>
-    <a href="javascript:void(0)" onClick="{{ goChat }}" style="color:{{ chatLinkColor }}; font-weight:{{ chatLinkWeight }};">Chat</a>
-    <a href="javascript:void(0)" onClick="{{ goSettings }}" style="color:{{ settingsLinkColor }}; font-weight:{{ settingsLinkWeight }};">Tools &amp; Settings</a>
-  </div>
+  <header style="position:sticky; top:0; z-index:8; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:0 22px; height:58px; border-bottom:1px solid rgba(255,255,255,.07); background:rgba(10,10,11,.78); backdrop-filter:blur(14px);">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span style="width:9px; height:9px; border-radius:50%; background:#e0aa4a; box-shadow:0 0 12px rgba(224,170,74,.85);"></span>
+      <span style="font-size:14px; font-weight:500; letter-spacing:-.01em;">KKB Agent</span>
+      <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:#8d8d93; border:1px solid rgba(255,255,255,.10); border-radius:4px; padding:3px 7px;">{{ modeLabel }}</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <button onClick="{{ openRegistry }}" style="display:flex; align-items:center; gap:7px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.09); color:#c9c9ce; border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; transition:all .18s ease;" style-hover="background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.18); color:#ededee;">
+        <span style="font-family:'Space Mono',monospace; color:#e0aa4a;">{{ toolCount }}</span> tools
+      </button>
+      <button onClick="{{ resetChat }}" style="background:none; border:1px solid rgba(255,255,255,.09); color:#8d8d93; border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; transition:all .18s ease;" style-hover="color:#ededee; border-color:rgba(255,255,255,.18);">New chat</button>
+    </div>
+  </header>
 
-  <sc-if value="{{ isChatView }}" hint-placeholder-val="{{ true }}">
-    <div style="flex:1; display:flex; flex-direction:column; max-width:760px; width:100%; margin:0 auto; padding:24px 20px 0;">
-      <div style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:16px; padding-bottom:20px;">
-        <sc-for list="{{ messages }}" as="m" hint-placeholder-count="2">
-          <sc-if value="{{ m.isUser }}" hint-placeholder-val="{{ true }}">
-            <div style="align-self:flex-end; max-width:80%; background:var(--color-accent-900); color:var(--color-bg); padding:12px 16px; font-size:15px; line-height:1.5;">{{ m.userText }}</div>
-          </sc-if>
-          <sc-if value="{{ m.isAssistant }}" hint-placeholder-val="{{ false }}">
-            <div class="card blueprint elev-sm" style="align-self:flex-start; max-width:88%; padding:16px;">
-              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
-              <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
-                <span class="tag tag-accent">{{ m.routeName }}</span>
-                <span class="text-muted" style="font-size:12px;">{{ m.routeReason }}</span>
-              </div>
+  <div style="flex:1; display:flex; flex-direction:column; width:100%; max-width:840px; margin:0 auto; padding:0 20px; min-height:0;">
+
+    <div style="flex:1; overflow-y:auto; padding:34px 0 8px; display:flex; flex-direction:column; gap:26px; min-height:0;">
+
+      <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ true }}">
+        <div style="margin:auto 0; padding:40px 0 24px; animation:msg-in .5s ease both;">
+          <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:#e0aa4a; margin-bottom:14px;">BDDK · EVDS · TUIK</div>
+          <h1 style="margin:0 0 10px; font-size:34px; font-weight:300; letter-spacing:-.03em; line-height:1.15; color:#f5f5f6;">Lakehouse'a ne sormak istersin?</h1>
+          <p style="margin:0 0 26px; font-size:15px; line-height:1.6; color:#8d8d93; max-width:52ch;">Model planı kurar, araçları Python çalıştırır. Her yanıtın altında çağrılan aracı, süresini ve dönen veriyi açabilirsin.</p>
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            <sc-for list="{{ examples }}" as="ex" hint-placeholder-count="4">
+              <button onClick="{{ ex.use }}" style="text-align:left; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); color:#c9c9ce; border-radius:10px; padding:11px 14px; font-size:13px; line-height:1.4; max-width:100%; cursor:pointer; transition:all .2s ease;" style-hover="background:rgba(224,170,74,.07); border-color:rgba(224,170,74,.38); color:#f5f5f6; transform:translateY(-1px);">{{ ex.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-for list="{{ messages }}" as="m" hint-placeholder-count="0">
+        <sc-if value="{{ m.isUser }}" hint-placeholder-val="{{ true }}">
+          <div style="align-self:flex-end; max-width:78%; background:#1c1c20; border:1px solid rgba(255,255,255,.08); border-radius:16px 16px 5px 16px; padding:13px 17px; font-size:15px; font-weight:300; line-height:1.55; color:#f0f0f1; animation:msg-in .38s cubic-bezier(.22,1,.36,1) both;">{{ m.userText }}</div>
+        </sc-if>
+        <sc-if value="{{ m.isAssistant }}" hint-placeholder-val="{{ false }}">
+          <div style="align-self:stretch; animation:msg-in .45s cubic-bezier(.22,1,.36,1) both;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+              <span style="width:20px; height:20px; border-radius:50%; background:radial-gradient(circle at 34% 30%, #f3cd86, #e0aa4a 58%, #8a5f18); box-shadow:0 0 14px rgba(224,170,74,.35);"></span>
+              <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#8d8d93;">{{ m.routeName }}</span>
+              <span style="width:3px; height:3px; border-radius:50%; background:#4a4a50;"></span>
+              <span style="font-family:'Space Mono',monospace; font-size:11px; color:#6f6f76;">{{ m.totalLabel }}</span>
+            </div>
+            <div style="padding-left:30px; color:#dedee0; font-size:15px; line-height:1.7;">
               <sc-for list="{{ m.blocks }}" as="blk" hint-placeholder-count="2">
                 <div>{{ blk }}</div>
               </sc-for>
               <sc-if value="{{ m.hasTools }}" hint-placeholder-val="{{ false }}">
-                <button class="btn btn-secondary" onClick="{{ m.openTrace }}" style="margin-top:4px;">View function calls · {{ m.toolsCount }}</button>
+                <button onClick="{{ m.openTrace }}" style="position:relative; overflow:hidden; margin-top:12px; display:inline-flex; align-items:center; gap:10px; background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.10); color:#c9c9ce; border-radius:999px; padding:8px 15px 8px 12px; font-size:12.5px; cursor:pointer; transition:all .2s ease;" style-hover="background:rgba(224,170,74,.08); border-color:rgba(224,170,74,.42); color:#f5f5f6;">
+                  <span style="display:flex; gap:3px; align-items:center;">
+                    <span style="width:3px; height:11px; border-radius:2px; background:#e0aa4a;"></span>
+                    <span style="width:3px; height:7px; border-radius:2px; background:rgba(224,170,74,.6);"></span>
+                    <span style="width:3px; height:13px; border-radius:2px; background:rgba(224,170,74,.85);"></span>
+                  </span>
+                  {{ m.traceButtonLabel }}
+                </button>
               </sc-if>
             </div>
-          </sc-if>
-        </sc-for>
-        <sc-if value="{{ thinking }}" hint-placeholder-val="{{ false }}">
-          <div class="blueprint" style="align-self:flex-start; max-width:70%; padding:14px 16px; display:flex; align-items:center; gap:10px;">
-            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
-            <span class="thinking-orb"></span>
-            <span class="thinking-label">{{ thinkingLabel }}</span>
           </div>
         </sc-if>
-      </div>
+      </sc-for>
 
-      <div style="display:flex; gap:8px; flex-wrap:wrap; padding:6px 0 12px;">
-        <sc-for list="{{ examples }}" as="ex" hint-placeholder-count="3">
-          <button class="tag tag-outline" style="cursor:pointer; background:none; font-family:var(--font-body); padding:6px 12px; border-radius:999px;" onClick="{{ ex.use }}">{{ ex.label }}</button>
-        </sc-for>
-      </div>
+      <sc-if value="{{ thinking }}" hint-placeholder-val="{{ false }}">
+        <div style="align-self:stretch; animation:msg-in .4s ease both;">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+            <span style="position:relative; width:20px; height:20px; flex:none; border-radius:50%; background:radial-gradient(circle at 34% 30%, #f3cd86, #e0aa4a 58%, #8a5f18); animation:orb-breathe 1.9s ease-in-out infinite;">
+              <i style="position:absolute; inset:-5px; border-radius:50%; border:1px solid rgba(224,170,74,.7); animation:orb-ring 1.9s ease-out infinite;"></i>
+            </span>
+            <span style="font-family:'Space Mono',monospace; font-size:11px; color:#6f6f76;">{{ elapsedLabel }}</span>
+          </div>
+          <div style="padding-left:30px; display:flex; flex-direction:column; gap:9px;">
+            <sc-for list="{{ stages }}" as="st" hint-placeholder-count="2">
+              <div style="display:flex; align-items:center; gap:11px; animation:stage-in .42s cubic-bezier(.22,1,.36,1) both;">
+                <sc-if value="{{ st.done }}" hint-placeholder-val="{{ true }}">
+                  <span style="width:14px; height:14px; flex:none; border-radius:50%; border:1px solid rgba(224,170,74,.45); display:flex; align-items:center; justify-content:center;">
+                    <span style="width:5px; height:5px; border-radius:50%; background:#e0aa4a;"></span>
+                  </span>
+                  <span style="font-size:13.5px; color:#6f6f76;">{{ st.label }}</span>
+                  <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:#4f4f56;">{{ st.time }}</span>
+                </sc-if>
+                <sc-if value="{{ st.active }}" hint-placeholder-val="{{ false }}">
+                  <span style="width:14px; height:14px; flex:none; border-radius:50%; border:1.5px solid rgba(224,170,74,.25); border-top-color:#e0aa4a; animation:spin .9s linear infinite;"></span>
+                  <span style="font-size:14px; font-weight:400; background:linear-gradient(100deg, #8d8d93 20%, #f5e3bf 38%, #e0aa4a 50%, #8d8d93 68%); background-size:250% 100%; -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; animation:shimmer 2.1s linear infinite;">{{ st.label }}</span>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
 
-      <div style="display:flex; gap:10px; padding-bottom:22px;">
-        <textarea class="input" rows="1" placeholder="Yerel seriler, anomaliler veya web hakkında sor…" value="{{ input }}" onChange="{{ setInput }}" onKeyDown="{{ handleKeyDown }}" style="flex:1; font-family:var(--font-body); min-height:44px;"></textarea>
-        <button class="btn btn-primary" onClick="{{ send }}" disabled="{{ sendDisabled }}">Send</button>
+      <div ref="{{ endRef }}" style="height:1px; flex:none;"></div>
+    </div>
+
+    <div style="padding:10px 0 26px; position:sticky; bottom:0; background:linear-gradient(to top, #0a0a0b 42%, rgba(10,10,11,0)); flex:none;">
+      <div style="display:flex; align-items:flex-end; gap:10px; background:#141416; border:1px solid {{ composerBorder }}; border-radius:16px; padding:10px 10px 10px 16px; transition:border-color .25s ease, box-shadow .25s ease; box-shadow:{{ composerShadow }};">
+        <textarea rows="1" placeholder="Seriler, anomaliler veya güncel oranlar hakkında sor…" value="{{ input }}" onChange="{{ setInput }}" onKeyDown="{{ handleKeyDown }}" onFocus="{{ onFocus }}" onBlur="{{ onBlur }}" style="flex:1; background:none; border:0; outline:none; resize:none; color:#f0f0f1; font-size:15px; font-weight:300; line-height:1.6; min-height:26px; max-height:180px; padding:6px 0;"></textarea>
+        <button onClick="{{ send }}" disabled="{{ sendDisabled }}" style="flex:none; width:38px; height:38px; border-radius:11px; border:0; background:{{ sendBg }}; color:#0a0a0b; font-size:16px; cursor:{{ sendCursor }}; display:flex; align-items:center; justify-content:center; transition:all .2s ease;" style-hover="filter:brightness(1.08);">↑</button>
+      </div>
+      <div style="display:flex; justify-content:space-between; gap:12px; margin-top:9px; padding:0 4px;">
+        <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:#55555c;">Enter ile gönder · Shift+Enter satır</span>
+        <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:#55555c;">{{ charLabel }}</span>
       </div>
     </div>
+  </div>
+
+  <sc-if value="{{ overlayOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeDrawer }}" style="position:fixed; inset:0; background:rgba(6,6,7,.62); backdrop-filter:blur(3px); z-index:20; animation:msg-in .25s ease both;"></div>
   </sc-if>
 
-  <sc-if value="{{ isSettingsView }}" hint-placeholder-val="{{ false }}">
-    <div style="flex:1; max-width:960px; width:100%; margin:0 auto; padding:28px 20px 60px; display:flex; flex-direction:column; gap:28px;">
+  <div style="position:fixed; top:0; right:0; height:100vh; width:min(520px, 94vw); z-index:21; background:#0e0e10; border-left:1px solid rgba(255,255,255,.09); box-shadow:-30px 0 70px rgba(0,0,0,.55); display:flex; flex-direction:column; transform:{{ drawerTransform }}; transition:transform .42s cubic-bezier(.22,1,.36,1);">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:18px 20px; border-bottom:1px solid rgba(255,255,255,.07); flex:none;">
       <div>
-        <h2 style="margin-bottom:4px;">Tool registry</h2>
-        <p class="text-muted" style="margin:0 0 16px; font-size:14px;">Backend'in <code>/api/tools</code> ucundan canlı okunan gerçek tool listesi.</p>
-        <sc-if value="{{ toolsLoading }}" hint-placeholder-val="{{ false }}">
-          <p class="text-muted">Tool registry yükleniyor…</p>
-        </sc-if>
-        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:16px;">
+        <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:#e0aa4a; margin-bottom:5px;">{{ drawerKicker }}</div>
+        <div style="font-size:16px; font-weight:400; letter-spacing:-.01em;">{{ drawerTitle }}</div>
+      </div>
+      <button onClick="{{ closeDrawer }}" style="width:32px; height:32px; flex:none; border-radius:9px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.09); color:#8d8d93; font-size:15px; cursor:pointer; transition:all .18s ease;" style-hover="color:#ededee; border-color:rgba(255,255,255,.2);">×</button>
+    </div>
+
+    <div style="flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:22px;">
+
+      <sc-if value="{{ isRegistry }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex; flex-direction:column; gap:10px;">
           <sc-for list="{{ tools }}" as="t" hint-placeholder-count="6">
-            <div class="card blueprint elev-sm" style="padding:16px;">
-              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
-              <span class="card-kicker">{{ t.tag }}</span>
-              <div class="card-title" style="font-size:16px;">{{ t.name }}</div>
-              <p class="card-body">{{ t.desc }}</p>
+            <div style="border:1px solid rgba(255,255,255,.07); border-radius:12px; padding:13px 15px; background:#131315;">
+              <div style="display:flex; align-items:center; gap:9px; margin-bottom:6px;">
+                <span style="font-family:'Space Mono',monospace; font-size:13px; color:#f0c274;">{{ t.name }}</span>
+                <span style="font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:#8d8d93; border:1px solid rgba(255,255,255,.10); border-radius:4px; padding:2px 6px;">{{ t.tag }}</span>
+              </div>
+              <p style="margin:0; font-size:12.5px; line-height:1.55; color:#8d8d93;">{{ t.desc }}</p>
             </div>
           </sc-for>
         </div>
-      </div>
+      </sc-if>
 
-      <div class="card blueprint elev-sm" style="padding:20px; max-width:480px;">
-        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
-        <h3 style="margin-bottom:6px;">Router settings</h3>
-        <p class="text-muted" style="margin:0 0 14px; font-size:13px;">Bu MVP'de sağlayıcı/safe-mode sunucu tarafında <code>.env</code> ile sabit; buradaki kontroller henüz backend'e yazmıyor.</p>
-        <div class="field" style="margin-bottom:16px;">
-          <label>Web search provider</label>
-          <div class="seg">
-            <label class="seg-opt"><input type="radio" name="wsp" checked="{{ providerDuck }}" onChange="{{ setProviderDuck }}" /><span>DuckDuckGo</span></label>
-            <label class="seg-opt"><input type="radio" name="wsp" checked="{{ providerTavily }}" onChange="{{ setProviderTavily }}" /><span>Tavily</span></label>
-          </div>
+      <sc-if value="{{ isTrace }}" hint-placeholder-val="{{ true }}">
+        <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:9px;">
+          <sc-for list="{{ drawerStats }}" as="s" hint-placeholder-count="3">
+            <div style="border:1px solid rgba(255,255,255,.07); border-radius:11px; padding:12px 13px; background:#131315;">
+              <div style="font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:#6f6f76; margin-bottom:7px;">{{ s.label }}</div>
+              <div style="font-family:'Space Mono',monospace; font-size:17px; color:{{ s.color }};">{{ s.value }}</div>
+              <div style="font-family:'Space Mono',monospace; font-size:10.5px; color:#55555c; margin-top:3px;">{{ s.sub }}</div>
+            </div>
+          </sc-for>
         </div>
-        <div class="field" style="margin-bottom:16px;">
-          <label>Safe mode (block unsafe SQL &amp; injected instructions)</label>
-          <div class="seg">
-            <label class="seg-opt"><input type="radio" name="safe" checked="{{ safeOn }}" onChange="{{ setSafeOn }}" /><span>On</span></label>
-            <label class="seg-opt"><input type="radio" name="safe" checked="{{ safeOff }}" onChange="{{ setSafeOff }}" /><span>Off</span></label>
-          </div>
-        </div>
-        <div class="field">
-          <label>Function-call panel default</label>
-          <div class="seg">
-            <label class="seg-opt"><input type="radio" name="panel" checked="{{ panelCollapsed }}" onChange="{{ setPanelCollapsed }}" /><span>Collapsed</span></label>
-            <label class="seg-opt"><input type="radio" name="panel" checked="{{ panelExpanded }}" onChange="{{ setPanelExpanded }}" /><span>Expanded</span></label>
-          </div>
-        </div>
-      </div>
-    </div>
-  </sc-if>
 
-  <sc-if value="{{ drawerOpen }}" hint-placeholder-val="{{ false }}">
-    <div style="position:fixed; inset:0; background:color-mix(in srgb, var(--color-neutral-900) 45%, transparent); z-index:20;" onClick="{{ closeDrawer }}"></div>
-  </sc-if>
-  <div style="position:fixed; top:0; right:0; height:100vh; width:min(420px,92vw); background:var(--color-bg); border-left:1px solid var(--color-divider); box-shadow:var(--shadow-lg); z-index:21; display:flex; flex-direction:column; transform:{{ drawerTransform }}; transition:transform .28s ease;">
-    <div style="display:flex; align-items:center; justify-content:space-between; padding:16px 18px; border-bottom:1px solid var(--color-divider);">
-      <h4 style="margin:0;">Function calls</h4>
-      <button class="btn btn-icon btn-secondary" onClick="{{ closeDrawer }}" aria-label="Close">×</button>
-    </div>
-    <div style="padding:16px 18px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:14px;">
-      <div>
-        <div class="text-muted" style="font-size:11px; text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px;">Router decision</div>
-        <span class="tag tag-accent">{{ drawerRouteName }}</span>
-        <p style="font-size:13px; margin:8px 0 0;">{{ drawerRouteReason }}</p>
-      </div>
-      <div class="hr"></div>
-      <sc-for list="{{ drawerTrace }}" as="tc" hint-placeholder-count="3">
-        <div class="blueprint" style="padding:12px 14px;">
-          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
-          <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px;">
-            <span style="font-family:var(--font-heading); font-weight:600; color:var(--color-accent-700);">{{ tc.index }}. {{ tc.name }}</span>
-            <span class="text-muted" style="font-size:11px;">round {{ tc.round }}</span>
+        <sc-if value="{{ showTimeline }}" hint-placeholder-val="{{ true }}">
+          <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#6f6f76; margin-bottom:12px;">Timeline</div>
+          <div style="display:flex; flex-direction:column; gap:11px;">
+            <sc-for list="{{ drawerTimeline }}" as="ev" hint-placeholder-count="4">
+              <div>
+                <div style="display:flex; justify-content:space-between; gap:10px; margin-bottom:5px;">
+                  <span style="font-family:'Space Mono',monospace; font-size:11.5px; color:{{ ev.color }}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ ev.label }}</span>
+                  <span style="font-family:'Space Mono',monospace; font-size:11px; color:#6f6f76; flex:none;">{{ ev.durationLabel }}</span>
+                </div>
+                <div style="height:6px; border-radius:3px; background:rgba(255,255,255,.05); position:relative; overflow:hidden;">
+                  <div style="position:absolute; top:0; bottom:0; left:{{ ev.offsetPct }}; width:{{ ev.widthPct }}; border-radius:3px; background:{{ ev.color }};"></div>
+                </div>
+              </div>
+            </sc-for>
           </div>
-          <div class="text-muted" style="font-size:11px; margin-bottom:2px;">arguments</div>
-          <pre style="margin:0 0 8px; font-size:12px; background:var(--color-surface); padding:8px; overflow-x:auto; white-space:pre-wrap; word-break:break-word;">{{ tc.args }}</pre>
-          <div class="text-muted" style="font-size:11px; margin-bottom:2px;">result</div>
-          <pre style="margin:0; font-size:12px; background:var(--color-surface); padding:8px; overflow-x:auto; white-space:pre-wrap; word-break:break-word;" class="{{ tc.resultClass }}">{{ tc.result }}</pre>
+        </sc-if>
+
+        <div>
+          <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#6f6f76; margin-bottom:12px;">Calls</div>
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <sc-for list="{{ drawerTrace }}" as="tc" hint-placeholder-count="3">
+              <div style="border:1px solid {{ tc.border }}; border-radius:12px; background:#131315; overflow:hidden;">
+                <button onClick="{{ tc.toggle }}" style="width:100%; display:flex; align-items:center; gap:11px; background:none; border:0; padding:13px 15px; cursor:pointer; text-align:left; transition:background .18s ease;" style-hover="background:rgba(255,255,255,.03);">
+                  <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:#55555c; flex:none;">{{ tc.index }}</span>
+                  <span style="font-family:'Space Mono',monospace; font-size:13px; color:{{ tc.nameColor }}; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ tc.name }}</span>
+                  <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:#6f6f76; flex:none;">{{ tc.roundLabel }}</span>
+                  <span style="font-family:'Space Mono',monospace; font-size:12px; color:#f0c274; flex:none;">{{ tc.durationLabel }}</span>
+                  <span style="color:#55555c; font-size:11px; flex:none; transition:transform .25s ease; transform:{{ tc.caret }};">▾</span>
+                </button>
+                <div style="height:3px; background:rgba(255,255,255,.04);">
+                  <div style="height:100%; width:{{ tc.sharePct }}; background:linear-gradient(90deg, rgba(224,170,74,.35), #e0aa4a);"></div>
+                </div>
+                <sc-if value="{{ tc.open }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding:14px 15px 15px; border-top:1px solid rgba(255,255,255,.06); display:flex; flex-direction:column; gap:12px; animation:stage-in .3s ease both;">
+                    <div>
+                      <div style="font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:#6f6f76; margin-bottom:6px;">arguments</div>
+                      <pre style="margin:0; font-family:'Space Mono',monospace; font-size:11.5px; line-height:1.6; color:#c9c9ce; background:#0c0c0e; border:1px solid rgba(255,255,255,.06); border-radius:9px; padding:11px; max-height:200px; overflow:auto; white-space:pre-wrap; word-break:break-word;">{{ tc.args }}</pre>
+                    </div>
+                    <div>
+                      <div style="font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:#6f6f76; margin-bottom:6px;">result preview</div>
+                      <pre style="margin:0; font-family:'Space Mono',monospace; font-size:11.5px; line-height:1.6; color:{{ tc.resultColor }}; background:#0c0c0e; border:1px solid rgba(255,255,255,.06); border-radius:9px; padding:11px; max-height:260px; overflow:auto; white-space:pre-wrap; word-break:break-word;">{{ tc.result }}</pre>
+                    </div>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
         </div>
-      </sc-for>
+
+        <div>
+          <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#6f6f76; margin-bottom:10px;">Per tool</div>
+          <sc-for list="{{ drawerPerTool }}" as="pt" hint-placeholder-count="2">
+            <div style="display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,.06); font-family:'Space Mono',monospace; font-size:11.5px;">
+              <span style="color:#c9c9ce;">{{ pt.label }}</span>
+              <span style="color:#6f6f76; flex:none;">{{ pt.timing }}</span>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="font-size:12px; line-height:1.6; color:#6f6f76; border-left:2px solid rgba(224,170,74,.4); padding-left:12px;">{{ drawerReason }}</div>
+      </sc-if>
     </div>
   </div>
 </div>
-
 </x-dc>
-<script type="text/x-dc" data-dc-script>
+<script type="text/x-dc" data-dc-script data-props="{&quot;stagePace&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:1,&quot;min&quot;:0.4,&quot;max&quot;:2,&quot;step&quot;:0.1,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;showTimeline&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Tool details&quot;},&quot;expandFirstCall&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Tool details&quot;}}">
+const ACC = '#e0aa4a';
+const ACC_DIM = 'rgba(224,170,74,.55)';
+const ERR = '#e06a4a';
+
+const fmtMs = (ms) => {
+  const v = Number(ms) || 0;
+  if (v < 1000) return `${Math.round(v)} ms`;
+  if (v < 60000) return `${(v / 1000).toFixed(v < 10000 ? 2 : 1)} s`;
+  const m = Math.floor(v / 60000);
+  return `${m}m ${Math.round((v - m * 60000) / 1000)}s`;
+};
+const pctOf = (part, whole) => {
+  if (!(whole > 0)) return '0%';
+  const p = (part / whole) * 100;
+  return p > 0 && p < 1 ? '<1%' : `${Math.round(p)}%`;
+};
+
 const TAG_BY_NAME = {
-  lakehouse_schema: 'Data',
-  lakehouse_query: 'Data',
-  anomaly_analysis: 'Analysis',
-  change_detection: 'Analysis',
-  correlation_analysis: 'Analysis',
-  causality_analysis: 'Analysis',
+  lakehouse_schema: 'Data', lakehouse_query: 'Data',
+  anomaly_analysis: 'Analysis', change_detection: 'Analysis',
+  correlation_analysis: 'Analysis', causality_analysis: 'Analysis',
   threshold_filter_compare: 'Analysis',
-  web_search: 'Web',
-  web_url_extract: 'Web'
+  web_search: 'Web', web_url_extract: 'Web'
 };
 
 const EXAMPLES = [
@@ -209,233 +276,372 @@ const EXAMPLES = [
   "TCMB'nin güncel politika faizini web'de ara."
 ];
 
+// Progress narration. Each stage holds until the next one's `at` (ms) passes;
+// the last stage stays active until the response lands.
+const STAGES = [
+  { at: 0,     label: 'Thinking' },
+  { at: 1100,  label: 'Routing the request' },
+  { at: 2600,  label: 'Calling web tools' },
+  { at: 5200,  label: 'Querying the lakehouse' },
+  { at: 8200,  label: 'Organizing results' },
+  { at: 11500, label: 'Wrapping up' }
+];
+
+const DEMO_TRACE = [
+  { name: 'web_search', round: 1, duration_ms: 1840, start_ms: 620,
+    arguments: '{"query":"TCMB politika faizi güncel","max_results":5}',
+    output_preview: '{"results":[{"title":"TCMB - Politika Faizi","url":"https://www.tcmb.gov.tr/...","snippet":"Bir hafta vadeli repo ihale faiz oranı %..."}],"provider":"duckduckgo"}' },
+  { name: 'web_url_extract', round: 2, duration_ms: 2410, start_ms: 3120,
+    arguments: '{"url":"https://www.tcmb.gov.tr/wps/wcm/connect/TR/TCMB+TR/Main+Menu/Temel+Faaliyetler/Para+Politikasi"}',
+    output_preview: '{"content_type":"text/html","chars":18422,"title":"Para Politikası","text":"Para Politikası Kurulu kararları ..."}' },
+  { name: 'lakehouse_query', round: 3, duration_ms: 96, start_ms: 6890,
+    arguments: '{"sql":"select period, value from gold_series where series_code = \'konut_kredi_faiz\' order by period desc limit 12"}',
+    output_preview: '{"rows":12,"columns":["period","value"],"data":[["2026-08",2.94],["2026-07",3.01],["2026-06",3.18]]}' },
+  { name: 'correlation_analysis', round: 3, duration_ms: 212, start_ms: 7010,
+    arguments: '{"series_a":"konut_kredi_faiz","series_b":"konut_kredi_hacim","method":"pearson"}',
+    output_preview: '{"r":-0.71,"p_value":0.004,"n":36,"lag_months":0,"note":"negative, significant"}' }
+];
+
+const DEMO_ANSWER = `TCMB'nin açıkladığı politika faizi ile yerel konut kredisi serisi aynı yönde hareket ediyor, ama hacim tarafında gecikme var.
+
+**Bulgular**
+
+- Politika faizi kaynak sayfada haftalık repo oranı olarak yayınlanıyor; en güncel değeri \`web_url_extract\` ile doğruladım.
+- Konut kredisi faizi son 3 dönemde 3.18 → 2.94 bandına indi.
+- Faiz ile hacim arasındaki korelasyon **-0.71** (p = 0.004, n = 36): faiz düştükçe hacim artıyor.
+
+| Dönem | Faiz | Yön |
+| --- | --- | --- |
+| 2026-06 | 3.18 | — |
+| 2026-07 | 3.01 | düşüş |
+| 2026-08 | 2.94 | düşüş |
+
+İlişki tek başına nedensellik değil; \`causality_analysis\` ile gecikmeli etkiyi de kontrol etmek gerekir.`;
+
+const DEMO_TIMING = {
+  summary: {
+    total_ms: 13820, llm_ms: 8940, tool_ms: 4558, overhead_ms: 322,
+    llm_calls: 4, tool_calls: 4,
+    per_tool: [
+      { name: 'web_url_extract', calls: 1, duration_ms: 2410, errors: 0 },
+      { name: 'web_search', calls: 1, duration_ms: 1840, errors: 0 },
+      { name: 'correlation_analysis', calls: 1, duration_ms: 212, errors: 0 },
+      { name: 'lakehouse_query', calls: 1, duration_ms: 96, errors: 0 }
+    ]
+  },
+  timeline: [
+    { kind: 'llm', name: 'model round 1', round: 1, start_ms: 0, duration_ms: 610 },
+    { kind: 'tool', name: 'web_search', round: 1, start_ms: 620, duration_ms: 1840 },
+    { kind: 'llm', name: 'model round 2', round: 2, start_ms: 2470, duration_ms: 640 },
+    { kind: 'tool', name: 'web_url_extract', round: 2, start_ms: 3120, duration_ms: 2410 },
+    { kind: 'llm', name: 'model round 3', round: 3, start_ms: 5540, duration_ms: 1340 },
+    { kind: 'tool', name: 'lakehouse_query', round: 3, start_ms: 6890, duration_ms: 96 },
+    { kind: 'tool', name: 'correlation_analysis', round: 3, start_ms: 7010, duration_ms: 212 },
+    { kind: 'llm', name: 'model round 4', round: 4, start_ms: 7240, duration_ms: 6350 }
+  ]
+};
+
+const DEMO_TOOLS = [
+  { name: 'lakehouse_schema', desc: 'Gold veritabanındaki tabloları, kolonları ve mevcut seri kodlarını döner.' },
+  { name: 'lakehouse_query', desc: 'Salt-okunur DuckDB üzerinde güvenli SELECT sorguları çalıştırır.' },
+  { name: 'anomaly_analysis', desc: 'Seride istatistiksel olarak sıra dışı dönemleri işaretler.' },
+  { name: 'change_detection', desc: 'Keskin seviye değişimlerini ve kırılma noktalarını bulur.' },
+  { name: 'correlation_analysis', desc: 'İki seri arasındaki korelasyonu ve anlamlılığını hesaplar.' },
+  { name: 'causality_analysis', desc: 'Gecikmeli nedensellik testleri uygular.' },
+  { name: 'threshold_filter_compare', desc: 'Eşik üstü/altı dönemleri filtreleyip karşılaştırır.' },
+  { name: 'web_search', desc: 'Güncel kamuya açık bilgiyi arar (DuckDuckGo veya Tavily).' },
+  { name: 'web_url_extract', desc: 'Sınırlandırılmış HTML, PDF, Excel, CSV veya metin URL’lerini okur.' }
+];
+
 function prettyJson(raw) {
   if (raw == null) return '';
-  if (typeof raw !== 'string') {
-    try { return JSON.stringify(raw, null, 2); } catch { return String(raw); }
-  }
+  if (typeof raw !== 'string') { try { return JSON.stringify(raw, null, 2); } catch { return String(raw); } }
   try { return JSON.stringify(JSON.parse(raw), null, 2); } catch { return raw; }
 }
 
-/* Renders **bold**, `code`, and [text](url) links as real React nodes
-   (not raw markdown text) - the template's {{ }} interpolation accepts
-   React elements/arrays directly, so no HTML string / innerHTML needed. */
 function inlineToNodes(text) {
   const nodes = [];
   const re = /(\*\*(.+?)\*\*)|(`([^`]+)`)|(\[([^\]]+)\]\((https?:\/\/[^\s)]+)\))/g;
-  let lastIndex = 0, key = 0, m;
+  let last = 0, key = 0, m;
   while ((m = re.exec(text)) !== null) {
-    if (m.index > lastIndex) nodes.push(text.slice(lastIndex, m.index));
-    if (m[1]) {
-      nodes.push(React.createElement('strong', {key: key++}, m[2]));
-    } else if (m[3]) {
-      nodes.push(React.createElement('code', {key: key++, style:{background:'var(--color-surface)', padding:'1px 5px', borderRadius:'3px', fontSize:'13px'}}, m[4]));
-    } else {
-      nodes.push(React.createElement('a', {key: key++, href: m[7], target:'_blank', rel:'noreferrer'}, m[6]));
-    }
-    lastIndex = re.lastIndex;
+    if (m.index > last) nodes.push(text.slice(last, m.index));
+    if (m[1]) nodes.push(React.createElement('strong', { key: key++, style: { fontWeight: 500, color: '#f5f5f6' } }, m[2]));
+    else if (m[3]) nodes.push(React.createElement('code', { key: key++, style: { fontFamily: "'Space Mono',monospace", fontSize: '13px', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.07)', borderRadius: '5px', padding: '1px 6px', color: '#f0c274' } }, m[4]));
+    else nodes.push(React.createElement('a', { key: key++, href: m[7], target: '_blank', rel: 'noreferrer' }, m[6]));
+    last = re.lastIndex;
   }
-  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
+  if (last < text.length) nodes.push(text.slice(last));
   return nodes;
 }
 
 function mdToBlocks(markdown) {
   const lines = String(markdown || '').replace(/\r\n/g, '\n').split('\n');
-  const blocks = [];
-  let key = 0;
-  let paraBuf = [];
-  const flushParagraph = () => {
-    const text = paraBuf.join(' ').trim();
-    paraBuf = [];
-    if (text) blocks.push(React.createElement('p', {key: key++, style:{margin:'0 0 10px', fontSize:'15px', lineHeight:'1.6'}}, inlineToNodes(text)));
+  const blocks = []; let key = 0, buf = [];
+  const flush = () => {
+    const t = buf.join(' ').trim(); buf = [];
+    if (t) blocks.push(React.createElement('p', { key: key++, style: { margin: '0 0 12px', fontSize: '15px', fontWeight: 300, lineHeight: 1.7 } }, inlineToNodes(t)));
   };
-  const isTableRow = (l) => /^\s*\|.*\|\s*$/.test(l);
-  const isBullet = (l) => /^\s*[-*]\s+/.test(l);
+  const isRow = l => /^\s*\|.*\|\s*$/.test(l);
+  const isBullet = l => /^\s*[-*]\s+/.test(l);
   let i = 0;
   while (i < lines.length) {
     const line = lines[i];
-    const heading = /^(#{1,6})\s+(.*)$/.exec(line);
-    if (!line.trim()) { flushParagraph(); i++; continue; }
-    if (heading) {
-      flushParagraph();
-      const tag = 'h' + Math.min(heading[1].length + 2, 6);
-      blocks.push(React.createElement(tag, {key: key++, style:{margin:'12px 0 6px'}}, inlineToNodes(heading[2])));
+    const h = /^(#{1,6})\s+(.*)$/.exec(line);
+    if (!line.trim()) { flush(); i++; continue; }
+    if (h) {
+      flush();
+      blocks.push(React.createElement('div', { key: key++, style: { margin: '18px 0 8px', fontSize: '13px', fontWeight: 500, letterSpacing: '.02em', color: '#f5f5f6' } }, inlineToNodes(h[2])));
       i++; continue;
     }
-    if (isTableRow(line)) {
-      flushParagraph();
-      const tableLines = [];
-      while (i < lines.length && isTableRow(lines[i])) { tableLines.push(lines[i]); i++; }
-      const rows = tableLines.map(l => l.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim()));
-      const isSep = (row) => row.every(c => /^:?-{2,}:?$/.test(c));
-      let headerRow = null, bodyRows = rows;
-      if (rows.length > 1 && isSep(rows[1])) { headerRow = rows[0]; bodyRows = rows.slice(2); }
-      blocks.push(React.createElement('div', {key: key++, style:{overflowX:'auto', margin:'8px 0'}},
-        React.createElement('table', {className:'table'},
-          headerRow ? React.createElement('thead', null, React.createElement('tr', null, headerRow.map((c, ci) => React.createElement('th', {key: ci}, inlineToNodes(c))))) : null,
-          React.createElement('tbody', null, bodyRows.map((r, ri) => React.createElement('tr', {key: ri}, r.map((c, ci) => React.createElement('td', {key: ci}, inlineToNodes(c))))))
+    if (isRow(line)) {
+      flush();
+      const tl = [];
+      while (i < lines.length && isRow(lines[i])) { tl.push(lines[i]); i++; }
+      const rows = tl.map(l => l.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim()));
+      const isSep = r => r.every(c => /^:?-{2,}:?$/.test(c));
+      let head = null, body = rows;
+      if (rows.length > 1 && isSep(rows[1])) { head = rows[0]; body = rows.slice(2); }
+      const cell = (c, ci, th) => React.createElement(th ? 'th' : 'td', {
+        key: ci,
+        style: {
+          textAlign: 'left', padding: '9px 12px', fontSize: '12.5px',
+          fontFamily: th ? "'Space Mono',monospace" : 'inherit',
+          fontWeight: th ? 400 : 300,
+          letterSpacing: th ? '.1em' : 'normal',
+          textTransform: th ? 'uppercase' : 'none',
+          color: th ? '#6f6f76' : '#dedee0',
+          borderBottom: '1px solid rgba(255,255,255,.06)'
+        }
+      }, inlineToNodes(c));
+      blocks.push(React.createElement('div', { key: key++, style: { overflowX: 'auto', margin: '6px 0 16px', border: '1px solid rgba(255,255,255,.07)', borderRadius: '11px', background: '#121214' } },
+        React.createElement('table', { style: { borderCollapse: 'collapse', width: '100%' } },
+          head ? React.createElement('thead', null, React.createElement('tr', null, head.map((c, ci) => cell(c, ci, true)))) : null,
+          React.createElement('tbody', null, body.map((r, ri) => React.createElement('tr', { key: ri }, r.map((c, ci) => cell(c, ci, false)))))
         )
       ));
       continue;
     }
     if (isBullet(line)) {
-      flushParagraph();
+      flush();
       const items = [];
       while (i < lines.length && isBullet(lines[i])) { items.push(lines[i].replace(/^\s*[-*]\s+/, '')); i++; }
-      blocks.push(React.createElement('ul', {key: key++, style:{margin:'0 0 10px', paddingLeft:'20px'}},
-        items.map((it, ii) => React.createElement('li', {key: ii, style:{marginBottom:'4px'}}, inlineToNodes(it)))
+      blocks.push(React.createElement('ul', { key: key++, style: { margin: '0 0 14px', paddingLeft: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '7px' } },
+        items.map((it, ii) => React.createElement('li', { key: ii, style: { position: 'relative', paddingLeft: '18px', fontSize: '15px', fontWeight: 300, lineHeight: 1.65 } },
+          React.createElement('span', { style: { position: 'absolute', left: 0, top: '10px', width: '5px', height: '5px', borderRadius: '50%', background: ACC_DIM } }),
+          inlineToNodes(it)
+        ))
       ));
       continue;
     }
-    paraBuf.push(line.trim());
-    i++;
+    buf.push(line.trim()); i++;
   }
-  flushParagraph();
-  return blocks.length ? blocks : [React.createElement('p', {key: 0}, '(boş yanıt)')];
+  flush();
+  return blocks.length ? blocks : [React.createElement('p', { key: 0 }, '(boş yanıt)')];
 }
 
 class Component extends DCLogic {
   state = {
-    view: 'chat',
-    input: '',
-    thinking: false,
-    drawerMsgId: null,
-    nextId: 1,
-    provider: 'duck',
-    safe: 'on',
-    panel: 'collapsed',
-    messages: [],
-    tools: [],
-    toolsLoading: true
+    input: '', thinking: false, elapsed: 0,
+    messages: [], nextId: 1,
+    drawer: null,              // {kind:'trace', id} | {kind:'registry'}
+    openCalls: {},             // `${msgId}:${idx}` -> true
+    tools: [], live: false, focused: false
   };
 
   componentDidMount() {
     fetch('/api/tools')
       .then(r => r.json())
       .then(d => {
-        const tools = (d.tools || []).map(t => ({
-          name: t.name,
-          desc: t.description,
-          tag: TAG_BY_NAME[t.name] || 'Tool'
-        }));
-        this.setState({ tools, toolsLoading: false });
+        const tools = (d.tools || []).map(t => ({ name: t.name, desc: t.description, tag: TAG_BY_NAME[t.name] || 'Tool' }));
+        if (tools.length) this.setState({ tools, live: true });
+        else this.setState({ tools: this.fallbackTools() });
       })
-      .catch(() => this.setState({ toolsLoading: false }));
+      .catch(() => this.setState({ tools: this.fallbackTools() }));
   }
 
-  goChat = () => this.setState({view:'chat'});
-  goSettings = () => this.setState({view:'settings'});
-  setInput = (e) => this.setState({input: e.target.value});
-  handleKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); } };
-  openDrawer = (id) => this.setState({drawerMsgId: id});
-  closeDrawer = () => this.setState({drawerMsgId: null});
+  componentWillUnmount() { this.stopClock(); }
 
-  send = (overrideText) => {
-    const text = (overrideText !== undefined ? overrideText : this.state.input).trim();
-    if (!text || this.state.thinking) return;
-    const userId = this.state.nextId;
+  fallbackTools() { return DEMO_TOOLS.map(t => ({ ...t, tag: TAG_BY_NAME[t.name] || 'Tool' })); }
+
+  startClock() {
+    this.t0 = Date.now();
+    this.stopClock();
+    this.timer = setInterval(() => this.setState({ elapsed: Date.now() - this.t0 }), 120);
+  }
+  stopClock() { if (this.timer) { clearInterval(this.timer); this.timer = null; } }
+
+  scrollEnd = () => {
+    const el = this.endEl;
+    if (el && el.parentElement) el.parentElement.scrollTop = el.parentElement.scrollHeight;
+  };
+
+  setInput = (e) => this.setState({ input: e.target.value });
+  onFocus = () => this.setState({ focused: true });
+  onBlur = () => this.setState({ focused: false });
+  handleKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); } };
+  openRegistry = () => this.setState({ drawer: { kind: 'registry' } });
+  openTrace = (id) => this.setState({ drawer: { kind: 'trace', id } });
+  closeDrawer = () => this.setState({ drawer: null });
+  resetChat = () => { this.stopClock(); this.setState({ messages: [], thinking: false, drawer: null, input: '', openCalls: {} }); };
+  toggleCall = (k) => this.setState(s => ({ openCalls: { ...s.openCalls, [k]: !s.openCalls[k] } }));
+
+  pushAssistant(payload) {
+    this.stopClock();
     this.setState(s => ({
-      messages: [...s.messages, {id: userId, role:'user', text}],
-      input: '', thinking: true, nextId: s.nextId + 1
-    }));
+      messages: [...s.messages, { id: s.nextId, role: 'assistant', ...payload }],
+      thinking: false, nextId: s.nextId + 1
+    }), this.scrollEnd);
+  }
+
+  send = (override) => {
+    const text = (override !== undefined ? override : this.state.input).trim();
+    if (!text || this.state.thinking) return;
+    this.setState(s => ({
+      messages: [...s.messages, { id: s.nextId, role: 'user', text }],
+      input: '', thinking: true, elapsed: 0, nextId: s.nextId + 1
+    }), this.scrollEnd);
+    this.startClock();
 
     fetch('/api/ask', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({question: text})
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: text })
     })
-      .then(async r => {
-        const data = await r.json();
-        if (!r.ok) throw new Error(data.detail || 'İstek başarısız oldu.');
-        return data;
-      })
+      .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail || 'İstek başarısız oldu.'); return d; })
       .then(data => {
-        const trace = (data.trace || []).map(tc => ({
-          name: tc.name,
-          round: tc.round,
-          args: prettyJson(tc.arguments),
-          result: tc.error ? `hata: ${tc.error}` : prettyJson(tc.output_preview),
-          error: !!tc.error
-        }));
-        this.setState(s => ({
-          messages: [...s.messages, {
-            id: s.nextId, role: 'assistant',
-            routeName: data.route ? data.route.name : '',
-            routeReason: data.route ? data.route.reason : '',
-            blocks: mdToBlocks(data.answer),
-            trace
-          }],
-          thinking: false, nextId: s.nextId + 1
-        }));
+        this.pushAssistant({
+          routeName: data.route ? data.route.name : 'agent',
+          routeReason: data.route ? data.route.reason : '',
+          blocks: mdToBlocks(data.answer),
+          trace: (data.trace || []).map(tc => ({
+            name: tc.name, round: tc.round, durationMs: tc.duration_ms || 0,
+            args: prettyJson(tc.arguments),
+            result: tc.error ? `hata: ${tc.error}` : prettyJson(tc.output_preview),
+            error: !!tc.error
+          })),
+          timing: data.timing || null
+        });
       })
-      .catch(err => {
-        this.setState(s => ({
-          messages: [...s.messages, {
-            id: s.nextId, role: 'assistant',
-            routeName: 'error', routeReason: 'İstek başarısız oldu',
-            blocks: [React.createElement('p', {key: 0, className: 'error-text'}, String(err.message || err))],
-            trace: []
-          }],
-          thinking: false, nextId: s.nextId + 1
-        }));
+      .catch(() => {
+        // No backend reachable (design preview): show the shape of a real run.
+        const wait = Math.max(0, 13800 - (Date.now() - this.t0));
+        setTimeout(() => this.pushAssistant({
+          routeName: 'analytics_web',
+          routeReason: 'Soru hem güncel web bilgisi hem yerel seri analizi gerektiriyor; tüm araçlar açıldı.',
+          blocks: mdToBlocks(DEMO_ANSWER),
+          trace: DEMO_TRACE.map(tc => ({
+            name: tc.name, round: tc.round, durationMs: tc.duration_ms,
+            args: prettyJson(tc.arguments), result: prettyJson(tc.output_preview), error: false
+          })),
+          timing: DEMO_TIMING
+        }), wait);
       });
   };
 
-  setProviderDuck = () => this.setState({provider:'duck'});
-  setProviderTavily = () => this.setState({provider:'tavily'});
-  setSafeOn = () => this.setState({safe:'on'});
-  setSafeOff = () => this.setState({safe:'off'});
-  setPanelCollapsed = () => this.setState({panel:'collapsed'});
-  setPanelExpanded = () => this.setState({panel:'expanded'});
-
   renderVals() {
     const s = this.state;
+
     const messages = s.messages.map(m => {
-      if (m.role === 'user') {
-        return {id: m.id, isUser: true, isAssistant: false, userText: m.text};
-      }
+      if (m.role === 'user') return { id: m.id, isUser: true, isAssistant: false, userText: m.text };
+      const n = m.trace.length;
       return {
-        id: m.id, isUser: false, isAssistant: true,
-        blocks: m.blocks, routeName: m.routeName, routeReason: m.routeReason,
-        hasTools: m.trace.length > 0,
-        toolsCount: m.trace.length,
-        openTrace: () => this.openDrawer(m.id)
+        id: m.id, isUser: false, isAssistant: true, blocks: m.blocks,
+        routeName: m.routeName,
+        totalLabel: m.timing ? fmtMs(m.timing.summary.total_ms) : '—',
+        hasTools: n > 0,
+        traceButtonLabel: `Tool details · ${n} call${n === 1 ? '' : 's'}${m.timing ? ` · ${fmtMs(m.timing.summary.tool_ms)}` : ''}`,
+        openTrace: () => this.openTrace(m.id)
       };
     });
-    const drawerMsgRaw = s.drawerMsgId != null ? s.messages.find(m => m.id === s.drawerMsgId) : null;
-    const drawerTrace = drawerMsgRaw ? drawerMsgRaw.trace.map((tc, i) => ({...tc, index: i + 1, resultClass: tc.error ? 'error-text' : ''})) : [];
+
+    // Stage narration derived from elapsed time. stagePace scales the schedule.
+    const pace = Number(this.props.stagePace ?? 1) || 1;
+    let activeIdx = 0;
+    for (let i = 0; i < STAGES.length; i++) if (s.elapsed >= STAGES[i].at / pace) activeIdx = i;
+    const stages = STAGES.slice(0, activeIdx + 1).map((st, i) => ({
+      label: st.label,
+      done: i < activeIdx,
+      active: i === activeIdx,
+      time: i < activeIdx ? fmtMs((STAGES[i + 1].at - st.at) / pace) : ''
+    }));
+
+    const isRegistry = !!s.drawer && s.drawer.kind === 'registry';
+    const msg = s.drawer && s.drawer.kind === 'trace' ? s.messages.find(m => m.id === s.drawer.id) : null;
+    const summary = msg && msg.timing ? msg.timing.summary : null;
+    const total = summary ? summary.total_ms : 0;
+    const maxCall = msg ? Math.max(1, ...msg.trace.map(t => t.durationMs)) : 1;
+
+    const drawerTrace = msg ? msg.trace.map((tc, i) => {
+      const k = `${msg.id}:${i}`;
+      const open = s.openCalls[k] !== undefined
+        ? !!s.openCalls[k]
+        : (i === 0 && !!(this.props.expandFirstCall ?? false));
+      return {
+        index: String(i + 1).padStart(2, '0'),
+        name: tc.name,
+        nameColor: tc.error ? ERR : '#f0c274',
+        roundLabel: `r${tc.round}`,
+        durationLabel: fmtMs(tc.durationMs),
+        sharePct: `${Math.max(2, (tc.durationMs / maxCall) * 100)}%`,
+        border: tc.error ? 'rgba(224,106,74,.35)' : 'rgba(255,255,255,.07)',
+        args: tc.args, result: tc.result,
+        resultColor: tc.error ? ERR : '#c9c9ce',
+        open, caret: open ? 'rotate(180deg)' : 'none',
+        toggle: () => this.toggleCall(k)
+      };
+    }) : [];
+
+    const drawerTimeline = (msg && msg.timing ? msg.timing.timeline : []).map(ev => ({
+      label: ev.kind === 'llm' ? ev.name : `${ev.name} · r${ev.round}`,
+      color: ev.error ? ERR : (ev.kind === 'llm' ? 'rgba(195,154,224,.9)' : ACC),
+      durationLabel: fmtMs(ev.duration_ms),
+      offsetPct: pctOf(ev.start_ms, total),
+      widthPct: total > 0 ? `${Math.max((ev.duration_ms / total) * 100, 1.5)}%` : '0%'
+    }));
+
+    const drawerStats = summary ? [
+      { label: 'total', value: fmtMs(summary.total_ms), sub: 'wall clock', color: '#f5f5f6' },
+      { label: 'model', value: fmtMs(summary.llm_ms), sub: `${summary.llm_calls} rounds · ${pctOf(summary.llm_ms, total)}`, color: 'rgba(195,154,224,.95)' },
+      { label: 'tools', value: fmtMs(summary.tool_ms), sub: `${summary.tool_calls} calls · ${pctOf(summary.tool_ms, total)}`, color: ACC }
+    ] : [];
+
+    const drawerPerTool = (summary ? summary.per_tool : []).map(pt => ({
+      label: `${pt.name} ×${pt.calls}${pt.errors ? ` · ${pt.errors} err` : ''}`,
+      timing: `${fmtMs(pt.duration_ms)} · ${pctOf(pt.duration_ms, total)}`
+    }));
+
+    const canSend = s.input.trim().length > 0 && !s.thinking;
 
     return {
-      isChatView: s.view === 'chat',
-      isSettingsView: s.view === 'settings',
-      goChat: this.goChat, goSettings: this.goSettings,
-      chatLinkColor: s.view === 'chat' ? 'var(--color-accent)' : 'inherit',
-      chatLinkWeight: s.view === 'chat' ? '600' : '400',
-      settingsLinkColor: s.view === 'settings' ? 'var(--color-accent)' : 'inherit',
-      settingsLinkWeight: s.view === 'settings' ? '600' : '400',
+      modeLabel: s.live ? 'live' : 'preview',
+      toolCount: s.tools.length || 9,
+      openRegistry: this.openRegistry,
+      resetChat: this.resetChat,
+      isEmpty: s.messages.length === 0 && !s.thinking,
+      examples: EXAMPLES.map(label => ({ label, use: () => this.send(label) })),
       messages,
       thinking: s.thinking,
-      thinkingLabel: 'Router karar veriyor, tool zinciri çalışıyor…',
-      examples: EXAMPLES.map(label => ({label, use: () => this.send(label)})),
-      input: s.input,
-      setInput: this.setInput,
-      handleKeyDown: this.handleKeyDown,
+      stages,
+      elapsedLabel: `${(s.elapsed / 1000).toFixed(1)}s`,
+      endRef: (el) => { this.endEl = el; },
+      input: s.input, setInput: this.setInput, handleKeyDown: this.handleKeyDown,
+      onFocus: this.onFocus, onBlur: this.onBlur,
       send: () => this.send(),
-      sendDisabled: s.thinking,
-      drawerOpen: !!drawerMsgRaw,
-      drawerTransform: drawerMsgRaw ? 'translateX(0)' : 'translateX(105%)',
+      sendDisabled: !canSend,
+      sendBg: canSend ? 'linear-gradient(160deg, #f3cd86, #e0aa4a)' : 'rgba(255,255,255,.08)',
+      sendCursor: canSend ? 'pointer' : 'default',
+      composerBorder: s.focused ? 'rgba(224,170,74,.45)' : 'rgba(255,255,255,.09)',
+      composerShadow: s.focused ? '0 0 0 3px rgba(224,170,74,.08)' : 'none',
+      charLabel: `${s.input.length}/2000`,
+      overlayOpen: !!s.drawer,
+      drawerTransform: s.drawer ? 'translateX(0)' : 'translateX(103%)',
       closeDrawer: this.closeDrawer,
-      drawerRouteName: drawerMsgRaw ? drawerMsgRaw.routeName : '',
-      drawerRouteReason: drawerMsgRaw ? drawerMsgRaw.routeReason : '',
-      drawerTrace,
-      tools: s.tools,
-      toolsLoading: s.toolsLoading,
-      providerDuck: s.provider === 'duck', providerTavily: s.provider === 'tavily',
-      setProviderDuck: this.setProviderDuck, setProviderTavily: this.setProviderTavily,
-      safeOn: s.safe === 'on', safeOff: s.safe === 'off',
-      setSafeOn: this.setSafeOn, setSafeOff: this.setSafeOff,
-      panelCollapsed: s.panel === 'collapsed', panelExpanded: s.panel === 'expanded',
-      setPanelCollapsed: this.setPanelCollapsed, setPanelExpanded: this.setPanelExpanded
+      isRegistry,
+      isTrace: !!msg,
+      showTimeline: this.props.showTimeline ?? true,
+      drawerKicker: isRegistry ? 'registry' : (msg ? msg.routeName : ''),
+      drawerTitle: isRegistry ? 'Available tools' : 'Tool calls & timing',
+      drawerReason: msg ? msg.routeReason : '',
+      tools: s.tools, drawerTrace, drawerTimeline, drawerStats, drawerPerTool
     };
   }
 }
