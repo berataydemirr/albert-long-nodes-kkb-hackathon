@@ -70,17 +70,21 @@ For example, a current-rate question may call `web_search`, open a result with
 `web_url_extract`, query the local series, and then run an analysis tool. Unsafe
 SQL or prompt-injection requests are refused before the model gets any tools.
 
-Web search uses DuckDuckGo by default. To use Tavily instead, set
-`WEB_SEARCH_PROVIDER=tavily` and `TAVILY_API_KEY` in `.env`.
+Web search defaults to DuckDuckGo, but **DuckDuckGo's HTML endpoint answers
+with a bot challenge from some networks**, including the one this was
+developed on ("select all squares containing a duck"), so it may return
+nothing at all. This deployment runs on Tavily instead
+(`WEB_SEARCH_PROVIDER=tavily` + `TAVILY_API_KEY` in `.env`) — set your own key
+the same way if DuckDuckGo is blocked from your network too.
 
-**DuckDuckGo's HTML endpoint answers with a bot challenge from some
-networks**, including the one this was developed on, so the default provider
-may return nothing at all. It now says so: a blocked provider comes back with
-`provider_available: false` and an instruction not to retry, instead of an
-empty result list that reads as "your query found nothing". That distinction
-matters more than it sounds — with the old behaviour the model rephrased and
-searched four times in five rounds against a provider that could never answer.
-Set Tavily if you need working search.
+A blocked provider says so rather than returning an empty result list: a
+blocked DuckDuckGo comes back with `provider_available: false` and an
+instruction not to retry, instead of a result shape that reads as "your query
+found nothing". That distinction matters more than it sounds — with the old
+behaviour the model rephrased and searched four times in five rounds against a
+provider that could never answer (32.4 s, 6 tool calls). The same question
+against Tavily now answers correctly, citing TCMB's own announcement, in
+8.8 s with one search call and zero tool errors.
 
 A second guard sits in the tool loop for the general case: an identical repeat
 call is refused, and any single tool is cut off after three calls in one
