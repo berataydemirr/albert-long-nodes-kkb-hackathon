@@ -18,6 +18,13 @@ MIA_API_KEY = os.getenv("MIA_API_KEY")
 MIA_BASE_URL = os.getenv("MIA_BASE_URL", "https://mia.csp.kloudeks.com/v1")
 MIA_CHAT_MODEL = os.getenv("MIA_CHAT_MODEL", "kkbhackathon2026/Qwen3.8-27B")
 MIA_EMBEDDING_MODEL = os.getenv("MIA_EMBEDDING_MODEL", "kkbhackathon2026/Qwen3-Embedding-8B")
+
+# The chat model is a reasoning model, and reasoning is where its wall time
+# actually goes - measured at 18,212 reasoning tokens out of 19,568 for one
+# long answer (93%). The endpoint accepts: none, minimal, low, medium, high,
+# xhigh, max. Set per deployment; see benchmarks/reasoning_effort_benchmark.py
+# for the measured speed/quality trade-off behind the default.
+MIA_REASONING_EFFORT = os.getenv("MIA_REASONING_EFFORT", "low")
 WEB_SEARCH_PROVIDER = os.getenv("WEB_SEARCH_PROVIDER", "duckduckgo")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 

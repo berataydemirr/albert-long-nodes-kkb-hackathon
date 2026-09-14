@@ -100,6 +100,63 @@ def _suggest_similar(con: duckdb.DuckDBPyConnection, seri_kod: str, limit: int =
     return suggestions
 
 
+_CATALOG_BLOCK_CACHE: str | None = None
+
+
+def catalog_block(refresh: bool = False) -> str:
+    """One compact line per series, for injection into the system prompt.
+
+    WHY: the model opened almost every run with a lakehouse_schema call
+    just to learn the Seri_Kod values - a full model round-trip (measured
+    at 1.2 s) before any real work started. The catalog is 25 rows; paying
+    for it as prompt input on every request is cheaper than paying for a
+    serial round-trip, because input tokens are processed in parallel
+    while a round-trip is dead wall time.
+
+    Cached per process: the gold layer only changes on a rebuild, and a
+    rebuild restarts the app. Pass refresh=True to rebuild in place.
+
+    Returns "" when the database is missing, so the agent still starts and
+    the web tools still work - the model then falls back to calling
+    lakehouse_schema itself, exactly as before.
+    """
+    global _CATALOG_BLOCK_CACHE
+    if _CATALOG_BLOCK_CACHE is not None and not refresh:
+        logger.debug("catalog_block: served from cache")
+        return _CATALOG_BLOCK_CACHE
+
+    logger.info("catalog_block: building")
+    try:
+        con = _db()
+    except FileNotFoundError:
+        logger.warning("catalog_block: gold database missing, returning empty block")
+        _CATALOG_BLOCK_CACHE = ""
+        return _CATALOG_BLOCK_CACHE
+
+    try:
+        rows = con.execute(
+            f'SELECT Seri_Kod, Seri_Adi, Birim, Kaynak, MIN(Period), MAX(Period), COUNT(*) '
+            f'FROM "{FACT_TABLE}" GROUP BY 1, 2, 3, 4 ORDER BY Kaynak, Seri_Kod'
+        ).fetchall()
+        lines = [
+            f"{kod} | {adi} | {birim or 'birim yok'} | {kaynak} | {first}..{last} ({n})"
+            for kod, adi, birim, kaynak, first, last, n in rows
+        ]
+        _CATALOG_BLOCK_CACHE = "\n".join(lines)
+        logger.info(
+            f"catalog_block: built {len(lines)} line(s), {len(_CATALOG_BLOCK_CACHE)} chars "
+            f"(~{len(_CATALOG_BLOCK_CACHE) // 4} tokens)"
+        )
+        return _CATALOG_BLOCK_CACHE
+    except Exception:
+        # A malformed catalog must not stop the agent from answering.
+        logger.exception("catalog_block: failed, falling back to an empty block")
+        _CATALOG_BLOCK_CACHE = ""
+        return _CATALOG_BLOCK_CACHE
+    finally:
+        con.close()
+
+
 def resolve_series(seri_kod: str, bolge: str | None = None,
                    start_period: str | None = None, end_period: str | None = None) -> dict:
     """Read one series out of the gold fact table, ordered by Period.

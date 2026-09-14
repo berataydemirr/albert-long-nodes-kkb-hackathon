@@ -63,27 +63,44 @@ collectors need the relevant source keys in `.env` and should be run with care.
 
 ## Cost and speed
 
-Two things dominate a run, and only one of them is the data layer:
+Wall time is almost entirely the model, not the data layer:
 
 ```bash
-.venv/bin/python -m benchmarks.context_cost_benchmark   # local, no API calls
+.venv/bin/python -m benchmarks.context_cost_benchmark       # local, no API calls
+.venv/bin/python -m benchmarks.reasoning_effort_benchmark   # hits the API
 ```
-
-Measured on the built database:
 
 | What | Result |
 |---|---|
 | `lakehouse_schema` / `lakehouse_query` / `resolve_series` | 15–31 ms each |
-| Tool time in a real 5-round run | 0.58 s of 20.3 s (2.8%) |
+| Tool time in a real run | 0.66 s of 32.4 s (2%) |
 | `causality_analysis` arguments, array path vs `seri_kod` | 2372 → 80 chars (29.6x), identical results |
 | History over a simulated 8-round chain, after compaction | 5137 → 2282 est. tokens (55.6%), no message dropped |
+| Reasoning share of one long answer | 18,212 of 19,568 completion tokens (93%) |
+| One causality question, before and after the changes below | 32.4 s → 7.9 s |
 
-So the database is not the bottleneck; generated tokens are. Two changes follow
-from that: the analysis tools read series by `seri_kod` instead of having the
-model retype them, and older tool outputs in a long chain are replaced with
-short digests once the history passes a budget. Compaction only rewrites
-message content — it never drops a message, because a `tool` message that loses
-its pairing breaks the next API call.
+The model is a reasoning model, so its time goes to reasoning tokens rather
+than to the answer or to us. Four changes follow from that:
+
+- The series catalog is injected into the system prompt, so the model no longer
+  opens with a `lakehouse_schema` round just to learn the codes.
+- The analysis tools read series by `seri_kod` instead of having the model
+  retype the values.
+- The prompt bounds answer length and forbids repeating a tool call, because
+  every extra round and every generated token is wall time.
+- `MIA_REASONING_EFFORT` (default `low`) controls how much the model thinks.
+  Measured across levels, tool selection and source citation held at 1.00
+  throughout, so the cheaper levels are not trading correctness for speed;
+  `none` is faster still if you want it.
+
+Streaming was measured and deliberately not built: the model emits its answer
+only after reasoning finishes, so 96 s of a 102 s response is a blank screen
+either way — streaming would have exposed 6% of the wait.
+
+Older tool outputs are replaced with short digests once history passes a
+budget. That is a cost and context-limit guard rather than a speed one;
+compaction only rewrites message content and never drops a message, because a
+`tool` message that loses its pairing breaks the next API call.
 
 Every run reports where its time and context went (`return_timing=True`, also
 shown in the browser page), so a slow answer can be attributed rather than
