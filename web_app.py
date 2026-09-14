@@ -7,7 +7,10 @@ from pydantic import BaseModel, Field
 
 from src.agent.orchestrator import ask
 from src.agent.router import route_question
-from src.agent.tools import TOOL_SCHEMAS
+from src.agent.tools import TOOL_SCHEMAS, gold_summary
+from src.common.logging_setup import get_logger
+
+logger = get_logger("web_app")
 
 app = FastAPI(title="KKB Agentic Analytics", docs_url=None, redoc_url=None)
 
@@ -76,6 +79,32 @@ def list_tools() -> dict:
             for schema in TOOL_SCHEMAS
         ],
     }
+
+
+@app.get("/api/overview")
+def lakehouse_overview() -> dict:
+    """What the gold layer actually holds, for the landing page.
+
+    Someone opening the page cannot tell what is safe to ask about. These
+    are read live from the database rather than written into the markup,
+    so the page cannot drift from the data after a gold rebuild.
+
+    A missing or unbuilt database is reported as available=False instead of
+    failing the request - the page must still load and be usable when only
+    the web tools work.
+    """
+    logger.info("lakehouse_overview: start")
+    try:
+        summary = gold_summary()
+        logger.info(
+            "lakehouse_overview: series=%s, periods=%s..%s, sources=%s",
+            summary["series_count"], summary["first_period"],
+            summary["last_period"], [s["kaynak"] for s in summary["sources"]],
+        )
+        return {"available": True, **summary}
+    except Exception as exc:
+        logger.warning(f"lakehouse_overview: unavailable ({type(exc).__name__}: {exc})")
+        return {"available": False, "reason": str(exc)}
 
 
 @app.post("/api/ask")

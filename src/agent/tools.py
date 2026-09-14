@@ -68,6 +68,47 @@ def lakehouse_schema() -> dict:
         con.close()
 
 
+def gold_summary() -> dict:
+    """Counts and coverage for the gold fact table.
+
+    Not exposed as a model tool - lakehouse_schema already gives the model
+    the full catalog, and a second overlapping tool would just be another
+    thing for it to pick wrongly. This is for the UI's landing page, which
+    needs a few headline numbers rather than the whole catalog.
+    """
+    logger.info("gold_summary: start")
+    con = _db()
+    try:
+        series_count, first_period, last_period, row_count = con.execute(
+            "SELECT COUNT(DISTINCT Seri_Kod), MIN(Period), MAX(Period), COUNT(*) FROM gold_fact_long"
+        ).fetchone()
+        logger.debug(
+            f"gold_summary: series_count={series_count}, rows={row_count}, "
+            f"period_range={first_period}..{last_period}"
+        )
+
+        sources = [
+            {"kaynak": row[0], "series": row[1]}
+            for row in con.execute(
+                "SELECT Kaynak, COUNT(DISTINCT Seri_Kod) FROM gold_fact_long "
+                "GROUP BY Kaynak ORDER BY 2 DESC, 1"
+            ).fetchall()
+        ]
+        logger.info(f"gold_summary: done, {len(sources)} source(s): {sources}")
+        return {
+            "series_count": int(series_count or 0),
+            "row_count": int(row_count or 0),
+            "first_period": first_period,
+            "last_period": last_period,
+            "sources": sources,
+        }
+    except Exception:
+        logger.exception("gold_summary: failed")
+        raise
+    finally:
+        con.close()
+
+
 def _referenced_tables(sql: str) -> set[str]:
     """Best-effort extraction of table names after FROM/JOIN, for the
     known-table guardrail below - not a full SQL parser, just enough to
