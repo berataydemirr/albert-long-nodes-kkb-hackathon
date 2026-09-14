@@ -6,6 +6,9 @@
 <title>KKB Agent</title>
 <meta name="description" content="BDDK, EVDS ve TUIK verileri üzerinde soru sorulabilen analiz ajanı.">
 <meta name="theme-color" content="#1e4a8b">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <!-- Inline so the tab icon needs no extra request: a 297C diamond on a
      7686C ground, the two official colours. -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231e4a8b'/%3E%3Cpath d='M16 7l9 9-9 9-9-9z' fill='%238cc8ea'/%3E%3C/svg%3E">
@@ -15,10 +18,10 @@
 <x-dc>
 <helmet>
 <style>
-/* Bogazici University identity: PANTONE 7686C #1e4a8b, 297C #8cc8ea,
-   corporate typeface Helvetica. Helvetica ships with macOS and Windows,
-   so it is used directly rather than loaded from a font service - that
-   keeps the page true to the brand and free of a network dependency. */
+/* Bogazici University colours: PANTONE 7686C #1e4a8b, 297C #8cc8ea.
+   The typeface stays Sora/Space Mono rather than the guide's Helvetica:
+   on a white ground Helvetica read as an unstyled default, and the pair
+   below carries the page without fighting the palette. */
 html, body { margin: 0; background: #ffffff; }
 * { box-sizing: border-box; }
 a { color: #1e4a8b; text-decoration: none; border-bottom: 1px solid rgba(30,74,139,.30); }
@@ -26,8 +29,8 @@ a:hover { color: #15386b; border-bottom-color: #15386b; }
 ::selection { background: rgba(140,200,234,.38); }
 textarea, button, input { font-family: inherit; }
 textarea::placeholder { color: #94a9c0; }
-/* Helvetica's digits are proportional; tabular figures stop timing
-   readouts from shifting sideways as they tick. */
+/* Tabular figures stop timing readouts from shifting sideways as they
+   tick up during a run. */
 pre, .num { font-variant-numeric: tabular-nums; }
 /* Keyboard focus had no visible state at all. :focus-visible keeps the
    ring off mouse clicks, where it reads as a stuck selection. */
@@ -50,17 +53,17 @@ textarea:focus-visible { outline: none; }
 @keyframes spin { to { transform: rotate(360deg) } }
 </style>
 </helmet>
-<div style="min-height:100vh; display:flex; flex-direction:column; background:radial-gradient(1100px 520px at 50% -220px, #eaf1f9, #ffffff 70%); color:#0f2542; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-weight:400; -webkit-font-smoothing:antialiased;">
+<div style="min-height:100vh; display:flex; flex-direction:column; background:radial-gradient(1100px 520px at 50% -220px, #eaf1f9, #ffffff 70%); color:#0f2542; font-family:'Sora',system-ui,sans-serif; font-weight:400; letter-spacing:-.005em;">
 
   <header style="position:sticky; top:0; z-index:8; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:0 22px; height:58px; border-bottom:1px solid rgba(30,74,139,.13); background:rgba(255,255,255,.86); backdrop-filter:blur(14px); box-shadow:0 1px 3px rgba(15,37,66,.04);">
     <div style="display:flex; align-items:center; gap:10px;">
       <svg width="18" height="18" viewBox="0 0 32 32" style="flex:none; display:block;" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#1e4a8b"></rect><path d="M16 7l9 9-9 9-9-9z" fill="#8cc8ea"></path></svg>
       <span style="font-size:14px; font-weight:500; letter-spacing:-.01em;">KKB Agent</span>
-      <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:#5f7b9b; border:1px solid rgba(30,74,139,.18); border-radius:4px; padding:3px 7px;">{{ modeLabel }}</span>
+      <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:#5f7b9b; border:1px solid rgba(30,74,139,.18); border-radius:4px; padding:3px 7px;">{{ modeLabel }}</span>
     </div>
     <div style="display:flex; align-items:center; gap:8px;">
       <button onClick="{{ openRegistry }}" style="display:flex; align-items:center; gap:7px; background:rgba(30,74,139,.05); border:1px solid rgba(30,74,139,.16); color:#3d5877; border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; transition:all .18s ease;" style-hover="background:rgba(30,74,139,.15); border-color:rgba(30,74,139,.32); color:#0f2542;">
-        <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; color:#1e4a8b;">{{ toolCount }}</span> tools
+        <span style="font-family:'Space Mono',monospace; color:#1e4a8b;">{{ toolCount }}</span> tools
       </button>
       <button onClick="{{ resetChat }}" style="background:none; border:1px solid rgba(30,74,139,.16); color:#5f7b9b; border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; transition:all .18s ease;" style-hover="color:#0f2542; border-color:rgba(30,74,139,.32);">New chat</button>
     </div>
@@ -72,21 +75,21 @@ textarea:focus-visible { outline: none; }
 
       <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ true }}">
         <div style="margin:auto 0; padding:40px 0 24px; animation:msg-in .5s ease both;">
-          <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:#1e4a8b; margin-bottom:14px;">BDDK · EVDS · TUIK</div>
-          <h1 style="margin:0 0 10px; font-size:34px; font-weight:400; letter-spacing:-.03em; line-height:1.15; color:#0f2542;">Lakehouse'a ne sormak istersin?</h1>
+          <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:#1e4a8b; margin-bottom:12px;">BDDK · EVDS · TUIK</div>
+          <h1 style="margin:0 0 10px; font-size:34px; font-weight:500; letter-spacing:-.035em; line-height:1.12; color:#0f2542;">Lakehouse'a ne sormak istersin?</h1>
           <p style="margin:0 0 22px; font-size:15px; line-height:1.6; color:#5f7b9b; max-width:52ch;">Model planı kurar, araçları Python çalıştırır. Her yanıtın altında çağrılan aracı, süresini ve dönen veriyi açabilirsin.</p>
 
           <sc-if value="{{ hasOverview }}" hint-placeholder-val="{{ true }}">
             <div style="display:flex; flex-wrap:wrap; align-items:center; gap:10px 26px; padding:14px 16px; margin-bottom:22px; border:1px solid rgba(30,74,139,.13); border-left:3px solid #1e4a8b; border-radius:10px; background:#f8fbfd;">
               <sc-for list="{{ overviewStats }}" as="st" hint-placeholder-count="3">
                 <div style="display:flex; flex-direction:column; gap:2px;">
-                  <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:15px; color:#0f2542; font-variant-numeric:tabular-nums;">{{ st.value }}</span>
+                  <span style="font-family:'Space Mono',monospace; font-size:15px; color:#0f2542; font-variant-numeric:tabular-nums;">{{ st.value }}</span>
                   <span style="font-size:11px; letter-spacing:.04em; color:#7790ab;">{{ st.label }}</span>
                 </div>
               </sc-for>
               <div style="display:flex; flex-wrap:wrap; gap:6px; margin-left:auto;">
                 <sc-for list="{{ overviewSources }}" as="src" hint-placeholder-count="5">
-                  <span style="display:inline-flex; align-items:center; gap:5px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10.5px; color:#3d5877; background:#ffffff; border:1px solid rgba(30,74,139,.15); border-radius:5px; padding:3px 7px;">{{ src.label }}<span style="color:#1e4a8b;">{{ src.count }}</span></span>
+                  <span style="display:inline-flex; align-items:center; gap:5px; font-family:'Space Mono',monospace; font-size:10.5px; color:#3d5877; background:#ffffff; border:1px solid rgba(30,74,139,.15); border-radius:5px; padding:3px 7px;">{{ src.label }}<span style="color:#1e4a8b;">{{ src.count }}</span></span>
                 </sc-for>
               </div>
             </div>
@@ -95,7 +98,7 @@ textarea:focus-visible { outline: none; }
           <div style="display:flex; flex-wrap:wrap; gap:8px;">
             <sc-for list="{{ examples }}" as="ex" hint-placeholder-count="4">
               <button onClick="{{ ex.use }}" style="display:flex; align-items:center; gap:10px; text-align:left; background:#ffffff; border:1px solid rgba(30,74,139,.15); color:#3d5877; border-radius:10px; padding:10px 14px 10px 11px; font-size:13px; line-height:1.4; max-width:100%; cursor:pointer; box-shadow:0 1px 2px rgba(15,37,66,.05); transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease, color .2s ease;" style-hover="border-color:rgba(30,74,139,.34); color:#0f2542; transform:translateY(-1px); box-shadow:0 4px 12px rgba(15,37,66,.09);">
-                <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:#1e4a8b; background:#eaf1f9; border-radius:4px; padding:3px 6px; flex:none;">{{ ex.tag }}</span>
+                <span style="font-family:'Space Mono',monospace; font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:#1e4a8b; background:#eaf1f9; border-radius:4px; padding:3px 6px; flex:none;">{{ ex.tag }}</span>
                 <span>{{ ex.label }}</span>
               </button>
             </sc-for>
@@ -111,9 +114,9 @@ textarea:focus-visible { outline: none; }
           <div style="align-self:stretch; animation:msg-in .45s cubic-bezier(.22,1,.36,1) both;">
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
               <span style="width:20px; height:20px; border-radius:50%; background:radial-gradient(circle at 34% 30%, #8cc8ea, #1e4a8b 58%, #12315e);"></span>
-              <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#5f7b9b;">{{ m.routeName }}</span>
+              <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#5f7b9b;">{{ m.routeName }}</span>
               <span style="width:3px; height:3px; border-radius:50%; background:#c2d2e1;"></span>
-              <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px; color:#7790ab;">{{ m.totalLabel }}</span>
+              <span style="font-family:'Space Mono',monospace; font-size:11px; color:#7790ab;">{{ m.totalLabel }}</span>
             </div>
             <div style="padding-left:30px; color:#1c3553; font-size:15px; line-height:1.7;">
               <sc-for list="{{ m.blocks }}" as="blk" hint-placeholder-count="2">
@@ -140,7 +143,7 @@ textarea:focus-visible { outline: none; }
             <span style="position:relative; width:20px; height:20px; flex:none; border-radius:50%; background:radial-gradient(circle at 34% 30%, #8cc8ea, #1e4a8b 58%, #12315e); animation:orb-breathe 1.9s ease-in-out infinite;">
               <i style="position:absolute; inset:-5px; border-radius:50%; border:1px solid rgba(30,74,139,.55); animation:orb-ring 1.9s ease-out infinite;"></i>
             </span>
-            <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px; color:#7790ab;">{{ elapsedLabel }}</span>
+            <span style="font-family:'Space Mono',monospace; font-size:11px; color:#7790ab;">{{ elapsedLabel }}</span>
           </div>
           <div style="padding-left:30px; display:flex; flex-direction:column; gap:9px;">
             <sc-for list="{{ stages }}" as="st" hint-placeholder-count="2">
@@ -150,7 +153,7 @@ textarea:focus-visible { outline: none; }
                     <span style="width:5px; height:5px; border-radius:50%; background:#1e4a8b;"></span>
                   </span>
                   <span style="font-size:13.5px; color:#7790ab;">{{ st.label }}</span>
-                  <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10.5px; color:#aec0d2;">{{ st.time }}</span>
+                  <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:#aec0d2;">{{ st.time }}</span>
                 </sc-if>
                 <sc-if value="{{ st.active }}" hint-placeholder-val="{{ false }}">
                   <span style="width:14px; height:14px; flex:none; border-radius:50%; border:1.5px solid rgba(140,200,234,.38); border-top-color:#1e4a8b; animation:spin .9s linear infinite;"></span>
@@ -171,8 +174,8 @@ textarea:focus-visible { outline: none; }
         <button onClick="{{ send }}" disabled="{{ sendDisabled }}" style="flex:none; width:38px; height:38px; border-radius:11px; border:0; background:{{ sendBg }}; color:#ffffff; font-size:16px; cursor:{{ sendCursor }}; display:flex; align-items:center; justify-content:center; transition:all .2s ease;" style-hover="filter:brightness(1.08);">↑</button>
       </div>
       <div style="display:flex; justify-content:space-between; gap:12px; margin-top:9px; padding:0 4px;">
-        <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10.5px; color:#94a9c0;">Enter ile gönder · Shift+Enter satır</span>
-        <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10.5px; color:#94a9c0;">{{ charLabel }}</span>
+        <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:#94a9c0;">Enter ile gönder · Shift+Enter satır</span>
+        <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:#94a9c0;">{{ charLabel }}</span>
       </div>
     </div>
   </div>
@@ -184,7 +187,7 @@ textarea:focus-visible { outline: none; }
   <div style="position:fixed; top:0; right:0; height:100vh; width:min(520px, 94vw); z-index:21; background:#ffffff; border-left:1px solid rgba(30,74,139,.16); box-shadow:-30px 0 70px rgba(15,37,66,.14); display:flex; flex-direction:column; transform:{{ drawerTransform }}; transition:transform .42s cubic-bezier(.22,1,.36,1);">
     <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:18px 20px; border-bottom:1px solid rgba(30,74,139,.13); flex:none;">
       <div>
-        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:#1e4a8b; margin-bottom:5px;">{{ drawerKicker }}</div>
+        <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:#1e4a8b; margin-bottom:5px;">{{ drawerKicker }}</div>
         <div style="font-size:16px; font-weight:400; letter-spacing:-.01em;">{{ drawerTitle }}</div>
       </div>
       <button onClick="{{ closeDrawer }}" style="width:32px; height:32px; flex:none; border-radius:9px; background:rgba(30,74,139,.05); border:1px solid rgba(30,74,139,.16); color:#5f7b9b; font-size:15px; cursor:pointer; transition:all .18s ease;" style-hover="color:#0f2542; border-color:rgba(30,74,139,.34);">×</button>
@@ -197,8 +200,8 @@ textarea:focus-visible { outline: none; }
           <sc-for list="{{ tools }}" as="t" hint-placeholder-count="6">
             <div style="border:1px solid rgba(30,74,139,.13); border-radius:12px; padding:13px 15px; background:#f8fbfd; box-shadow:0 1px 2px rgba(15,37,66,.04);">
               <div style="display:flex; align-items:center; gap:9px; margin-bottom:6px;">
-                <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:13px; color:#15386b;">{{ t.name }}</span>
-                <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:#5f7b9b; border:1px solid rgba(30,74,139,.18); border-radius:4px; padding:2px 6px;">{{ t.tag }}</span>
+                <span style="font-family:'Space Mono',monospace; font-size:13px; color:#15386b;">{{ t.name }}</span>
+                <span style="font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:#5f7b9b; border:1px solid rgba(30,74,139,.18); border-radius:4px; padding:2px 6px;">{{ t.tag }}</span>
               </div>
               <p style="margin:0; font-size:12.5px; line-height:1.55; color:#5f7b9b;">{{ t.desc }}</p>
             </div>
@@ -210,21 +213,21 @@ textarea:focus-visible { outline: none; }
         <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:9px;">
           <sc-for list="{{ drawerStats }}" as="s" hint-placeholder-count="3">
             <div style="border:1px solid rgba(30,74,139,.13); border-radius:11px; padding:12px 13px; background:#f8fbfd; box-shadow:0 1px 2px rgba(15,37,66,.04);">
-              <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:#7790ab; margin-bottom:7px;">{{ s.label }}</div>
-              <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:17px; color:{{ s.color }};">{{ s.value }}</div>
-              <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10.5px; color:#94a9c0; margin-top:3px;">{{ s.sub }}</div>
+              <div style="font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:#7790ab; margin-bottom:7px;">{{ s.label }}</div>
+              <div style="font-family:'Space Mono',monospace; font-size:17px; color:{{ s.color }};">{{ s.value }}</div>
+              <div style="font-family:'Space Mono',monospace; font-size:10.5px; color:#94a9c0; margin-top:3px;">{{ s.sub }}</div>
             </div>
           </sc-for>
         </div>
 
         <sc-if value="{{ showTimeline }}" hint-placeholder-val="{{ true }}">
-          <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#7790ab; margin-bottom:12px;">Timeline</div>
+          <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#7790ab; margin-bottom:12px;">Timeline</div>
           <div style="display:flex; flex-direction:column; gap:11px;">
             <sc-for list="{{ drawerTimeline }}" as="ev" hint-placeholder-count="4">
               <div>
                 <div style="display:flex; justify-content:space-between; gap:10px; margin-bottom:5px;">
-                  <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11.5px; color:{{ ev.color }}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ ev.label }}</span>
-                  <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px; color:#7790ab; flex:none;">{{ ev.durationLabel }}</span>
+                  <span style="font-family:'Space Mono',monospace; font-size:11.5px; color:{{ ev.color }}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ ev.label }}</span>
+                  <span style="font-family:'Space Mono',monospace; font-size:11px; color:#7790ab; flex:none;">{{ ev.durationLabel }}</span>
                 </div>
                 <div style="height:6px; border-radius:3px; background:rgba(30,74,139,.08); position:relative; overflow:hidden;">
                   <div style="position:absolute; top:0; bottom:0; left:{{ ev.offsetPct }}; width:{{ ev.widthPct }}; border-radius:3px; background:{{ ev.color }};"></div>
@@ -235,15 +238,15 @@ textarea:focus-visible { outline: none; }
         </sc-if>
 
         <div>
-          <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#7790ab; margin-bottom:12px;">Calls</div>
+          <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#7790ab; margin-bottom:12px;">Calls</div>
           <div style="display:flex; flex-direction:column; gap:10px;">
             <sc-for list="{{ drawerTrace }}" as="tc" hint-placeholder-count="3">
               <div style="border:1px solid {{ tc.border }}; border-radius:12px; background:#f8fbfd; overflow:hidden; box-shadow:0 1px 2px rgba(15,37,66,.04);">
                 <button onClick="{{ tc.toggle }}" style="width:100%; display:flex; align-items:center; gap:11px; background:none; border:0; padding:13px 15px; cursor:pointer; text-align:left; transition:background .18s ease;" style-hover="background:rgba(30,74,139,.035);">
-                  <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10.5px; color:#94a9c0; flex:none;">{{ tc.index }}</span>
-                  <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:13px; color:{{ tc.nameColor }}; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ tc.name }}</span>
-                  <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10.5px; color:#7790ab; flex:none;">{{ tc.roundLabel }}</span>
-                  <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; color:#15386b; flex:none;">{{ tc.durationLabel }}</span>
+                  <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:#94a9c0; flex:none;">{{ tc.index }}</span>
+                  <span style="font-family:'Space Mono',monospace; font-size:13px; color:{{ tc.nameColor }}; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ tc.name }}</span>
+                  <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:#7790ab; flex:none;">{{ tc.roundLabel }}</span>
+                  <span style="font-family:'Space Mono',monospace; font-size:12px; color:#15386b; flex:none;">{{ tc.durationLabel }}</span>
                   <span style="color:#94a9c0; font-size:11px; flex:none; transition:transform .25s ease; transform:{{ tc.caret }};">▾</span>
                 </button>
                 <div style="height:3px; background:rgba(30,74,139,.05);">
@@ -252,12 +255,12 @@ textarea:focus-visible { outline: none; }
                 <sc-if value="{{ tc.open }}" hint-placeholder-val="{{ false }}">
                   <div style="padding:14px 15px 15px; border-top:1px solid rgba(30,74,139,.11); display:flex; flex-direction:column; gap:12px; animation:stage-in .3s ease both;">
                     <div>
-                      <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:#7790ab; margin-bottom:6px;">arguments</div>
-                      <pre style="margin:0; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11.5px; line-height:1.6; color:#3d5877; background:#f4f8fc; border:1px solid rgba(30,74,139,.11); border-radius:9px; padding:11px; max-height:200px; overflow:auto; white-space:pre-wrap; word-break:break-word;">{{ tc.args }}</pre>
+                      <div style="font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:#7790ab; margin-bottom:6px;">arguments</div>
+                      <pre style="margin:0; font-family:'Space Mono',monospace; font-size:11.5px; line-height:1.6; color:#3d5877; background:#f4f8fc; border:1px solid rgba(30,74,139,.11); border-radius:9px; padding:11px; max-height:200px; overflow:auto; white-space:pre-wrap; word-break:break-word;">{{ tc.args }}</pre>
                     </div>
                     <div>
-                      <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:#7790ab; margin-bottom:6px;">result preview</div>
-                      <pre style="margin:0; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11.5px; line-height:1.6; color:{{ tc.resultColor }}; background:#f4f8fc; border:1px solid rgba(30,74,139,.11); border-radius:9px; padding:11px; max-height:260px; overflow:auto; white-space:pre-wrap; word-break:break-word;">{{ tc.result }}</pre>
+                      <div style="font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:#7790ab; margin-bottom:6px;">result preview</div>
+                      <pre style="margin:0; font-family:'Space Mono',monospace; font-size:11.5px; line-height:1.6; color:{{ tc.resultColor }}; background:#f4f8fc; border:1px solid rgba(30,74,139,.11); border-radius:9px; padding:11px; max-height:260px; overflow:auto; white-space:pre-wrap; word-break:break-word;">{{ tc.result }}</pre>
                     </div>
                   </div>
                 </sc-if>
@@ -267,9 +270,9 @@ textarea:focus-visible { outline: none; }
         </div>
 
         <div>
-          <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#7790ab; margin-bottom:10px;">Per tool</div>
+          <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#7790ab; margin-bottom:10px;">Per tool</div>
           <sc-for list="{{ drawerPerTool }}" as="pt" hint-placeholder-count="2">
-            <div style="display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid rgba(30,74,139,.11); font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11.5px;">
+            <div style="display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid rgba(30,74,139,.11); font-family:'Space Mono',monospace; font-size:11.5px;">
               <span style="color:#3d5877;">{{ pt.label }}</span>
               <span style="color:#7790ab; flex:none;">{{ pt.timing }}</span>
             </div>
@@ -407,7 +410,7 @@ function inlineToNodes(text) {
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) nodes.push(text.slice(last, m.index));
     if (m[1]) nodes.push(React.createElement('strong', { key: key++, style: { fontWeight: 500, color: '#0f2542' } }, m[2]));
-    else if (m[3]) nodes.push(React.createElement('code', { key: key++, style: { fontFamily: "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace", fontSize: '13px', background: 'rgba(30,74,139,.11)', border: '1px solid rgba(30,74,139,.13)', borderRadius: '5px', padding: '1px 6px', color: '#15386b' } }, m[4]));
+    else if (m[3]) nodes.push(React.createElement('code', { key: key++, style: { fontFamily: "'Space Mono',monospace", fontSize: '13px', background: 'rgba(30,74,139,.11)', border: '1px solid rgba(30,74,139,.13)', borderRadius: '5px', padding: '1px 6px', color: '#15386b' } }, m[4]));
     else nodes.push(React.createElement('a', { key: key++, href: m[7], target: '_blank', rel: 'noreferrer' }, m[6]));
     last = re.lastIndex;
   }
@@ -446,7 +449,7 @@ function mdToBlocks(markdown) {
         key: ci,
         style: {
           textAlign: 'left', padding: '9px 12px', fontSize: '12.5px',
-          fontFamily: th ? "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" : 'inherit',
+          fontFamily: th ? "'Space Mono',monospace" : 'inherit',
           fontWeight: th ? 400 : 300,
           letterSpacing: th ? '.1em' : 'normal',
           textTransform: th ? 'uppercase' : 'none',

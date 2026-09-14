@@ -114,7 +114,8 @@ def test_page_uses_the_bogazici_palette_and_typeface():
 
     assert "#1e4a8b" in response.text   # PANTONE 7686C
     assert "#8cc8ea" in response.text   # PANTONE 297C
-    assert "Helvetica" in response.text
+    assert "Sora" in response.text
+    assert "Space Mono" in response.text
     # The old dark/amber theme must be fully gone, not merely overridden.
     assert "#e0aa4a" not in response.text
-    assert "fonts.googleapis.com" not in response.text
+    assert "#0a0a0b" not in response.text
