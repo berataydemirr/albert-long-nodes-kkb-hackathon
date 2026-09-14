@@ -11,7 +11,13 @@ import json
 
 import pytest
 
-from src.agent.orchestrator import MAX_CALLS_PER_TOOL_PER_RUN, _loop_guard, _normalized_args
+from src.agent.orchestrator import (
+    DEFAULT_MAX_CALLS_PER_TOOL_PER_RUN,
+    MAX_CALLS_PER_TOOL_PER_RUN_OVERRIDES,
+    _loop_guard,
+    _normalized_args,
+    _tool_call_limit,
+)
 
 
 def _fresh_history() -> dict:
@@ -51,9 +57,12 @@ def test_different_arguments_are_allowed():
 
 
 def test_a_tool_is_cut_off_after_the_per_run_limit():
-    """Different arguments every time is still a loop past some point."""
+    """Different arguments every time is still a loop past some point.
+    web_search has no override, so it uses the tight default - unlike
+    local analysis tools, it has no legitimate reason to run many times
+    in one answer."""
     history = _fresh_history()
-    for i in range(MAX_CALLS_PER_TOOL_PER_RUN):
+    for i in range(DEFAULT_MAX_CALLS_PER_TOOL_PER_RUN):
         assert _loop_guard("web_search", f'{{"query": "q{i}"}}', history) is None
 
     blocked = _loop_guard("web_search", '{"query": "one more"}', history)
@@ -64,7 +73,7 @@ def test_a_tool_is_cut_off_after_the_per_run_limit():
 
 def test_the_limit_is_per_tool_not_global():
     history = _fresh_history()
-    for i in range(MAX_CALLS_PER_TOOL_PER_RUN):
+    for i in range(DEFAULT_MAX_CALLS_PER_TOOL_PER_RUN):
         _loop_guard("web_search", f'{{"query": "q{i}"}}', history)
 
     assert _loop_guard("lakehouse_query", '{"sql": "SELECT 1"}', history) is None
@@ -502,3 +511,171 @@ def test_concurrent_searches_do_not_share_mutable_state(monkeypatch):
 
     assert all(r["provider_available"] for r in results)
     assert call_count["n"] == 10
+
+
+# --- per-tool overrides: batch analysis vs a real loop -------------------
+
+def test_analysis_tools_get_a_looser_cap_than_web_search():
+    """Measured live: a request to check 6 named series with
+    anomaly_analysis got 3 of them silently blocked under one global cap
+    of 3. That is a legitimate batch request, not a loop - local analysis
+    tools must tolerate more distinct calls than web_search does."""
+    for name in ("anomaly_analysis", "change_detection", "correlation_analysis"):
+        assert _tool_call_limit(name) > DEFAULT_MAX_CALLS_PER_TOOL_PER_RUN
+
+
+def test_web_search_keeps_the_tight_default():
+    """This is the tool that produced the real measured loop (a blocked
+    provider retried with rephrased queries), so it must not be loosened
+    alongside the analysis tools."""
+    assert _tool_call_limit("web_search") == DEFAULT_MAX_CALLS_PER_TOOL_PER_RUN
+    assert "web_search" not in MAX_CALLS_PER_TOOL_PER_RUN_OVERRIDES
+
+
+def test_lakehouse_query_keeps_the_tight_default():
+    """A model rerunning slightly different SQL over and over is the
+    SQL-shaped version of the same confusion the tight cap exists to
+    catch, so this one is deliberately not in the override list either."""
+    assert _tool_call_limit("lakehouse_query") == DEFAULT_MAX_CALLS_PER_TOOL_PER_RUN
+
+
+def test_a_six_series_batch_no_longer_gets_truncated():
+    """Reproduces the exact measured failure: 6 distinct anomaly_analysis
+    calls in one run must all be allowed through."""
+    history = _fresh_history()
+    series = ["a", "b", "c", "d", "e", "f"]
+
+    for s in series:
+        blocked = _loop_guard("anomaly_analysis", f'{{"seri_kod": "{s}"}}', history)
+        assert blocked is None, f"series {s} was wrongly blocked"
+
+
+# --- round-budget exhaustion: must degrade gracefully, never crash -------
+# A run observed live reached round 7 of 8 with individual LLM rounds
+# taking up to 40.9s each. Round 8 landing on the same pattern used to
+# raise RuntimeError, which web_app.py turns into a 502 with nothing shown
+# to the user - the worst outcome, since by then real tool results already
+# sit in the history. These tests drive ask() with a fake client that
+# never produces a final answer, forcing the round budget to run out on
+# purpose, and assert the fallback path instead of the crash.
+
+class _FakeFunction:
+    def __init__(self, name, arguments):
+        self.name = name
+        self.arguments = arguments
+
+
+class _FakeToolCall:
+    def __init__(self, name, arguments, call_id):
+        self.id = call_id
+        self.function = _FakeFunction(name, arguments)
+
+
+class _FakeMessage:
+    def __init__(self, content=None, tool_calls=None):
+        self.content = content
+        self.tool_calls = tool_calls or []
+
+    def model_dump(self, exclude_none=True):
+        d = {"role": "assistant", "content": self.content, "tool_calls": [
+            {"id": tc.id, "type": "function",
+             "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+            for tc in self.tool_calls
+        ] or None}
+        return {k: v for k, v in d.items() if v is not None} if exclude_none else d
+
+
+class _FakeChoice:
+    def __init__(self, message):
+        self.message = message
+
+
+class _FakeResponse:
+    def __init__(self, message):
+        self.choices = [_FakeChoice(message)]
+        self.usage = None
+
+
+class _NeverConvergingClient:
+    """Every call with tools available asks for another tool call, so the
+    round budget always runs out naturally. The forced final call (the one
+    orchestrator makes with no 'tools' kwarg once rounds are exhausted)
+    answers with real text, so the test can tell the graceful path fired."""
+
+    def __init__(self, final_text="Elindeki bilgilerle kısa bir cevap."):
+        self.final_text = final_text
+        self.calls = 0
+        self.chat = type("Chat", (), {"completions": self})()
+
+    def create(self, **kwargs):
+        self.calls += 1
+        if "tools" not in kwargs:
+            return _FakeResponse(_FakeMessage(content=self.final_text))
+        call = _FakeToolCall("lakehouse_schema", "{}", f"call_{self.calls}")
+        return _FakeResponse(_FakeMessage(tool_calls=[call]))
+
+
+class _AlwaysFailingClient(_NeverConvergingClient):
+    """Even the forced final call fails - the true last-resort path."""
+
+    def create(self, **kwargs):
+        self.calls += 1
+        if "tools" not in kwargs:
+            raise RuntimeError("endpoint down")
+        call = _FakeToolCall("lakehouse_schema", "{}", f"call_{self.calls}")
+        return _FakeResponse(_FakeMessage(tool_calls=[call]))
+
+
+def test_exhausted_round_budget_returns_text_not_an_exception(monkeypatch):
+    from src.agent import orchestrator
+
+    fake_client = _NeverConvergingClient()
+    monkeypatch.setattr(orchestrator, "get_client", lambda: fake_client)
+    monkeypatch.setattr(orchestrator, "execute_tool", lambda name, args: '{"ok": true}')
+
+    answer = orchestrator.ask("test sorusu", max_rounds=3)
+
+    assert isinstance(answer, str)
+    assert answer == fake_client.final_text
+
+
+def test_forced_final_call_has_no_tools_so_it_cannot_extend_the_loop(monkeypatch):
+    from src.agent import orchestrator
+
+    fake_client = _NeverConvergingClient()
+    monkeypatch.setattr(orchestrator, "get_client", lambda: fake_client)
+    monkeypatch.setattr(orchestrator, "execute_tool", lambda name, args: '{"ok": true}')
+
+    orchestrator.ask("test sorusu", max_rounds=3)
+
+    # calls: 3 normal rounds (each WITH tools) + 1 forced call (WITHOUT).
+    assert fake_client.calls == 4
+
+
+def test_when_even_the_forced_call_fails_a_summary_is_returned_not_raised(monkeypatch):
+    """The true last resort: no exception reaches web_app.py even if the
+    forced final call itself throws."""
+    from src.agent import orchestrator
+
+    fake_client = _AlwaysFailingClient()
+    monkeypatch.setattr(orchestrator, "get_client", lambda: fake_client)
+    monkeypatch.setattr(orchestrator, "execute_tool", lambda name, args: '{"ok": true}')
+
+    answer = orchestrator.ask("test sorusu", max_rounds=2)
+
+    assert isinstance(answer, str)
+    assert "lakehouse_schema" in answer
+
+
+def test_exhausted_round_budget_timing_includes_the_forced_call(monkeypatch):
+    from src.agent import orchestrator
+
+    fake_client = _NeverConvergingClient()
+    monkeypatch.setattr(orchestrator, "get_client", lambda: fake_client)
+    monkeypatch.setattr(orchestrator, "execute_tool", lambda name, args: '{"ok": true}')
+
+    answer, timing = orchestrator.ask("test sorusu", max_rounds=2, return_timing=True)
+
+    llm_events = [e for e in timing["timeline"] if e["kind"] == "llm"]
+    assert len(llm_events) == 3  # 2 normal rounds + the forced closing call
+    assert "kapanış" in llm_events[-1]["name"]

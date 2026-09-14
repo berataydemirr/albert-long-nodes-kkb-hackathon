@@ -119,9 +119,25 @@ answers correctly, citing TCMB's own announcement, in 14.4 s with zero tool
 errors.
 
 A second guard sits in the tool loop for the general case: an identical repeat
-call is refused, and any single tool is cut off after three calls in one
-answer. Both come back as normal tool results explaining what to do instead, so
-the model changes strategy rather than being cut off mid-conversation.
+call is always refused, and each tool has its own call limit per answer rather
+than one global number. `web_search` and `lakehouse_query` keep a tight cap of
+3 - both are where a model rerunning slightly different queries is a real
+symptom of confusion. The local analysis tools get a much looser one (8-10),
+because a legitimate ask like "run anomaly_analysis on these six series" is
+ordinary batch use for a financial-analytics agent, not a loop - conflating
+the two used to silently truncate a genuine 6-series request to 3. Every block
+returns a normal tool result carrying a next step, so the assistant/tool
+pairing stays valid and the model gets to read why it was stopped rather than
+being cut off mid-conversation.
+
+Running out of the round budget (max 8) used to raise an exception with
+nothing shown to the user - the worst outcome, since real tool results
+already sit in the history by then. It now forces one more model call with
+tools disabled, so the model must answer in text from what it already has; if
+even that fails, a plain summary of which tools were tried is returned instead
+of a crash. A run observed live reached round 7 of 8 with individual LLM
+rounds taking up to 40.9 s each - this is the path that would have caught
+round 8 landing the same way.
 
 ## Data layout
 

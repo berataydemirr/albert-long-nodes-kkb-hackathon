@@ -104,10 +104,33 @@ def _system_prompt() -> str:
 MODEL_CALL_MAX_ATTEMPTS = 3
 MODEL_CALL_BACKOFF_BASE_SEC = 2.0
 TOOL_OUTPUT_MAX_CHARS = 12_000
-# Observed legitimate use runs to 2-3 calls of one tool in a run (e.g.
-# causality on two different pairs). Four or more has been a loop every
-# time it was seen.
-MAX_CALLS_PER_TOOL_PER_RUN = 3
+# A single global cap conflated two different behaviours. Measured live:
+# asking for anomaly_analysis across 6 named series - a completely
+# legitimate batch request for a financial-analytics agent - got 3 of them
+# silently blocked under a cap of 3, because the guard could not tell
+# "checking six different series" from "stuck retrying one broken call".
+# Web search is the tool that actually produced a real loop (a blocked
+# provider got retried with rephrased queries, 4 calls in 5 rounds) and
+# has no legitimate reason to run more than a couple of times per answer,
+# so it keeps the tight cap; local analysis tools - the model's own
+# workhorses for exactly this kind of multi-series batch question - get a
+# much looser one. lakehouse_query is deliberately NOT loosened: a model
+# rerunning slightly different SQL over and over is the SQL-shaped version
+# of the same confusion the tight cap exists to catch.
+DEFAULT_MAX_CALLS_PER_TOOL_PER_RUN = 3
+MAX_CALLS_PER_TOOL_PER_RUN_OVERRIDES = {
+    "anomaly_analysis": 10,
+    "change_detection": 10,
+    "correlation_analysis": 10,
+    "causality_analysis": 8,
+    "compare_regions": 8,
+}
+
+
+def _tool_call_limit(name: str) -> int:
+    return MAX_CALLS_PER_TOOL_PER_RUN_OVERRIDES.get(name, DEFAULT_MAX_CALLS_PER_TOOL_PER_RUN)
+
+
 RETRYABLE_ERRORS = (openai.RateLimitError, openai.APIConnectionError, openai.APITimeoutError, openai.InternalServerError)
 
 
@@ -126,14 +149,19 @@ def _call_model(client, messages: list, tool_schemas: list[dict],
     last_exc = None
     effort = MIA_REASONING_EFFORT if reasoning_effort is None else reasoning_effort
     extra = {"reasoning_effort": effort} if effort and effort != "default" else {}
+    # An empty tool_schemas means "force a plain text answer" (used when the
+    # round budget is exhausted). tools=[] with tool_choice="auto" is
+    # rejected as a bad request by some backends, so both keys are omitted
+    # entirely rather than sent empty - the one reliable way to guarantee a
+    # completion with no tool-calling machinery involved at all.
+    tool_kwargs = {"tools": tool_schemas, "tool_choice": "auto"} if tool_schemas else {}
     for attempt in range(1, MODEL_CALL_MAX_ATTEMPTS + 1):
         try:
             return client.chat.completions.create(
                 model=MIA_CHAT_MODEL,
                 messages=messages,
-                tools=tool_schemas,
-                tool_choice="auto",
                 temperature=0.1,
+                **tool_kwargs,
                 **extra,
             )
         except openai.BadRequestError as exc:
@@ -184,8 +212,8 @@ def _loop_guard(name: str, arguments: str, history: dict) -> str | None:
     Two rules:
       - the exact same call twice is never useful; the result is already
         in the history the model is reading.
-      - more than MAX_CALLS_PER_TOOL_PER_RUN calls to one tool is a loop
-        even when the arguments differ each time.
+      - more than the tool's own call limit (see _tool_call_limit) in
+        one run is a loop even when the arguments differ each time.
 
     The guard returns a normal tool result rather than raising, so the
     assistant/tool message pairing stays valid and the model gets to read
@@ -208,14 +236,15 @@ def _loop_guard(name: str, arguments: str, history: dict) -> str | None:
             ),
         }, ensure_ascii=False)
 
-    if per_tool.get(name, 0) >= MAX_CALLS_PER_TOOL_PER_RUN:
+    limit = _tool_call_limit(name)
+    if per_tool.get(name, 0) >= limit:
         per_tool[name] = per_tool.get(name, 0) + 1
-        logger.warning(f"_loop_guard: {name} exceeded {MAX_CALLS_PER_TOOL_PER_RUN} calls in one run")
+        logger.warning(f"_loop_guard: {name} exceeded {limit} calls in one run")
         return json.dumps({
             "blocked": True,
             "reason": "call_limit_reached",
             "next_step": (
-                f"'{name}' bu yanit icin {MAX_CALLS_PER_TOOL_PER_RUN} kez cagrildi ve "
+                f"'{name}' bu yanit icin {limit} kez cagrildi ve "
                 f"sonuca ulasilamadi. Baska bir arac dene ya da su ana kadar "
                 f"topladigin bilgiyle cevabi yaz; eksik kalan kismi acikca belirt."
             ),
@@ -425,5 +454,46 @@ def ask(question: str, max_rounds: int = 8, return_trace: bool = False, return_t
             trace.append(entry)
             messages.append({"role": "tool", "tool_call_id": call.id, "content": output})
 
-    logger.error(f"ask: exceeded {max_rounds} rounds without a final answer")
-    raise RuntimeError(f"Agent tool loop exceeded {max_rounds} rounds")
+    # Falling out of the loop used to raise here, which turns into a 502
+    # with nothing shown to the user - the worst possible outcome, because
+    # by round max_rounds real tool results already sit in the history.
+    # A run observed live reached round 7 of 8 with individual LLM rounds
+    # taking up to 40.9s; round 8 landing on the same pattern would have
+    # thrown all of that away. One more call, tools disabled so it cannot
+    # extend the loop again, forces a text answer from what is already
+    # gathered instead.
+    logger.warning(f"ask: round budget ({max_rounds}) exhausted without a final answer, forcing one")
+    messages.append({
+        "role": "user",
+        "content": (
+            "Tur limitine ulaşıldı. Tool çağırma - şu ana kadar topladığın "
+            "bilgilerle şimdi kısa bir Türkçe cevap yaz. Eksik veya "
+            "doğrulanamayan kısmı açıkça belirt."
+        ),
+    })
+    try:
+        start_ms = _ms_since_start()
+        t0 = time.monotonic()
+        response = _call_model(client, messages, [])
+        elapsed = time.monotonic() - t0
+        timeline.append({
+            "kind": "llm", "round": max_rounds + 1, "name": "LLM düşünme (zorunlu kapanış)",
+            "start_ms": round(start_ms, 1), "duration_ms": round(elapsed * 1000.0, 1),
+            "error": None, "tokens": None, "est_context_tokens": estimate_tokens(messages),
+        })
+        content = response.choices[0].message.content
+        if content:
+            logger.info(f"ask: forced final answer produced, len={len(content)}")
+            return _finish(content)
+        logger.error("ask: forced final call returned no content")
+    except Exception:
+        logger.exception("ask: forced final call itself failed")
+
+    # Last resort: no exception, no empty page - a plain summary of what
+    # was actually gathered, built from the trace rather than the model.
+    tool_names = ", ".join(sorted({t["name"] for t in trace})) or "hiçbiri"
+    logger.error(f"ask: falling back to a manual summary; tools attempted: {tool_names}")
+    return _finish(
+        f"Bu soru için {max_rounds} tur içinde tam bir cevap üretilemedi. "
+        f"Denenen araçlar: {tool_names}. Soruyu daraltıp tekrar sormayı deneyin."
+    )
