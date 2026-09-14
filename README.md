@@ -57,6 +57,20 @@ SQL or prompt-injection requests are refused before the model gets any tools.
 Web search uses DuckDuckGo by default. To use Tavily instead, set
 `WEB_SEARCH_PROVIDER=tavily` and `TAVILY_API_KEY` in `.env`.
 
+**DuckDuckGo's HTML endpoint answers with a bot challenge from some
+networks**, including the one this was developed on, so the default provider
+may return nothing at all. It now says so: a blocked provider comes back with
+`provider_available: false` and an instruction not to retry, instead of an
+empty result list that reads as "your query found nothing". That distinction
+matters more than it sounds — with the old behaviour the model rephrased and
+searched four times in five rounds against a provider that could never answer.
+Set Tavily if you need working search.
+
+A second guard sits in the tool loop for the general case: an identical repeat
+call is refused, and any single tool is cut off after three calls in one
+answer. Both come back as normal tool results explaining what to do instead, so
+the model changes strategy rather than being cut off mid-conversation.
+
 ## Data layout
 
 - `data/bronze/` — source responses

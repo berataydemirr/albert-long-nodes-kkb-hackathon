@@ -15,6 +15,9 @@ import requests
 from bs4 import BeautifulSoup
 
 from config.settings import TAVILY_API_KEY, WEB_SEARCH_PROVIDER
+from src.common.logging_setup import get_logger
+
+logger = get_logger("web_search")
 
 _DUCKDUCKGO_HTML_URL = "https://html.duckduckgo.com/html/"
 _TAVILY_SEARCH_URL = "https://api.tavily.com/search"
@@ -60,6 +63,30 @@ def _is_http_url(value: str) -> bool:
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
 
 
+class SearchProviderUnavailable(RuntimeError):
+    """The provider answered, but with a bot challenge or an unparseable
+    page rather than results.
+
+    This is separated from "no matches" on purpose. Both used to surface
+    as an empty result list, and an empty list reads to the model as "your
+    query found nothing" - so it rephrases and calls again, and again. A
+    measured run spent 4 web_search calls across 5 rounds that way while
+    DuckDuckGo was serving a CAPTCHA to every one of them. Rephrasing
+    cannot fix a block, so the model has to be told which case it is in.
+    """
+
+
+def _looks_like_a_bot_challenge(html: str) -> bool:
+    lowered = html.lower()
+    return any(marker in lowered for marker in (
+        "bots use duckduckgo",
+        "complete the following challenge",
+        "confirm this search was made by a human",
+        "unusual traffic",
+        "are you a robot",
+    ))
+
+
 def _duckduckgo_search(query: str, max_results: int) -> list[dict[str, str]]:
     response = requests.get(
         _DUCKDUCKGO_HTML_URL,
@@ -68,6 +95,10 @@ def _duckduckgo_search(query: str, max_results: int) -> list[dict[str, str]]:
         timeout=_TIMEOUT_SECONDS,
     )
     response.raise_for_status()
+    if _looks_like_a_bot_challenge(response.text):
+        raise SearchProviderUnavailable(
+            "DuckDuckGo returned a bot challenge instead of results."
+        )
     soup = BeautifulSoup(response.text, "html.parser")
     results: list[dict[str, str]] = []
     seen_urls: set[str] = set()
@@ -88,6 +119,11 @@ def _duckduckgo_search(query: str, max_results: int) -> list[dict[str, str]]:
         seen_urls.add(url)
         if len(results) == max_results:
             break
+    if not results and not soup.select(".result"):
+        raise SearchProviderUnavailable(
+            "DuckDuckGo returned a page with no result blocks; the endpoint is "
+            "blocked or its markup changed."
+        )
     return results
 
 
@@ -125,13 +161,44 @@ def web_search(query: str, max_results: int = 5) -> dict:
             results = _tavily_search(query, max_results)
         else:
             raise RuntimeError("WEB_SEARCH_PROVIDER must be either 'duckduckgo' or 'tavily'.")
+    except SearchProviderUnavailable as exc:
+        # Returned, not raised: the model needs to read this and change
+        # strategy. Raising would surface as a generic tool error, which
+        # reads like a transient fault worth retrying - the opposite of
+        # what should happen.
+        logger.warning(f"web_search: provider unavailable for {query!r}: {exc}")
+        return {
+            "query": query,
+            "provider": provider,
+            "results": [],
+            "result_count": 0,
+            "provider_available": False,
+            "error": str(exc),
+            "next_step": (
+                "Web arama saglayicisi su an kullanilamiyor. Sorguyu yeniden "
+                "yazmak BU DURUMU DEGISTIRMEZ - web_search'u tekrar cagirma. "
+                "Yereldeki lakehouse verisiyle cevapla veya guncel bilginin "
+                "alinamadigini acikca soyle."
+            ),
+        }
     except requests.RequestException as exc:
         raise RuntimeError(f"Web search request failed: {exc}") from exc
-    return {
+
+    logger.info(f"web_search: {query!r} -> {len(results)} result(s) via {provider}")
+    payload = {
         "query": query,
         "provider": provider,
         "results": results,
         "result_count": len(results),
+        "provider_available": True,
         "content_trust": "untrusted_search_results",
         "citation_guidance": "Cite results by title and URL. Search snippets are leads, not verified evidence.",
     }
+    if not results:
+        # A genuine zero-match result. One rephrase is reasonable; a third
+        # and fourth attempt is the loop this note exists to stop.
+        payload["next_step"] = (
+            "Bu sorgu icin sonuc yok. En fazla BIR kez farkli anahtar "
+            "kelimelerle dene; yine bos donerse bilginin bulunamadigini soyle."
+        )
+    return payload

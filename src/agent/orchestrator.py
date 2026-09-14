@@ -100,6 +100,10 @@ def _system_prompt() -> str:
 MODEL_CALL_MAX_ATTEMPTS = 3
 MODEL_CALL_BACKOFF_BASE_SEC = 2.0
 TOOL_OUTPUT_MAX_CHARS = 12_000
+# Observed legitimate use runs to 2-3 calls of one tool in a run (e.g.
+# causality on two different pairs). Four or more has been a loop every
+# time it was seen.
+MAX_CALLS_PER_TOOL_PER_RUN = 3
 RETRYABLE_ERRORS = (openai.RateLimitError, openai.APIConnectionError, openai.APITimeoutError, openai.InternalServerError)
 
 
@@ -153,6 +157,69 @@ def _truncate_tool_output(output: str, tool_name: str) -> str:
         return output
     logger.warning(f"_truncate_tool_output: '{tool_name}' output {len(output)} chars > {TOOL_OUTPUT_MAX_CHARS}, truncating")
     return output[:TOOL_OUTPUT_MAX_CHARS] + f'... [TRUNCATED: {len(output) - TOOL_OUTPUT_MAX_CHARS} more chars cut - narrow the query, e.g. add a WHERE/LIMIT]"}}'
+
+
+def _normalized_args(arguments: str) -> str:
+    """Key order must not let an identical call look like a new one."""
+    try:
+        return json.dumps(json.loads(arguments), sort_keys=True, ensure_ascii=False)
+    except (json.JSONDecodeError, TypeError):
+        return str(arguments)
+
+
+def _loop_guard(name: str, arguments: str, history: dict) -> str | None:
+    """Return a tool result that stops a loop, or None to run the call.
+
+    WHY: a tool that keeps returning nothing useful invites the model to
+    rephrase and call it again. Measured live while the search provider
+    was serving a CAPTCHA: 4 web_search calls over 5 rounds, each a fresh
+    round-trip, none of which could have succeeded. The tool-level fix
+    tells the model that provider is down; this is the general case, and
+    it covers tools that have no such signal.
+
+    Two rules:
+      - the exact same call twice is never useful; the result is already
+        in the history the model is reading.
+      - more than MAX_CALLS_PER_TOOL_PER_RUN calls to one tool is a loop
+        even when the arguments differ each time.
+
+    The guard returns a normal tool result rather than raising, so the
+    assistant/tool message pairing stays valid and the model gets to read
+    why it was stopped.
+    """
+    signature = f"{name}:{_normalized_args(arguments)}"
+    seen = history["signatures"]
+    per_tool = history["per_tool"]
+
+    if signature in seen:
+        per_tool[name] = per_tool.get(name, 0) + 1
+        logger.warning(f"_loop_guard: identical repeat of {name} with the same arguments")
+        return json.dumps({
+            "blocked": True,
+            "reason": "identical_repeat",
+            "next_step": (
+                f"'{name}' aracini birebir ayni argumanlarla zaten cagirdin ve "
+                f"sonucu yukarida duruyor. Tekrar cagirma; eldeki sonucu kullan "
+                f"veya veriye ulasilamadigini soyle."
+            ),
+        }, ensure_ascii=False)
+
+    if per_tool.get(name, 0) >= MAX_CALLS_PER_TOOL_PER_RUN:
+        per_tool[name] = per_tool.get(name, 0) + 1
+        logger.warning(f"_loop_guard: {name} exceeded {MAX_CALLS_PER_TOOL_PER_RUN} calls in one run")
+        return json.dumps({
+            "blocked": True,
+            "reason": "call_limit_reached",
+            "next_step": (
+                f"'{name}' bu yanit icin {MAX_CALLS_PER_TOOL_PER_RUN} kez cagrildi ve "
+                f"sonuca ulasilamadi. Baska bir arac dene ya da su ana kadar "
+                f"topladigin bilgiyle cevabi yaz; eksik kalan kismi acikca belirt."
+            ),
+        }, ensure_ascii=False)
+
+    seen.add(signature)
+    per_tool[name] = per_tool.get(name, 0) + 1
+    return None
 
 
 def _timing_summary(timeline: list[dict], total_ms: float, compaction_log: list[dict] | None = None) -> dict:
@@ -223,6 +290,8 @@ def ask(question: str, max_rounds: int = 8, return_trace: bool = False, return_t
     run_t0 = time.monotonic()
     timeline: list[dict] = []
     compaction_log: list[dict] = []
+    # Per-run, so a repeated call in a LATER question is still allowed.
+    call_history: dict = {"signatures": set(), "per_tool": {}}
 
     def _ms_since_start() -> float:
         return (time.monotonic() - run_t0) * 1000.0
@@ -312,13 +381,22 @@ def ask(question: str, max_rounds: int = 8, return_trace: bool = False, return_t
             entry = {"round": round_no, "name": call.function.name, "arguments": call.function.arguments, "error": None}
             tool_start_ms = _ms_since_start()
             tool_t0 = time.monotonic()
-            try:
-                output = execute_tool(call.function.name, call.function.arguments)
-                output = _truncate_tool_output(output, call.function.name)
-            except Exception as exc:
-                logger.warning(f"ask: tool '{call.function.name}' failed: {exc}")
-                output = json.dumps({"error": str(exc)}, ensure_ascii=False)
-                entry["error"] = str(exc)
+            guard = _loop_guard(call.function.name, call.function.arguments, call_history)
+            if guard is not None:
+                output = guard
+                entry["blocked"] = True
+                logger.warning(
+                    f"ask: round {round_no} - BLOCKED repeat call to '{call.function.name}' "
+                    f"(already called {call_history['per_tool'][call.function.name]}x this run)"
+                )
+            else:
+                try:
+                    output = execute_tool(call.function.name, call.function.arguments)
+                    output = _truncate_tool_output(output, call.function.name)
+                except Exception as exc:
+                    logger.warning(f"ask: tool '{call.function.name}' failed: {exc}")
+                    output = json.dumps({"error": str(exc)}, ensure_ascii=False)
+                    entry["error"] = str(exc)
             tool_elapsed_ms = (time.monotonic() - tool_t0) * 1000.0
             logger.info(f"ask: tool '{call.function.name}' took {tool_elapsed_ms:.0f}ms")
             entry["start_ms"] = round(tool_start_ms, 1)
