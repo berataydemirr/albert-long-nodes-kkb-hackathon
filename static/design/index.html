@@ -77,23 +77,7 @@ textarea:focus-visible { outline: none; }
         <div style="margin:auto 0; padding:40px 0 24px; animation:msg-in .5s ease both;">
           <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:#1e4a8b; margin-bottom:12px;">BDDK · EVDS · TUIK</div>
           <h1 style="margin:0 0 10px; font-size:34px; font-weight:500; letter-spacing:-.035em; line-height:1.12; color:#0f2542;">Lakehouse'a ne sormak istersin?</h1>
-          <p style="margin:0 0 22px; font-size:15px; line-height:1.6; color:#5f7b9b; max-width:52ch;">Model planı kurar, araçları Python çalıştırır. Her yanıtın altında çağrılan aracı, süresini ve dönen veriyi açabilirsin.</p>
-
-          <sc-if value="{{ hasOverview }}" hint-placeholder-val="{{ true }}">
-            <div style="display:flex; flex-wrap:wrap; align-items:center; gap:10px 26px; padding:14px 16px; margin-bottom:22px; border:1px solid rgba(30,74,139,.13); border-left:3px solid #1e4a8b; border-radius:10px; background:#f8fbfd;">
-              <sc-for list="{{ overviewStats }}" as="st" hint-placeholder-count="3">
-                <div style="display:flex; flex-direction:column; gap:2px;">
-                  <span style="font-family:'Space Mono',monospace; font-size:15px; color:#0f2542; font-variant-numeric:tabular-nums;">{{ st.value }}</span>
-                  <span style="font-size:11px; letter-spacing:.04em; color:#7790ab;">{{ st.label }}</span>
-                </div>
-              </sc-for>
-              <div style="display:flex; flex-wrap:wrap; gap:6px; margin-left:auto;">
-                <sc-for list="{{ overviewSources }}" as="src" hint-placeholder-count="5">
-                  <span style="display:inline-flex; align-items:center; gap:5px; font-family:'Space Mono',monospace; font-size:10.5px; color:#3d5877; background:#ffffff; border:1px solid rgba(30,74,139,.15); border-radius:5px; padding:3px 7px;">{{ src.label }}<span style="color:#1e4a8b;">{{ src.count }}</span></span>
-                </sc-for>
-              </div>
-            </div>
-          </sc-if>
+          <p style="margin:0 0 26px; font-size:15px; line-height:1.6; color:#5f7b9b; max-width:52ch;">Model planı kurar, araçları Python çalıştırır. Her yanıtın altında çağrılan aracı, süresini ve dönen veriyi açabilirsin.</p>
 
           <div style="display:flex; flex-wrap:wrap; gap:8px;">
             <sc-for list="{{ examples }}" as="ex" hint-placeholder-count="4">
@@ -489,8 +473,7 @@ class Component extends DCLogic {
     messages: [], nextId: 1,
     drawer: null,              // {kind:'trace', id} | {kind:'registry'}
     openCalls: {},             // `${msgId}:${idx}` -> true
-    tools: [], live: false, focused: false,
-    overview: null             // gold-layer coverage, null until /api/overview answers
+    tools: [], live: false, focused: false
   };
 
   componentDidMount() {
@@ -502,14 +485,6 @@ class Component extends DCLogic {
         else this.setState({ tools: this.fallbackTools() });
       })
       .catch(() => this.setState({ tools: this.fallbackTools() }));
-
-    // Coverage is a nice-to-have on the landing page: if the gold database
-    // is missing the page stays fully usable, so a failure here is silent
-    // and simply leaves the strip unrendered.
-    fetch('/api/overview')
-      .then(r => r.json())
-      .then(d => { if (d && d.available) this.setState({ overview: d }); })
-      .catch(() => {});
   }
 
   componentWillUnmount() { this.stopClock(); }
@@ -671,17 +646,6 @@ class Component extends DCLogic {
       resetChat: this.resetChat,
       isEmpty: s.messages.length === 0 && !s.thinking,
       examples: EXAMPLES.map(ex => ({ label: ex.label, tag: ex.tag, use: () => this.send(ex.label) })),
-      hasOverview: !!s.overview,
-      // Headline numbers only - the drawer already holds the full catalog,
-      // so repeating all 24 series here would bury the suggestions below it.
-      overviewStats: s.overview ? [
-        { label: 'seri',   value: String(s.overview.series_count) },
-        { label: 'gözlem', value: s.overview.row_count.toLocaleString('tr-TR') },
-        { label: 'dönem',  value: `${s.overview.first_period} → ${s.overview.last_period}` }
-      ] : [],
-      overviewSources: s.overview ? s.overview.sources.map(src => ({
-        label: src.kaynak, count: String(src.series)
-      })) : [],
       messages,
       thinking: s.thinking,
       stages,

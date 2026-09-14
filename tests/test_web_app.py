@@ -71,36 +71,6 @@ def test_ask_endpoint_rejects_blank_questions():
     assert response.status_code == 422
 
 
-def test_overview_endpoint_reports_gold_coverage():
-    """The landing page reads its coverage strip from here, so an empty or
-    malformed payload silently blanks that strip rather than erroring."""
-    response = TestClient(web_app.app).get("/api/overview")
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert "available" in payload
-
-    if payload["available"]:
-        assert payload["series_count"] > 0
-        assert payload["row_count"] >= payload["series_count"]
-        assert payload["first_period"] <= payload["last_period"]
-        assert payload["sources"]
-        assert all({"kaynak", "series"} <= set(src) for src in payload["sources"])
-
-
-def test_overview_never_500s_when_the_database_is_missing(monkeypatch):
-    """A fresh clone has no built database. The page must still load, so the
-    endpoint reports unavailability instead of failing the request."""
-    def boom():
-        raise FileNotFoundError("gold database not found")
-
-    monkeypatch.setattr(web_app, "gold_summary", boom)
-    response = TestClient(web_app.app).get("/api/overview")
-
-    assert response.status_code == 200
-    assert response.json()["available"] is False
-
-
 def test_page_declares_a_title_and_icon():
     """Both were missing - the browser tab rendered with no name at all."""
     response = TestClient(web_app.app).get("/")
