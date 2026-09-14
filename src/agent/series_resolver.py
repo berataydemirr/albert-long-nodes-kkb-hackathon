@@ -135,12 +135,20 @@ def catalog_block(refresh: bool = False) -> str:
 
     try:
         rows = con.execute(
-            f'SELECT Seri_Kod, Seri_Adi, Birim, Kaynak, MIN(Period), MAX(Period), COUNT(*) '
-            f'FROM "{FACT_TABLE}" GROUP BY 1, 2, 3, 4 ORDER BY Kaynak, Seri_Kod'
+            # Tip is aggregated rather than grouped on: a quarterly series
+            # upsampled to monthly carries BOTH 'flow' (observed) and
+            # 'flow_quarter_ffill' (carried forward) rows, and grouping by
+            # it would list that one series twice. Joining the distinct
+            # values keeps it to one line and surfaces the forward-fill,
+            # which the model should state when it uses such a series.
+            f'SELECT Seri_Kod, ANY_VALUE(Seri_Adi), ANY_VALUE(Birim), '
+            f'string_agg(DISTINCT Tip, \'+\' ORDER BY Tip), ANY_VALUE(Kaynak), '
+            f'MIN(Period), MAX(Period), COUNT(*) '
+            f'FROM "{FACT_TABLE}" GROUP BY Seri_Kod ORDER BY ANY_VALUE(Kaynak), Seri_Kod'
         ).fetchall()
         lines = [
-            f"{kod} | {adi} | {birim or 'birim yok'} | {kaynak} | {first}..{last} ({n})"
-            for kod, adi, birim, kaynak, first, last, n in rows
+            f"{kod} | {adi} | {birim or 'birim yok'} | {tip} | {kaynak} | {first}..{last} ({n})"
+            for kod, adi, birim, tip, kaynak, first, last, n in rows
         ]
         _CATALOG_BLOCK_CACHE = "\n".join(lines)
         logger.info(

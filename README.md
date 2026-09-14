@@ -33,12 +33,22 @@ answer can combine them:
 - `lakehouse_schema`, `lakehouse_query` — inspect and query the read-only gold database
 - `anomaly_analysis`, `change_detection` — find unusual points and sharp moves
 - `correlation_analysis`, `causality_analysis`, `threshold_filter_compare` — compare series
+- `compare_regions` — rank provinces by lending or NPL ratio, with optional growth
 - `web_search` — search current public information
 - `web_url_extract` — read bounded HTML, PDF, Excel, CSV, text or image URLs
 
 The analysis tools take a `seri_kod` and read the series from the database
 themselves. Passing explicit `periods`/`values` arrays still works, but is only
 meant for data that is not in the lakehouse.
+
+`gold_fact_long` is national — every row is `Bolge='TR'`. Province-level lending
+and NPL live in `gold_finturk_regional_quarterly` (81 provinces plus `YURT DIŞI`,
+2021-12 to 2026-6) and are reachable only through `compare_regions`, which
+returns a ranked head rather than all 82 rows. Two traps it handles: quarter
+labels are not zero-padded, so `'2021-12' < '2021-3'` as strings and every
+ordering goes through a parsed sort key instead; and `YURT DIŞI` is not a
+province, so it is excluded from rankings by default and reported separately
+rather than silently dropped.
 
 For example, a current-rate question may call `web_search`, open a result with
 `web_url_extract`, query the local series, and then run an analysis tool. Unsafe

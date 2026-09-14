@@ -118,3 +118,50 @@ def test_no_reasoning_effort_is_sent_when_it_is_switched_off():
     orchestrator._call_model(client, [{"role": "user", "content": "x"}], [], reasoning_effort="")
 
     assert "reasoning_effort" not in client.chat.completions.calls[0]
+
+
+@needs_db
+def test_catalog_header_matches_the_lines_it_describes():
+    """The header once promised 'Birim | Kaynak' while the lines actually
+    carried 'Birim | Tip | Kaynak'. A header that misdescribes its own
+    table teaches the model the wrong field order."""
+    prompt = orchestrator._system_prompt()
+
+    header = next(line for line in prompt.splitlines() if line.startswith("Liste formatı:"))
+    declared = [part.strip() for part in header.split(":", 1)[1].split("|")]
+
+    sample = next(line for line in prompt.splitlines() if line.startswith("TP.BKR.TRY.18"))
+    assert len(sample.split("|")) == len(declared)
+
+
+@needs_db
+def test_prompt_points_regional_questions_at_the_right_tool():
+    """gold_fact_long is national, so a province question answered from it
+    would be silently wrong rather than empty."""
+    prompt = orchestrator._system_prompt()
+
+    assert "compare_regions" in prompt
+    assert "Bolge=TR" in prompt
+
+
+@needs_db
+def test_prompt_explains_the_forward_filled_series():
+    """One series is quarterly carried across months; the answer should say
+    so rather than present filled months as observations."""
+    prompt = orchestrator._system_prompt()
+
+    assert "flow_quarter_ffill" in prompt
+
+
+@needs_db
+def test_catalog_lists_each_series_once_even_with_mixed_tip():
+    """A quarterly series upsampled to monthly carries two Tip values; it
+    must still occupy exactly one catalog line."""
+    from src.agent.series_resolver import catalog_block
+
+    lines = [line for line in catalog_block(refresh=True).splitlines() if line.strip()]
+    mixed = [line for line in lines if "+" in line.split("|")[3]]
+
+    assert mixed, "expected at least one series with mixed Tip values"
+    codes = [line.split("|")[0].strip() for line in lines]
+    assert len(codes) == len(set(codes))

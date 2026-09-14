@@ -85,7 +85,12 @@ def _system_prompt() -> str:
         # against a table whose column is actually Period.
         f"MEVCUT SERİLER. Tablo: gold_fact_long, kolonlar: Period, Bolge, Kaynak, "
         f"Seri_Kod, Seri_Adi, Deger, Birim, Tip (Türkçe kolon adı YOK).\n"
-        f"Liste formatı: Seri_Kod | Seri_Adi | Birim | Kaynak | Period aralığı (satır sayısı)\n"
+        f"Liste formatı: Seri_Kod | Seri_Adi | Birim | Tip | Kaynak | Period aralığı (satır sayısı)\n"
+        f"Tip=stock dönem sonu bakiye/oran, Tip=flow dönem içi akım. "
+        f"'flow_quarter_ffill' içeren seri çeyrekliktir ve aylara taşınmıştır - "
+        f"bu seriyi kullanırsan forward-fill olduğunu yanıtta belirt.\n"
+        f"İl bazlı kredi/takipteki alacak için gold_fact_long'u SORGULAMA - "
+        f"ulusaldır (Bolge=TR), il kırılımı yoktur. compare_regions tool'unu kullan.\n"
         f"{catalog}"
     )
     logger.info(f"_system_prompt: built with catalog, {len(prompt)} chars (~{len(prompt) // 4} tokens)")
