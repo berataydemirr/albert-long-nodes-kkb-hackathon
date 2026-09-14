@@ -127,11 +127,16 @@ def test_share_is_not_reported_for_a_ratio_metric():
     assert "total_value" not in result
 
 
-def test_npl_values_are_plausible_ratios():
-    result = compare_regions(metric="npl", top_n=81)
+def test_npl_values_are_plausible_percentages():
+    """npl is BDDK's own published ratio, which ships as a percentage
+    (1.56-9.29), NOT the 0-1 fraction the derived column in the old wide
+    table used. Mixing the two scales would be wrong by 100x with nothing
+    to catch it, so the scale is pinned here."""
+    result = compare_regions(metric="npl", top_n=25)
 
     values = [row["value"] for row in result["ranked"]]
-    assert all(0 <= v < 1 for v in values), "NPL is stored as a 0-1 ratio, not a percentage"
+    assert all(0 < v < 100 for v in values)
+    assert max(values) > 1, "a 0-1 fraction would mean the wrong column is being read"
 
 
 # --- growth -------------------------------------------------------------
@@ -197,3 +202,91 @@ def test_period_is_passed_as_a_parameter_not_concatenated():
         compare_regions(period="' OR 1=1 --")
 
     assert "Unknown period" in str(excinfo.value)
+
+
+# --- the expanded metric surface ----------------------------------------
+
+def test_many_metrics_are_available_not_just_two():
+    """The point of the long table: the metric set is data, so adding one
+    in the gold build makes it reachable with no code or schema change."""
+    from src.agent.regional import available_metrics
+
+    metrics = {row["metric"] for row in available_metrics()}
+
+    assert len(metrics) >= 30
+    assert {"kredi", "npl", "mevduat", "konut_kredisi", "sube_sayisi"} <= metrics
+
+
+def test_every_metric_can_actually_be_ranked():
+    """A metric listed but unrankable would be a dead entry the model
+    would waste a round discovering."""
+    from src.agent.regional import available_metrics
+
+    for row in available_metrics():
+        result = compare_regions(metric=row["metric"], top_n=3)
+        assert result["ranked"], f"{row['metric']} returned nothing"
+        assert result["birim"] == row["birim"]
+
+
+def test_additive_and_ratio_metrics_are_treated_differently():
+    money = compare_regions(metric="mevduat", top_n=5)
+    ratio = compare_regions(metric="kredi_mevduat_orani", top_n=5)
+
+    assert money["toplanabilir"] is True
+    assert "total_value" in money
+    assert all("share_pct" in row for row in money["ranked"])
+
+    assert ratio["toplanabilir"] is False
+    assert "total_value" not in ratio
+    assert all("share_pct" not in row for row in ratio["ranked"])
+
+
+def test_unknown_metric_lists_the_real_ones():
+    """A bare rejection costs the model a round; the list lets it correct
+    itself in the same turn."""
+    with pytest.raises(ValueError) as excinfo:
+        compare_regions(metric="bilinmeyen_metrik")
+
+    message = str(excinfo.value)
+    assert "Available" in message
+    assert "konut_kredisi" in message
+
+
+def test_per_capita_metrics_are_in_a_plausible_range():
+    """Per-capita credit in TL should be five or six figures; a units slip
+    would show up here as three or nine."""
+    result = compare_regions(metric="kisi_basi_kredi", top_n=25)
+
+    values = [row["value"] for row in result["ranked"]]
+    assert all(1_000 < v < 10_000_000 for v in values)
+    assert result["birim"] == "TL"
+
+
+def test_branch_counts_are_whole_and_positive():
+    result = compare_regions(metric="sube_sayisi", top_n=10)
+
+    values = [row["value"] for row in result["ranked"]]
+    assert all(v >= 1 for v in values)
+    assert result["birim"] == "adet"
+
+
+def test_housing_credit_is_smaller_than_total_credit_everywhere():
+    """A cross-metric sanity check the source itself should satisfy: a
+    product cannot exceed the total it belongs to."""
+    total = {r["bolge"]: r["value"] for r in compare_regions(metric="kredi", top_n=25)["ranked"]}
+    housing = {r["bolge"]: r["value"] for r in compare_regions(metric="konut_kredisi", top_n=25)["ranked"]}
+
+    shared = set(total) & set(housing)
+    assert shared
+    for bolge in shared:
+        assert housing[bolge] < total[bolge], f"{bolge}: housing credit exceeds total credit"
+
+
+def test_non_performing_housing_credit_is_smaller_than_housing_credit():
+    housing = {r["bolge"]: r["value"] for r in compare_regions(metric="konut_kredisi", top_n=25)["ranked"]}
+    bad = {r["bolge"]: r["value"] for r in compare_regions(metric="takip_konut_kredisi", top_n=25)["ranked"]}
+
+    shared = set(housing) & set(bad)
+    assert shared
+    for bolge in shared:
+        assert bad[bolge] < housing[bolge], f"{bolge}: non-performing exceeds the whole book"

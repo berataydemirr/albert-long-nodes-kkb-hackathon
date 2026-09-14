@@ -41,14 +41,30 @@ The analysis tools take a `seri_kod` and read the series from the database
 themselves. Passing explicit `periods`/`values` arrays still works, but is only
 meant for data that is not in the lakehouse.
 
-`gold_fact_long` is national — every row is `Bolge='TR'`. Province-level lending
-and NPL live in `gold_finturk_regional_quarterly` (81 provinces plus `YURT DIŞI`,
-2021-12 to 2026-6) and are reachable only through `compare_regions`, which
-returns a ranked head rather than all 82 rows. Two traps it handles: quarter
-labels are not zero-padded, so `'2021-12' < '2021-3'` as strings and every
-ordering goes through a parsed sort key instead; and `YURT DIŞI` is not a
-province, so it is excluded from rankings by default and reported separately
-rather than silently dropped.
+`gold_fact_long` is national — every row is `Bolge='TR'`. Province data lives in
+`gold_regional_long`: 81 provinces plus `YURT DIŞI`, 22 quarters from 2021-12 to
+2026-6, and **35 metrics** — lending, deposits, consumer credit by product
+(housing, vehicle, cards, overdraft) with its non-performing part, per-capita
+figures, branch counts, and BDDK's own default ratios including per-sector ones.
+
+It is reachable only through `compare_regions`, which returns a ranked head
+(capped at 25) rather than all 82 rows. The metric is a *string validated
+against the table*, not a schema enum: metrics are rows, so 35 of them cost the
+model's context nothing and a metric added in a future gold build is reachable
+with no code change. An unknown name comes back with the full list.
+
+Three traps it handles, each of which produces a wrong answer rather than an
+error:
+
+- Quarter labels are not zero-padded, so `'2021-12' < '2021-3'` as strings.
+  Every ordering goes through a parsed `(year, quarter)` key.
+- `YURT DIŞI` is not a province. It is excluded from rankings by default and
+  reported separately rather than silently dropped.
+- Units are carried verbatim, never rescaled. BDDK ships the same concept at two
+  scales — `npl` here is its published percentage (1.56–9.29), while the derived
+  column in the older wide table is a 0–1 fraction. Shares and totals are
+  reported only for additive metrics, because a "share of an NPL ratio" means
+  nothing.
 
 For example, a current-rate question may call `web_search`, open a result with
 `web_url_extract`, query the local series, and then run an analysis tool. Unsafe

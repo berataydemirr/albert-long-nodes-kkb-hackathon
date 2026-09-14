@@ -36,25 +36,21 @@ from src.common.logging_setup import get_logger
 logger = get_logger("regional")
 
 DB_PATH = GOLD_DIR / "lakehouse.duckdb"
-REGIONAL_TABLE = "gold_finturk_regional_quarterly"
+REGIONAL_TABLE = "gold_regional_long"
 
 # Not a province; see the module docstring.
 NON_PROVINCE_LABELS = ("YURT DIŞI",)
 
-METRICS = {
-    "kredi": {
-        "column": "Toplam_Nakdi_Kredi_Bin_TL",
-        "unit": "bin TL",
-        "label": "Toplam nakdi kredi",
-    },
-    "npl": {
-        "column": "NPL_Orani_Yaklasik",
-        "unit": "oran (0-1)",
-        "label": "Takipteki alacak oranı (yaklaşık)",
-    },
-}
-
 MAX_TOP_N = 25
+
+# Names worth knowing without a lookup. The full set lives in the table
+# (35 metrics and counting), and an unknown name comes back with the list
+# - putting all of them in the tool schema would charge the model's
+# context for every metric on every single request.
+COMMON_METRICS = (
+    "kredi", "npl", "mevduat", "konut_kredisi", "kredi_karti",
+    "kisi_basi_kredi", "sube_sayisi", "kredi_mevduat_orani",
+)
 _PERIOD_RE = re.compile(r"^(\d{4})-(\d{1,2})$")
 
 
@@ -76,6 +72,24 @@ def _quarter_sort_key(period: str) -> tuple[int, int]:
         logger.warning(f"_quarter_sort_key: unparseable period {period!r}, sorting it last")
         return (9999, 99)
     return (int(match.group(1)), int(match.group(2)))
+
+
+def available_metrics() -> list[dict]:
+    """Every metric the regional table carries, with its unit.
+
+    Read from the table rather than hard-coded: the metric set is data, so
+    a gold rebuild that adds one makes it reachable with no code change.
+    """
+    con = _db()
+    try:
+        rows = con.execute(
+            f'SELECT DISTINCT Metrik, Birim, Toplanabilir FROM "{REGIONAL_TABLE}" ORDER BY Metrik'
+        ).fetchall()
+    finally:
+        con.close()
+    metrics = [{"metric": m, "birim": b, "toplanabilir": bool(a)} for m, b, a in rows]
+    logger.info(f"available_metrics: {len(metrics)} metric(s)")
+    return metrics
 
 
 def available_periods() -> list[str]:
@@ -112,7 +126,9 @@ def compare_regions(period: str | None = None, metric: str = "kredi", top_n: int
     """Rank provinces for one quarter, optionally with growth against an
     earlier quarter.
 
-    metric: "kredi" (total cash loans) or "npl" (non-performing ratio).
+    metric: any name in the regional table - "kredi", "npl", "mevduat",
+    "konut_kredisi", "kisi_basi_kredi", "sube_sayisi" and ~30 more. An
+    unknown name comes back with the full list rather than a bare error.
     period / compare_to_period: "YYYY-Q" with Q in 3/6/9/12; period
     defaults to the true latest quarter.
     order: "desc" (largest first) or "asc".
@@ -125,9 +141,12 @@ def compare_regions(period: str | None = None, metric: str = "kredi", top_n: int
         f"order={order!r}, compare_to_period={compare_to_period!r}, include_non_provinces={include_non_provinces}"
     )
 
-    if metric not in METRICS:
+    known = {row["metric"]: row for row in available_metrics()}
+    if metric not in known:
         logger.error(f"compare_regions: unknown metric {metric!r}")
-        raise ValueError(f"Unknown metric {metric!r}. Use one of: {sorted(METRICS)}")
+        raise ValueError(
+            f"Unknown metric {metric!r}. Available: {sorted(known)}"
+        )
     if order not in ("desc", "asc"):
         logger.error(f"compare_regions: unknown order {order!r}")
         raise ValueError("order must be 'desc' or 'asc'.")
@@ -140,8 +159,12 @@ def compare_regions(period: str | None = None, metric: str = "kredi", top_n: int
     if effective_top_n != top_n:
         logger.warning(f"compare_regions: top_n {top_n} capped to {MAX_TOP_N}")
 
-    spec = METRICS[metric]
-    column = spec["column"]
+    spec = known[metric]
+    # Whether summing across provinces means anything. A "share of the
+    # national NPL ratio" would be a number with no interpretation, so
+    # shares and totals are reported only for additive metrics.
+    additive = spec["toplanabilir"]
+    logger.debug(f"compare_regions: metric={metric!r} birim={spec['birim']!r} additive={additive}")
 
     periods = available_periods()
     target = _resolve_period(period, periods)
@@ -153,7 +176,8 @@ def compare_regions(period: str | None = None, metric: str = "kredi", top_n: int
     con = _db()
     try:
         rows = con.execute(
-            f'SELECT Bolge, "{column}" FROM "{REGIONAL_TABLE}" WHERE Period = ?', [target]
+            f'SELECT Bolge, Deger FROM "{REGIONAL_TABLE}" WHERE Period = ? AND Metrik = ?',
+            [target, metric],
         ).fetchall()
         logger.info(f"compare_regions: {len(rows)} row(s) for {target!r}")
 
@@ -161,7 +185,8 @@ def compare_regions(period: str | None = None, metric: str = "kredi", top_n: int
         if baseline is not None:
             baseline_values = {
                 bolge: value for bolge, value in con.execute(
-                    f'SELECT Bolge, "{column}" FROM "{REGIONAL_TABLE}" WHERE Period = ?', [baseline]
+                    f'SELECT Bolge, Deger FROM "{REGIONAL_TABLE}" WHERE Period = ? AND Metrik = ?',
+                    [baseline, metric],
                 ).fetchall()
             }
             logger.info(f"compare_regions: {len(baseline_values)} baseline row(s) for {baseline!r}")
@@ -170,7 +195,7 @@ def compare_regions(period: str | None = None, metric: str = "kredi", top_n: int
 
     if not rows:
         logger.error(f"compare_regions: no rows for period {target!r}")
-        raise ValueError(f"No regional rows for period {target!r}.")
+        raise ValueError(f"No rows for metric {metric!r} in period {target!r}.")
 
     provinces = [(b, v) for b, v in rows if b not in NON_PROVINCE_LABELS and v is not None]
     non_provinces = [
@@ -192,7 +217,7 @@ def compare_regions(period: str | None = None, metric: str = "kredi", top_n: int
         entry = {"rank": rank, "bolge": bolge, "value": float(value)}
         # A share of a ratio is meaningless, so it is only reported for
         # additive metrics.
-        if metric == "kredi" and total:
+        if additive and total:
             entry["share_pct"] = round(value / total * 100, 2)
         if baseline is not None:
             previous = baseline_values.get(bolge)
@@ -209,8 +234,8 @@ def compare_regions(period: str | None = None, metric: str = "kredi", top_n: int
     result = {
         "period": target,
         "metric": metric,
-        "metric_label": spec["label"],
-        "birim": spec["unit"],
+        "birim": spec["birim"],
+        "toplanabilir": additive,
         "order": order,
         "province_count": len(provinces),
         "ranked": results,
@@ -223,7 +248,7 @@ def compare_regions(period: str | None = None, metric: str = "kredi", top_n: int
             else "Sıralama yalnızca gerçek illeri içerir."
         ),
     }
-    if metric == "kredi":
+    if additive:
         result["total_value"] = float(total)
     if baseline is not None:
         result["compare_to_period"] = baseline

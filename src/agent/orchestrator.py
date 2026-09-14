@@ -89,8 +89,12 @@ def _system_prompt() -> str:
         f"Tip=stock dönem sonu bakiye/oran, Tip=flow dönem içi akım. "
         f"'flow_quarter_ffill' içeren seri çeyrekliktir ve aylara taşınmıştır - "
         f"bu seriyi kullanırsan forward-fill olduğunu yanıtta belirt.\n"
-        f"İl bazlı kredi/takipteki alacak için gold_fact_long'u SORGULAMA - "
-        f"ulusaldır (Bolge=TR), il kırılımı yoktur. compare_regions tool'unu kullan.\n"
+        f"İl bazlı hiçbir soru için gold_fact_long'u SORGULAMA - ulusaldır "
+        f"(Bolge=TR), il kırılımı yoktur. compare_regions tool'unu kullan; "
+        f"81 il için ~35 metrik var (kredi, npl, mevduat, konut_kredisi, "
+        f"tasit_kredisi, kredi_karti, takip_konut_kredisi, kisi_basi_kredi, "
+        f"sube_sayisi, kredi_mevduat_orani, sektörel takip oranları). "
+        f"Bilinmeyen metrik adı tam listeyi geri döndürür.\n"
         f"{catalog}"
     )
     logger.info(f"_system_prompt: built with catalog, {len(prompt)} chars (~{len(prompt) // 4} tokens)")
