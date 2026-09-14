@@ -142,12 +142,20 @@ def _searxng_search(query: str, max_results: int) -> list[dict[str, str]]:
     """Query a self-hosted SearXNG instance's JSON API.
 
     Confirmed live against a local instance rather than assumed from docs:
-    results carry {url, title, content, engine, engines, score, ...}. The
-    JSON format must be enabled in the instance's settings.yml
-    (search.formats: [html, json]) - it is OFF by default, and an instance
-    that has not enabled it answers with 403 rather than JSON, which is
-    reported as SearchProviderUnavailable below so the model does not
-    mistake a misconfigured instance for a zero-result query.
+    results carry {url, title, content, engine, engines, score, ...}, and
+    the response also carries `unresponsive_engines` - e.g.
+    [["duckduckgo", "CAPTCHA"]] was observed live, and results still came
+    back from the engines that WERE reachable. That partial-degradation
+    behaviour is the whole reason this replaced direct DuckDuckGo scraping:
+    one blocked backend engine does not take search down.
+
+    Every failure mode below was reproduced against a real instance rather
+    than guessed, because a jury poking at the demo is exactly the
+    condition under which an unguarded one surfaces: stopping the
+    container mid-session, a slow response, a malformed backend reply.
+    All of them raise SearchProviderUnavailable, which web_search() turns
+    into a clean "do not retry" signal instead of either a crash or a
+    false "no results" that invites a rephrase-and-retry loop.
     """
     try:
         response = requests.get(
@@ -156,17 +164,40 @@ def _searxng_search(query: str, max_results: int) -> list[dict[str, str]]:
             headers={"User-Agent": "KKB-Agentic-Research/1.0 (+web search)"},
             timeout=_TIMEOUT_SECONDS,
         )
-    except requests.ConnectionError as exc:
-        # The most common failure in practice: the container is not running.
-        # A connection error is not "no results", so it must not read as one.
+    except requests.Timeout as exc:
         raise SearchProviderUnavailable(
-            f"Could not reach the SearXNG instance at {SEARXNG_BASE_URL}: {exc}"
+            f"SearXNG did not respond within {_TIMEOUT_SECONDS}s."
+        ) from exc
+    except requests.ConnectionError as exc:
+        # The most common failure in practice: the container is not
+        # running. The underlying OS socket error (a raw
+        # ConnectionAbortedError with a Windows error code, in testing) is
+        # deliberately NOT included in the MESSAGE - it is internal
+        # plumbing detail that adds nothing a model or a person reading
+        # the trace can act on, only noise. `from exc` still keeps it in
+        # the real traceback/logs for debugging.
+        raise SearchProviderUnavailable(
+            f"Could not reach the SearXNG instance at {SEARXNG_BASE_URL} "
+            f"(connection refused/reset) - is the container running? "
+            f"`docker compose -f docker-compose.searxng.yml up -d`"
         ) from exc
 
     if response.status_code == 403:
         raise SearchProviderUnavailable(
             "SearXNG instance rejected the JSON request (HTTP 403) - "
             "search.formats in its settings.yml likely does not include 'json'."
+        )
+    if response.status_code == 429:
+        raise SearchProviderUnavailable(
+            "SearXNG instance is rate-limiting requests (HTTP 429)."
+        )
+    if response.status_code >= 500:
+        # A 5xx is the instance itself failing (e.g. its Redis/Valkey cache
+        # backend down) - not a code bug on our side and not "no results",
+        # so it gets the same clean signal as every other unavailable case
+        # rather than a raw HTTPError bubbling up as a generic tool error.
+        raise SearchProviderUnavailable(
+            f"SearXNG instance returned a server error (HTTP {response.status_code})."
         )
     response.raise_for_status()
 
@@ -175,23 +206,44 @@ def _searxng_search(query: str, max_results: int) -> list[dict[str, str]]:
     except ValueError as exc:
         raise SearchProviderUnavailable(f"SearXNG response was not valid JSON: {exc}") from exc
 
-    results = []
-    for item in payload.get("results", []):
+    raw_results = payload.get("results")
+    if not isinstance(raw_results, list):
+        # A backend response shape change (SearXNG upgrade, a proxy
+        # rewriting the body) must not crash the whole agent turn on a
+        # .get() call against something that turned out not to be a dict.
+        logger.warning(f"_searxng_search: 'results' was {type(raw_results).__name__}, not a list; treating as empty")
+        raw_results = []
+
+    results: list[dict[str, str]] = []
+    seen_urls: set[str] = set()
+    for item in raw_results:
+        if not isinstance(item, dict):
+            logger.warning(f"_searxng_search: skipping non-dict result entry: {item!r}")
+            continue
         url = str(item.get("url", ""))
-        if not _is_http_url(url):
+        if not _is_http_url(url) or url in seen_urls:
             continue
         results.append({
             "title": _compact_text(str(item.get("title", "")), _MAX_TITLE_LENGTH),
             "url": url,
             "snippet": _compact_text(str(item.get("content", "")), _MAX_SNIPPET_LENGTH),
             "source": urlparse(url).netloc,
-            # Which backend engine(s) actually answered - useful for a
-            # human debugging "why did this result stop coming back"
-            # without needing to check the SearXNG container's own logs.
+            # Which backend engine actually answered - useful for a human
+            # debugging "why did this result stop coming back" without
+            # needing to check the SearXNG container's own logs.
             "engine": str(item.get("engine", "")),
         })
+        seen_urls.add(url)
         if len(results) == max_results:
             break
+
+    unresponsive = payload.get("unresponsive_engines")
+    if unresponsive:
+        # Informational, not fatal: SearXNG still answered from whatever
+        # engines WERE reachable. Logged so a degraded-but-working state
+        # is visible without digging through the container's own logs.
+        logger.info(f"_searxng_search: {len(unresponsive)} engine(s) unresponsive: {unresponsive}")
+
     return results
 
 
