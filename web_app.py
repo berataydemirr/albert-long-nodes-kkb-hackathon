@@ -1,7 +1,11 @@
 """Local browser UI for exercising routing and function calling."""
 
+import json
+from queue import Queue
+from threading import Thread
+
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -102,3 +106,66 @@ def answer_question(request: AskRequest) -> dict:
         }
     except Exception as exc:
         raise HTTPException(status_code=502, detail="Agent yanıt üretemedi. Sunucu günlüklerini kontrol edin.") from exc
+
+
+@app.post("/api/ask/stream")
+def answer_question_stream(request: AskRequest) -> StreamingResponse:
+    """Stream real orchestration events as newline-delimited JSON.
+
+    Model providers do not expose intermediate tool decisions here, so the
+    orchestrator emits events immediately before/after every real model and
+    tool call. The final event carries the same payload as ``/api/ask``.
+    """
+    question = request.question.strip()
+    if not question:
+        raise HTTPException(status_code=422, detail="Soru boş olamaz.")
+
+    events: Queue = Queue()
+    done = object()
+
+    def publish(event: dict) -> None:
+        events.put(event)
+
+    def run_agent() -> None:
+        try:
+            decision = route_question(question, TOOL_SCHEMAS)
+            answer, trace, timing = ask(
+                question,
+                return_trace=True,
+                return_timing=True,
+                progress_callback=publish,
+            )
+            events.put({
+                "event": "result",
+                "answer": answer,
+                "timing": timing,
+                "route": {
+                    "name": decision.route.value,
+                    "reason": decision.reason,
+                    "available": decision.available,
+                    "allowed_tools": list(decision.allowed_tool_names),
+                },
+                "trace": trace,
+            })
+        except Exception:
+            events.put({
+                "event": "error",
+                "detail": "Agent yanıt üretemedi. Sunucu günlüklerini kontrol edin.",
+            })
+        finally:
+            events.put(done)
+
+    Thread(target=run_agent, daemon=True).start()
+
+    def generate():
+        while True:
+            item = events.get()
+            if item is done:
+                break
+            yield json.dumps(item, ensure_ascii=False, default=str) + "\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

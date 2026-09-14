@@ -54,15 +54,9 @@ def test_router_prompt_matrix(prompt, expected):
     decision = route_question(prompt, ALL_SCHEMAS)
 
     assert decision.route is expected
-    if expected is Route.LOCAL_ANALYTICS:
+    if expected is not Route.REFUSE:
         assert decision.available is True
-        assert decision.allowed_tool_names == tuple(schema["function"]["name"] for schema in ALL_SCHEMAS)
-    elif expected is Route.WEB_SEARCH:
-        assert decision.available is True
-        assert decision.allowed_tool_names == tuple(schema["function"]["name"] for schema in ALL_SCHEMAS)
-    elif expected is Route.WEB_URL:
-        assert decision.available is True
-        assert decision.allowed_tool_names == tuple(schema["function"]["name"] for schema in ALL_SCHEMAS)
+        assert decision.allowed_tool_names
     else:
         assert decision.available is (expected is Route.REFUSE)
         assert decision.allowed_tool_names == ()
@@ -78,4 +72,26 @@ def test_url_has_priority_over_web_search_words():
 
     assert decision.route is Route.WEB_URL
     assert decision.available is True
-    assert decision.allowed_tool_names == tuple(schema["function"]["name"] for schema in schemas)
+    assert decision.allowed_tool_names == ("web_search", "web_url_extract")
+
+
+@pytest.mark.parametrize(
+    ("prompt", "expected_tools"),
+    [
+        ("Lakehouse'daki tabloları ve mevcut serileri listele.", ("lakehouse_schema",)),
+        ("2021-2026 arasında konut kredisi faizi nasıl değişti?", ("lakehouse_schema", "lakehouse_query")),
+        ("Konut kredisi faiz oranındaki aykırı dönemleri bul.", ("lakehouse_schema", "lakehouse_query", "anomaly_analysis")),
+        ("Faizdeki en büyük aylık değişimleri bul.", ("lakehouse_schema", "lakehouse_query", "change_detection")),
+        ("Faiz ile kredi hacmi arasında korelasyon var mı?", ("lakehouse_schema", "lakehouse_query", "correlation_analysis")),
+        ("Faiz kredi hacmini Granger anlamında öngörüyor mu?", ("lakehouse_schema", "lakehouse_query", "causality_analysis")),
+        ("Faiz %20 ile %25 arasındayken kredi hacmi nasıl değişti?", ("lakehouse_schema", "lakehouse_query", "threshold_filter_compare")),
+        ("Bugünkü politika faizi nedir?", ("web_search", "web_url_extract")),
+        ("https://example.org/rapor.pdf içindeki tabloyu çıkar.", ("web_url_extract",)),
+        (
+            "Güncel politika faizini web'de bul ve yerel konut kredisi serisiyle kıyasla.",
+            ("lakehouse_schema", "lakehouse_query", "web_search", "web_url_extract"),
+        ),
+    ],
+)
+def test_router_selects_only_roadmap_capabilities(prompt, expected_tools):
+    assert route_question(prompt, ALL_SCHEMAS).allowed_tool_names == expected_tools

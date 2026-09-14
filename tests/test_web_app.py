@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+import json
 
 import web_app
 
@@ -69,3 +70,24 @@ def test_ask_endpoint_rejects_blank_questions():
     response = TestClient(web_app.app).post("/api/ask", json={"question": "   "})
 
     assert response.status_code == 422
+
+
+def test_stream_endpoint_emits_real_progress_and_result(monkeypatch):
+    def fake_ask(question, return_trace, return_timing, progress_callback):
+        progress_callback({"event": "route", "route": "local_analytics", "reason": "C4", "allowed_tools": ["anomaly_analysis"]})
+        progress_callback({"event": "llm_start", "round": 1, "label": "Model düşünüyor · tur 1"})
+        progress_callback({"event": "llm_end", "round": 1, "duration_ms": 10.0})
+        progress_callback({"event": "tool_start", "round": 1, "name": "anomaly_analysis"})
+        progress_callback({"event": "tool_end", "round": 1, "name": "anomaly_analysis", "duration_ms": 2.0, "error": None})
+        progress_callback({"event": "final", "round": 2})
+        return "tamam", [], {"timeline": [], "summary": {"total_ms": 12.0}}
+
+    monkeypatch.setattr(web_app, "ask", fake_ask)
+    response = TestClient(web_app.app).post("/api/ask/stream", json={"question": "aykırı değerleri bul"})
+
+    assert response.status_code == 200
+    events = [json.loads(line) for line in response.text.splitlines()]
+    assert [event["event"] for event in events] == [
+        "route", "llm_start", "llm_end", "tool_start", "tool_end", "final", "result"
+    ]
+    assert events[-1]["answer"] == "tamam"

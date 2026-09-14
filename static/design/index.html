@@ -276,17 +276,6 @@ const EXAMPLES = [
   "TCMB'nin güncel politika faizini web'de ara."
 ];
 
-// Progress narration. Each stage holds until the next one's `at` (ms) passes;
-// the last stage stays active until the response lands.
-const STAGES = [
-  { at: 0,     label: 'Thinking' },
-  { at: 1100,  label: 'Routing the request' },
-  { at: 2600,  label: 'Calling web tools' },
-  { at: 5200,  label: 'Querying the lakehouse' },
-  { at: 8200,  label: 'Organizing results' },
-  { at: 11500, label: 'Wrapping up' }
-];
-
 const DEMO_TRACE = [
   { name: 'web_search', round: 1, duration_ms: 1840, start_ms: 620,
     arguments: '{"query":"TCMB politika faizi güncel","max_results":5}',
@@ -445,7 +434,8 @@ class Component extends DCLogic {
     messages: [], nextId: 1,
     drawer: null,              // {kind:'trace', id} | {kind:'registry'}
     openCalls: {},             // `${msgId}:${idx}` -> true
-    tools: [], live: false, focused: false
+    tools: [], live: false, focused: false,
+    liveStages: []
   };
 
   componentDidMount() {
@@ -482,7 +472,7 @@ class Component extends DCLogic {
   openRegistry = () => this.setState({ drawer: { kind: 'registry' } });
   openTrace = (id) => this.setState({ drawer: { kind: 'trace', id } });
   closeDrawer = () => this.setState({ drawer: null });
-  resetChat = () => { this.stopClock(); this.setState({ messages: [], thinking: false, drawer: null, input: '', openCalls: {} }); };
+  resetChat = () => { this.stopClock(); this.setState({ messages: [], thinking: false, drawer: null, input: '', openCalls: {}, liveStages: [] }); };
   toggleCall = (k) => this.setState(s => ({ openCalls: { ...s.openCalls, [k]: !s.openCalls[k] } }));
 
   pushAssistant(payload) {
@@ -493,48 +483,84 @@ class Component extends DCLogic {
     }), this.scrollEnd);
   }
 
-  send = (override) => {
+  recordProgress = (ev) => {
+    const now = Date.now();
+    this.setState(s => {
+      let stages = s.liveStages.map(st => ({ ...st }));
+      if (ev.event === 'route') {
+        stages.push({ key: 'route', label: `Route · ${ev.route}`, done: true, durationMs: 0 });
+      } else if (ev.event === 'llm_start') {
+        stages.push({ key: `llm:${ev.round}`, label: ev.label || `Model · round ${ev.round}`, done: false, startedAt: now });
+      } else if (ev.event === 'llm_end') {
+        stages = stages.map(st => st.key === `llm:${ev.round}` ? { ...st, done: true, durationMs: ev.duration_ms } : st);
+      } else if (ev.event === 'tool_start') {
+        stages.push({ key: `tool:${ev.round}:${ev.name}:${stages.length}`, label: `Tool · ${ev.name}`, done: false, startedAt: now, tool: ev.name, round: ev.round });
+      } else if (ev.event === 'tool_end') {
+        const idx = stages.findIndex(st => !st.done && st.tool === ev.name && st.round === ev.round);
+        if (idx >= 0) stages[idx] = { ...stages[idx], done: true, durationMs: ev.duration_ms, error: ev.error };
+      } else if (ev.event === 'final') {
+        stages.push({ key: `final:${ev.round}`, label: 'Final answer received', done: true, durationMs: 0 });
+      }
+      return { liveStages: stages };
+    }, this.scrollEnd);
+  };
+
+  send = async (override) => {
     const text = (override !== undefined ? override : this.state.input).trim();
     if (!text || this.state.thinking) return;
     this.setState(s => ({
       messages: [...s.messages, { id: s.nextId, role: 'user', text }],
-      input: '', thinking: true, elapsed: 0, nextId: s.nextId + 1
+      input: '', thinking: true, elapsed: 0, nextId: s.nextId + 1, liveStages: []
     }), this.scrollEnd);
     this.startClock();
 
-    fetch('/api/ask', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question: text })
-    })
-      .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail || 'İstek başarısız oldu.'); return d; })
-      .then(data => {
-        this.pushAssistant({
-          routeName: data.route ? data.route.name : 'agent',
-          routeReason: data.route ? data.route.reason : '',
-          blocks: mdToBlocks(data.answer),
-          trace: (data.trace || []).map(tc => ({
-            name: tc.name, round: tc.round, durationMs: tc.duration_ms || 0,
-            args: prettyJson(tc.arguments),
-            result: tc.error ? `hata: ${tc.error}` : prettyJson(tc.output_preview),
-            error: !!tc.error
-          })),
-          timing: data.timing || null
-        });
-      })
-      .catch(() => {
-        // No backend reachable (design preview): show the shape of a real run.
-        const wait = Math.max(0, 13800 - (Date.now() - this.t0));
-        setTimeout(() => this.pushAssistant({
-          routeName: 'analytics_web',
-          routeReason: 'Soru hem güncel web bilgisi hem yerel seri analizi gerektiriyor; tüm araçlar açıldı.',
-          blocks: mdToBlocks(DEMO_ANSWER),
-          trace: DEMO_TRACE.map(tc => ({
-            name: tc.name, round: tc.round, durationMs: tc.duration_ms,
-            args: prettyJson(tc.arguments), result: prettyJson(tc.output_preview), error: false
-          })),
-          timing: DEMO_TIMING
-        }), wait);
+    try {
+      const r = await fetch('/api/ask/stream', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: text })
       });
+      if (!r.ok || !r.body) {
+        let detail = 'İstek başarısız oldu.';
+        try { detail = (await r.json()).detail || detail; } catch (_) {}
+        throw new Error(detail);
+      }
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '', result = null;
+      while (true) {
+        const chunk = await reader.read();
+        buffer += decoder.decode(chunk.value || new Uint8Array(), { stream: !chunk.done });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const ev = JSON.parse(line);
+          if (ev.event === 'error') throw new Error(ev.detail || 'Agent yanıt üretemedi.');
+          if (ev.event === 'result') result = ev;
+          else this.recordProgress(ev);
+        }
+        if (chunk.done) break;
+      }
+      if (!result) throw new Error('Sunucu final yanıt göndermedi.');
+      this.pushAssistant({
+        routeName: result.route ? result.route.name : 'agent',
+        routeReason: result.route ? result.route.reason : '',
+        blocks: mdToBlocks(result.answer),
+        trace: (result.trace || []).map(tc => ({
+          name: tc.name, round: tc.round, durationMs: tc.duration_ms || 0,
+          args: prettyJson(tc.arguments),
+          result: tc.error ? `hata: ${tc.error}` : prettyJson(tc.output_preview),
+          error: !!tc.error
+        })),
+        timing: result.timing || null
+      });
+    } catch (err) {
+      this.pushAssistant({
+        routeName: 'error', routeReason: String(err.message || err),
+        blocks: mdToBlocks(`İstek tamamlanamadı: ${err.message || err}`),
+        trace: [], timing: null
+      });
+    }
   };
 
   renderVals() {
@@ -553,15 +579,11 @@ class Component extends DCLogic {
       };
     });
 
-    // Stage narration derived from elapsed time. stagePace scales the schedule.
-    const pace = Number(this.props.stagePace ?? 1) || 1;
-    let activeIdx = 0;
-    for (let i = 0; i < STAGES.length; i++) if (s.elapsed >= STAGES[i].at / pace) activeIdx = i;
-    const stages = STAGES.slice(0, activeIdx + 1).map((st, i) => ({
+    const stages = s.liveStages.map(st => ({
       label: st.label,
-      done: i < activeIdx,
-      active: i === activeIdx,
-      time: i < activeIdx ? fmtMs((STAGES[i + 1].at - st.at) / pace) : ''
+      done: !!st.done,
+      active: !st.done,
+      time: st.done && st.durationMs ? fmtMs(st.durationMs) : (st.error ? 'error' : '')
     }));
 
     const isRegistry = !!s.drawer && s.drawer.kind === 'registry';

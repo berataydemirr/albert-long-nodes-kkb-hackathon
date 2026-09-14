@@ -29,9 +29,10 @@ Router soruyu sınıflandırır:
 - `web_url`
 - `refuse`
 
-Güvenli isteklerde tüm kayıtlı tool'lar modele açılır. Böylece model birden
-fazla aracı zincirleyebilir. Tehlikeli SQL veya prompt-injection istekleri
-model çağrılmadan reddedilir.
+Router roadmap'teki C1–C6 niyetlerine göre yalnızca gerekli tool'ları açar.
+Karma bir istek birden fazla kabiliyet gerektiriyorsa bu dar setlerin birleşimi
+kullanılır. Tehlikeli SQL veya prompt-injection istekleri model çağrılmadan
+reddedilir.
 
 ## Agent loop
 
@@ -64,5 +65,7 @@ web_search
 → final cevap
 ```
 
-Browser UI route'u, çağrılan tool'u, argümanları, sonuç önizlemesini ve final
-cevabı gösterir.
+Browser UI `/api/ask/stream` üzerinden gerçek route, model turu ve tool
+başlangıç/bitiş olaylarını anlık gösterir. Tamamlandıktan sonra argümanları,
+sonuç önizlemesini, süreleri ve final cevabı gösterir; zamanlayıcıyla uydurma
+aşama üretmez.
