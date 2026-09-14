@@ -18,6 +18,12 @@ cp .env.example .env
 Open <http://127.0.0.1:8000>. The browser page has a few ready-made prompts,
 shows the route chosen, and lists every function call with its arguments and a
 short result preview. The right panel can be hidden or reduced to calls only.
+The 🌙/☀️ button in the header switches theme; it also follows the OS setting
+automatically when you have not chosen one, and remembers an explicit choice
+across reloads. Dark mode is its own validated palette, not an inverted light
+one — the light accent measured 2.0–2.15:1 against the dark surface (a hard
+fail as text), so dark mode gets its own accent (`#5b9bdc`, 6.4:1) rather than
+reusing the light one.
 
 You can also use the CLI:
 

@@ -89,3 +89,24 @@ def test_page_uses_the_bogazici_palette_and_typeface():
     # The old dark/amber theme must be fully gone, not merely overridden.
     assert "#e0aa4a" not in response.text
     assert "#0a0a0b" not in response.text
+
+
+def test_page_has_a_dark_theme_token_block():
+    """Dark mode needs its own validated tokens, not an automatic invert of
+    the light ones - the light accent fails outright as dark-mode text
+    (contrast-checked at 2.0-2.15:1 against the dark surface)."""
+    response = TestClient(web_app.app).get("/")
+
+    assert 'data-theme="dark"' in response.text
+    assert "prefers-color-scheme: dark" in response.text
+    # The dark-mode accent must differ from the light one - reusing #1e4a8b
+    # as text/line colour on a dark surface is the specific mistake this
+    # guards against.
+    assert "#5b9bdc" in response.text
+
+
+def test_classic_page_also_has_a_dark_theme():
+    response = TestClient(web_app.app).get("/classic")
+
+    assert 'data-theme="dark"' in response.text
+    assert "#5b9bdc" in response.text

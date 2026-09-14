@@ -12,6 +12,31 @@
 <!-- Inline so the tab icon needs no extra request: a 297C diamond on a
      7686C ground, the two official colours. -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231e4a8b'/%3E%3Cpath d='M16 7l9 9-9 9-9-9z' fill='%238cc8ea'/%3E%3C/svg%3E">
+<script>
+// Applied before first paint so the page never flashes the wrong theme.
+// Plain, synchronous, outside the DC component tree on purpose - this
+// has to run before that framework has even loaded support.js.
+(function () {
+  try {
+    var saved = localStorage.getItem('kkb-theme');
+    if (saved === 'dark' || saved === 'light') {
+      document.documentElement.setAttribute('data-theme', saved);
+    }
+  } catch (e) {}
+})();
+</script>
+<script>
+// Applied before first paint so the page never flashes the wrong theme.
+// Plain, synchronous - has to run before support.js's own framework loads.
+(function () {
+  try {
+    var saved = localStorage.getItem('kkb-theme');
+    if (saved === 'dark' || saved === 'light') {
+      document.documentElement.setAttribute('data-theme', saved);
+    }
+  } catch (e) {}
+})();
+</script>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -21,24 +46,131 @@
 /* Bogazici University colours: PANTONE 7686C #1e4a8b, 297C #8cc8ea.
    The typeface stays Sora/Space Mono rather than the guide's Helvetica:
    on a white ground Helvetica read as an unstyled default, and the pair
-   below carries the page without fighting the palette. */
-html, body { margin: 0; background: #ffffff; }
+   below carries the page without fighting the palette.
+
+   Theme tokens, three states (system/explicit-light/explicit-dark):
+   bare :root is the light palette every other block redefines from.
+   @media(dark) is guarded by :not([data-theme="light"]) so an explicit
+   light choice always wins over a dark OS setting; [data-theme="dark"]
+   redefines the same tokens again so the in-page toggle wins in both
+   directions. Every dark value was contrast-checked against its surface
+   (#0a1220), not eyeballed - see the numbers in each block below. The
+   light accent (#1e4a8b, 8.72:1 on white) fails outright as dark-mode
+   text/lines at only 2.0-2.15:1, so dark mode gets its OWN accent
+   (#5b9bdc) rather than reusing the light one - "its own steps from the
+   same ramps," not an automatic invert. */
+:root {
+  --bg: #ffffff;
+  --bg-grad: #eaf1f9;
+  --surface: #ffffff;
+  --surface-2: #f8fbfd;
+  --surface-3: #f4f8fc;
+  --surface-rgb: 255,255,255;
+  --ink: #0f2542;
+  --ink-2: #1c3553;
+  --text-2: #3d5877;
+  --muted: #5f7b9b;
+  --dim: #7790ab;
+  --faint: #94a9c0;
+  --faintest: #aec0d2;
+  --separator: #c2d2e1;
+  --accent: #1e4a8b;
+  --accent-hover: #15386b;
+  --accent-deep: #12315e;
+  --accent-2: #8cc8ea;
+  --accent-rgb: 30,74,139;
+  --accent2-rgb: 140,200,234;
+  --on-accent: #ffffff;
+  --shadow-rgb: 15,37,66;
+  --web-marker-rgb: 74,143,192;
+  --error: #b42318;
+  --error-rgb: 180,35,24;
+  --user-bubble: #eef4fa;
+}
+/* Dark values, both blocks identical - measured against surface #0a1220:
+   ink 16.5:1, ink-2 13.2:1, text-2 9.8:1, muted 7.2:1, dim 6.3:1,
+   faint 4.1:1 (chrome/placeholder scale, not body text), accent 6.4:1,
+   accent-2 10.3:1, error 6.7:1. --on-accent flips to a dark ink because
+   white-on-accent drops to 1.8-2.9:1 once accent itself is the lighter
+   #5b9bdc/#8cc8ea pair (dark ink on those two: 6.4:1 / 10.3:1). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0a1220;
+    --bg-grad: #10192b;
+    --surface: #111b2f;
+    --surface-2: #16223a;
+    --surface-3: #0d1526;
+    --surface-rgb: 17,27,47;
+    --ink: #eaf1f9;
+    --ink-2: #cddaeb;
+    --text-2: #a9bdd6;
+    --muted: #8ba3c2;
+    --dim: #7f97b8;
+    --faint: #5f7896;
+    --faintest: #435878;
+    --separator: #4a6485;
+    --accent: #5b9bdc;
+    --accent-hover: #7db4e8;
+    --accent-deep: #2c5f9e;
+    --accent-2: #8cc8ea;
+    --accent-rgb: 91,155,220;
+    --accent2-rgb: 140,200,234;
+    --on-accent: #0a1220;
+    --shadow-rgb: 0,0,0;
+    --web-marker-rgb: 122,178,224;
+    --error: #ff6b57;
+    --error-rgb: 255,107,87;
+    --user-bubble: #16223a;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0a1220;
+  --bg-grad: #10192b;
+  --surface: #111b2f;
+  --surface-2: #16223a;
+  --surface-3: #0d1526;
+  --surface-rgb: 17,27,47;
+  --ink: #eaf1f9;
+  --ink-2: #cddaeb;
+  --text-2: #a9bdd6;
+  --muted: #8ba3c2;
+  --dim: #7f97b8;
+  --faint: #5f7896;
+  --faintest: #435878;
+  --separator: #4a6485;
+  --accent: #5b9bdc;
+  --accent-hover: #7db4e8;
+  --accent-deep: #2c5f9e;
+  --accent-2: #8cc8ea;
+  --accent-rgb: 91,155,220;
+  --accent2-rgb: 140,200,234;
+  --on-accent: #0a1220;
+  --shadow-rgb: 0,0,0;
+  --web-marker-rgb: 122,178,224;
+  --error: #ff6b57;
+  --error-rgb: 255,107,87;
+  --user-bubble: #16223a;
+}
+html, body { margin: 0; background: var(--bg); }
+:root { color-scheme: light dark; }
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 * { box-sizing: border-box; }
-a { color: #1e4a8b; text-decoration: none; border-bottom: 1px solid rgba(30,74,139,.30); }
-a:hover { color: #15386b; border-bottom-color: #15386b; }
-::selection { background: rgba(140,200,234,.38); }
+a { color: var(--accent); text-decoration: none; border-bottom: 1px solid rgba(var(--accent-rgb),.30); }
+a:hover { color: var(--accent-hover); border-bottom-color: var(--accent-hover); }
+::selection { background: rgba(var(--accent2-rgb),.38); }
 textarea, button, input { font-family: inherit; }
-textarea::placeholder { color: #94a9c0; }
+textarea::placeholder { color: var(--faint); }
 /* Tabular figures stop timing readouts from shifting sideways as they
    tick up during a run. */
 pre, .num { font-variant-numeric: tabular-nums; }
 /* Keyboard focus had no visible state at all. :focus-visible keeps the
    ring off mouse clicks, where it reads as a stuck selection. */
-:focus-visible { outline: 2px solid #1e4a8b; outline-offset: 2px; border-radius: 6px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 textarea:focus-visible { outline: none; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: rgba(30,74,139,.18); border-radius: 8px; border: 3px solid #ffffff; }
-::-webkit-scrollbar-thumb:hover { background: rgba(30,74,139,.30); }
+::-webkit-scrollbar-thumb { background: rgba(var(--accent-rgb),.18); border-radius: 8px; border: 3px solid var(--bg); }
+::-webkit-scrollbar-thumb:hover { background: rgba(var(--accent-rgb),.30); }
 ::-webkit-scrollbar-track { background: transparent; }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
@@ -53,19 +185,20 @@ textarea:focus-visible { outline: none; }
 @keyframes spin { to { transform: rotate(360deg) } }
 </style>
 </helmet>
-<div style="min-height:100vh; display:flex; flex-direction:column; background:radial-gradient(1100px 520px at 50% -220px, #eaf1f9, #ffffff 70%); color:#0f2542; font-family:'Sora',system-ui,sans-serif; font-weight:400; letter-spacing:-.005em;">
+<div style="min-height:100vh; display:flex; flex-direction:column; background:radial-gradient(1100px 520px at 50% -220px, var(--bg-grad), var(--bg) 70%); color:var(--ink); font-family:'Sora',system-ui,sans-serif; font-weight:400; letter-spacing:-.005em;">
 
-  <header style="position:sticky; top:0; z-index:8; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:0 22px; height:58px; border-bottom:1px solid rgba(30,74,139,.13); background:rgba(255,255,255,.86); backdrop-filter:blur(14px); box-shadow:0 1px 3px rgba(15,37,66,.04);">
+  <header style="position:sticky; top:0; z-index:8; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:0 22px; height:58px; border-bottom:1px solid rgba(var(--accent-rgb),.13); background:rgba(var(--surface-rgb),.86); backdrop-filter:blur(14px); box-shadow:0 1px 3px rgba(var(--shadow-rgb),.04);">
     <div style="display:flex; align-items:center; gap:10px;">
-      <svg width="18" height="18" viewBox="0 0 32 32" style="flex:none; display:block;" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#1e4a8b"></rect><path d="M16 7l9 9-9 9-9-9z" fill="#8cc8ea"></path></svg>
+      <svg width="18" height="18" viewBox="0 0 32 32" style="flex:none; display:block;" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--accent)"></rect><path d="M16 7l9 9-9 9-9-9z" fill="var(--accent-2)"></path></svg>
       <span style="font-size:14px; font-weight:500; letter-spacing:-.01em;">KKB Agent</span>
-      <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:#5f7b9b; border:1px solid rgba(30,74,139,.18); border-radius:4px; padding:3px 7px;">{{ modeLabel }}</span>
+      <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); border:1px solid rgba(var(--accent-rgb),.18); border-radius:4px; padding:3px 7px;">{{ modeLabel }}</span>
     </div>
     <div style="display:flex; align-items:center; gap:8px;">
-      <button onClick="{{ openRegistry }}" style="display:flex; align-items:center; gap:7px; background:rgba(30,74,139,.05); border:1px solid rgba(30,74,139,.16); color:#3d5877; border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; transition:all .18s ease;" style-hover="background:rgba(30,74,139,.15); border-color:rgba(30,74,139,.32); color:#0f2542;">
-        <span style="font-family:'Space Mono',monospace; color:#1e4a8b;">{{ toolCount }}</span> tools
+      <button onClick="{{ openRegistry }}" style="display:flex; align-items:center; gap:7px; background:rgba(var(--accent-rgb),.05); border:1px solid rgba(var(--accent-rgb),.16); color:var(--text-2); border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; transition:all .18s ease;" style-hover="background:rgba(var(--accent-rgb),.15); border-color:rgba(var(--accent-rgb),.32); color:var(--ink);">
+        <span style="font-family:'Space Mono',monospace; color:var(--accent);">{{ toolCount }}</span> tools
       </button>
-      <button onClick="{{ resetChat }}" style="background:none; border:1px solid rgba(30,74,139,.16); color:#5f7b9b; border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; transition:all .18s ease;" style-hover="color:#0f2542; border-color:rgba(30,74,139,.32);">New chat</button>
+      <button onClick="{{ resetChat }}" style="background:none; border:1px solid rgba(var(--accent-rgb),.16); color:var(--muted); border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; transition:all .18s ease;" style-hover="color:var(--ink); border-color:rgba(var(--accent-rgb),.32);">New chat</button>
+      <button onClick="{{ toggleTheme }}" aria-label="Koyu/açık temayı değiştir" title="Koyu/açık tema" style="width:34px; height:34px; flex:none; border-radius:8px; background:none; border:1px solid rgba(var(--accent-rgb),.16); color:var(--muted); cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; transition:all .18s ease;" style-hover="color:var(--ink); border-color:rgba(var(--accent-rgb),.32);">{{ themeIcon }}</button>
     </div>
   </header>
 
@@ -75,14 +208,14 @@ textarea:focus-visible { outline: none; }
 
       <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ true }}">
         <div style="margin:auto 0; padding:40px 0 24px; animation:msg-in .5s ease both;">
-          <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:#1e4a8b; margin-bottom:12px;">BDDK · EVDS · TUIK</div>
-          <h1 style="margin:0 0 10px; font-size:34px; font-weight:500; letter-spacing:-.035em; line-height:1.12; color:#0f2542;">Lakehouse'a ne sormak istersin?</h1>
-          <p style="margin:0 0 26px; font-size:15px; line-height:1.6; color:#5f7b9b; max-width:52ch;">Model planı kurar, araçları Python çalıştırır. Her yanıtın altında çağrılan aracı, süresini ve dönen veriyi açabilirsin.</p>
+          <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); margin-bottom:12px;">BDDK · EVDS · TUIK</div>
+          <h1 style="margin:0 0 10px; font-size:34px; font-weight:500; letter-spacing:-.035em; line-height:1.12; color:var(--ink);">Lakehouse'a ne sormak istersin?</h1>
+          <p style="margin:0 0 26px; font-size:15px; line-height:1.6; color:var(--muted); max-width:52ch;">Model planı kurar, araçları Python çalıştırır. Her yanıtın altında çağrılan aracı, süresini ve dönen veriyi açabilirsin.</p>
 
           <div style="display:flex; flex-wrap:wrap; gap:8px;">
             <sc-for list="{{ examples }}" as="ex" hint-placeholder-count="4">
-              <button onClick="{{ ex.use }}" style="display:flex; align-items:center; gap:10px; text-align:left; background:#ffffff; border:1px solid rgba(30,74,139,.15); color:#3d5877; border-radius:10px; padding:10px 14px 10px 11px; font-size:13px; line-height:1.4; max-width:100%; cursor:pointer; box-shadow:0 1px 2px rgba(15,37,66,.05); transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease, color .2s ease;" style-hover="border-color:rgba(30,74,139,.34); color:#0f2542; transform:translateY(-1px); box-shadow:0 4px 12px rgba(15,37,66,.09);">
-                <span style="font-family:'Space Mono',monospace; font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:#1e4a8b; background:#eaf1f9; border-radius:4px; padding:3px 6px; flex:none;">{{ ex.tag }}</span>
+              <button onClick="{{ ex.use }}" style="display:flex; align-items:center; gap:10px; text-align:left; background:var(--surface); border:1px solid rgba(var(--accent-rgb),.15); color:var(--text-2); border-radius:10px; padding:10px 14px 10px 11px; font-size:13px; line-height:1.4; max-width:100%; cursor:pointer; box-shadow:0 1px 2px rgba(var(--shadow-rgb),.05); transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease, color .2s ease;" style-hover="border-color:rgba(var(--accent-rgb),.34); color:var(--ink); transform:translateY(-1px); box-shadow:0 4px 12px rgba(var(--shadow-rgb),.09);">
+                <span style="font-family:'Space Mono',monospace; font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); background:var(--bg-grad); border-radius:4px; padding:3px 6px; flex:none;">{{ ex.tag }}</span>
                 <span>{{ ex.label }}</span>
               </button>
             </sc-for>
@@ -92,26 +225,26 @@ textarea:focus-visible { outline: none; }
 
       <sc-for list="{{ messages }}" as="m" hint-placeholder-count="0">
         <sc-if value="{{ m.isUser }}" hint-placeholder-val="{{ true }}">
-          <div style="align-self:flex-end; max-width:78%; background:#eef4fa; border:1px solid rgba(30,74,139,.15); border-radius:16px 16px 5px 16px; box-shadow:0 1px 2px rgba(15,37,66,.05); padding:13px 17px; font-size:15px; font-weight:400; line-height:1.55; color:#0f2542; animation:msg-in .38s cubic-bezier(.22,1,.36,1) both;">{{ m.userText }}</div>
+          <div style="align-self:flex-end; max-width:78%; background:var(--user-bubble); border:1px solid rgba(var(--accent-rgb),.15); border-radius:16px 16px 5px 16px; box-shadow:0 1px 2px rgba(var(--shadow-rgb),.05); padding:13px 17px; font-size:15px; font-weight:400; line-height:1.55; color:var(--ink); animation:msg-in .38s cubic-bezier(.22,1,.36,1) both;">{{ m.userText }}</div>
         </sc-if>
         <sc-if value="{{ m.isAssistant }}" hint-placeholder-val="{{ false }}">
           <div style="align-self:stretch; animation:msg-in .45s cubic-bezier(.22,1,.36,1) both;">
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
-              <span style="width:20px; height:20px; border-radius:50%; background:radial-gradient(circle at 34% 30%, #8cc8ea, #1e4a8b 58%, #12315e);"></span>
-              <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#5f7b9b;">{{ m.routeName }}</span>
-              <span style="width:3px; height:3px; border-radius:50%; background:#c2d2e1;"></span>
-              <span style="font-family:'Space Mono',monospace; font-size:11px; color:#7790ab;">{{ m.totalLabel }}</span>
+              <span style="width:20px; height:20px; border-radius:50%; background:radial-gradient(circle at 34% 30%, var(--accent-2), var(--accent) 58%, var(--accent-deep));"></span>
+              <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted);">{{ m.routeName }}</span>
+              <span style="width:3px; height:3px; border-radius:50%; background:var(--separator);"></span>
+              <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--dim);">{{ m.totalLabel }}</span>
             </div>
-            <div style="padding-left:30px; color:#1c3553; font-size:15px; line-height:1.7;">
+            <div style="padding-left:30px; color:var(--ink-2); font-size:15px; line-height:1.7;">
               <sc-for list="{{ m.blocks }}" as="blk" hint-placeholder-count="2">
                 <div>{{ blk }}</div>
               </sc-for>
               <sc-if value="{{ m.hasTools }}" hint-placeholder-val="{{ false }}">
-                <button onClick="{{ m.openTrace }}" style="position:relative; overflow:hidden; margin-top:12px; display:inline-flex; align-items:center; gap:10px; background:rgba(30,74,139,.04); border:1px solid rgba(30,74,139,.18); color:#3d5877; border-radius:999px; padding:8px 15px 8px 12px; font-size:12.5px; cursor:pointer; transition:all .2s ease;" style-hover="background:rgba(30,74,139,.06); border-color:rgba(30,74,139,.38); color:#0f2542;">
+                <button onClick="{{ m.openTrace }}" style="position:relative; overflow:hidden; margin-top:12px; display:inline-flex; align-items:center; gap:10px; background:rgba(var(--accent-rgb),.04); border:1px solid rgba(var(--accent-rgb),.18); color:var(--text-2); border-radius:999px; padding:8px 15px 8px 12px; font-size:12.5px; cursor:pointer; transition:all .2s ease;" style-hover="background:rgba(var(--accent-rgb),.06); border-color:rgba(var(--accent-rgb),.38); color:var(--ink);">
                   <span style="display:flex; gap:3px; align-items:center;">
-                    <span style="width:3px; height:11px; border-radius:2px; background:#1e4a8b;"></span>
-                    <span style="width:3px; height:7px; border-radius:2px; background:rgba(30,74,139,.45);"></span>
-                    <span style="width:3px; height:13px; border-radius:2px; background:rgba(30,74,139,.85);"></span>
+                    <span style="width:3px; height:11px; border-radius:2px; background:var(--accent);"></span>
+                    <span style="width:3px; height:7px; border-radius:2px; background:rgba(var(--accent-rgb),.45);"></span>
+                    <span style="width:3px; height:13px; border-radius:2px; background:rgba(var(--accent-rgb),.85);"></span>
                   </span>
                   {{ m.traceButtonLabel }}
                 </button>
@@ -124,24 +257,24 @@ textarea:focus-visible { outline: none; }
       <sc-if value="{{ thinking }}" hint-placeholder-val="{{ false }}">
         <div style="align-self:stretch; animation:msg-in .4s ease both;">
           <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-            <span style="position:relative; width:20px; height:20px; flex:none; border-radius:50%; background:radial-gradient(circle at 34% 30%, #8cc8ea, #1e4a8b 58%, #12315e); animation:orb-breathe 1.9s ease-in-out infinite;">
-              <i style="position:absolute; inset:-5px; border-radius:50%; border:1px solid rgba(30,74,139,.55); animation:orb-ring 1.9s ease-out infinite;"></i>
+            <span style="position:relative; width:20px; height:20px; flex:none; border-radius:50%; background:radial-gradient(circle at 34% 30%, var(--accent-2), var(--accent) 58%, var(--accent-deep)); animation:orb-breathe 1.9s ease-in-out infinite;">
+              <i style="position:absolute; inset:-5px; border-radius:50%; border:1px solid rgba(var(--accent-rgb),.55); animation:orb-ring 1.9s ease-out infinite;"></i>
             </span>
-            <span style="font-family:'Space Mono',monospace; font-size:11px; color:#7790ab;">{{ elapsedLabel }}</span>
+            <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--dim);">{{ elapsedLabel }}</span>
           </div>
           <div style="padding-left:30px; display:flex; flex-direction:column; gap:9px;">
             <sc-for list="{{ stages }}" as="st" hint-placeholder-count="2">
               <div style="display:flex; align-items:center; gap:11px; animation:stage-in .42s cubic-bezier(.22,1,.36,1) both;">
                 <sc-if value="{{ st.done }}" hint-placeholder-val="{{ true }}">
-                  <span style="width:14px; height:14px; flex:none; border-radius:50%; border:1px solid rgba(30,74,139,.40); display:flex; align-items:center; justify-content:center;">
-                    <span style="width:5px; height:5px; border-radius:50%; background:#1e4a8b;"></span>
+                  <span style="width:14px; height:14px; flex:none; border-radius:50%; border:1px solid rgba(var(--accent-rgb),.40); display:flex; align-items:center; justify-content:center;">
+                    <span style="width:5px; height:5px; border-radius:50%; background:var(--accent);"></span>
                   </span>
-                  <span style="font-size:13.5px; color:#7790ab;">{{ st.label }}</span>
-                  <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:#aec0d2;">{{ st.time }}</span>
+                  <span style="font-size:13.5px; color:var(--dim);">{{ st.label }}</span>
+                  <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:var(--faintest);">{{ st.time }}</span>
                 </sc-if>
                 <sc-if value="{{ st.active }}" hint-placeholder-val="{{ false }}">
-                  <span style="width:14px; height:14px; flex:none; border-radius:50%; border:1.5px solid rgba(140,200,234,.38); border-top-color:#1e4a8b; animation:spin .9s linear infinite;"></span>
-                  <span style="font-size:14px; font-weight:400; background:linear-gradient(100deg, #5f7b9b 20%, #8cc8ea 38%, #1e4a8b 50%, #5f7b9b 68%); background-size:250% 100%; -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; animation:shimmer 2.1s linear infinite;">{{ st.label }}</span>
+                  <span style="width:14px; height:14px; flex:none; border-radius:50%; border:1.5px solid rgba(var(--accent2-rgb),.38); border-top-color:var(--accent); animation:spin .9s linear infinite;"></span>
+                  <span style="font-size:14px; font-weight:400; background:linear-gradient(100deg, var(--muted) 20%, var(--accent-2) 38%, var(--accent) 50%, var(--muted) 68%); background-size:250% 100%; -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; animation:shimmer 2.1s linear infinite;">{{ st.label }}</span>
                 </sc-if>
               </div>
             </sc-for>
@@ -152,29 +285,29 @@ textarea:focus-visible { outline: none; }
       <div ref="{{ endRef }}" style="height:1px; flex:none;"></div>
     </div>
 
-    <div style="padding:10px 0 26px; position:sticky; bottom:0; background:linear-gradient(to top, #ffffff 42%, rgba(255,255,255,0)); flex:none;">
-      <div style="display:flex; align-items:flex-end; gap:10px; background:#ffffff; border:1px solid {{ composerBorder }}; border-radius:16px; padding:10px 10px 10px 16px; transition:border-color .25s ease, box-shadow .25s ease; box-shadow:{{ composerShadow }};">
-        <textarea rows="1" placeholder="Seriler, anomaliler veya güncel oranlar hakkında sor…" value="{{ input }}" onChange="{{ setInput }}" onKeyDown="{{ handleKeyDown }}" onFocus="{{ onFocus }}" onBlur="{{ onBlur }}" style="flex:1; background:none; border:0; outline:none; resize:none; color:#0f2542; font-size:15px; font-weight:400; line-height:1.6; min-height:26px; max-height:180px; padding:6px 0;"></textarea>
-        <button onClick="{{ send }}" disabled="{{ sendDisabled }}" style="flex:none; width:38px; height:38px; border-radius:11px; border:0; background:{{ sendBg }}; color:#ffffff; font-size:16px; cursor:{{ sendCursor }}; display:flex; align-items:center; justify-content:center; transition:all .2s ease;" style-hover="filter:brightness(1.08);">↑</button>
+    <div style="padding:10px 0 26px; position:sticky; bottom:0; background:linear-gradient(to top, var(--bg) 42%, transparent); flex:none;">
+      <div style="display:flex; align-items:flex-end; gap:10px; background:var(--surface); border:1px solid {{ composerBorder }}; border-radius:16px; padding:10px 10px 10px 16px; transition:border-color .25s ease, box-shadow .25s ease; box-shadow:{{ composerShadow }};">
+        <textarea rows="1" placeholder="Seriler, anomaliler veya güncel oranlar hakkında sor…" value="{{ input }}" onChange="{{ setInput }}" onKeyDown="{{ handleKeyDown }}" onFocus="{{ onFocus }}" onBlur="{{ onBlur }}" style="flex:1; background:none; border:0; outline:none; resize:none; color:var(--ink); font-size:15px; font-weight:400; line-height:1.6; min-height:26px; max-height:180px; padding:6px 0;"></textarea>
+        <button onClick="{{ send }}" disabled="{{ sendDisabled }}" style="flex:none; width:38px; height:38px; border-radius:11px; border:0; background:{{ sendBg }}; color:var(--on-accent); font-size:16px; cursor:{{ sendCursor }}; display:flex; align-items:center; justify-content:center; transition:all .2s ease;" style-hover="filter:brightness(1.08);">↑</button>
       </div>
       <div style="display:flex; justify-content:space-between; gap:12px; margin-top:9px; padding:0 4px;">
-        <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:#94a9c0;">Enter ile gönder · Shift+Enter satır</span>
-        <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:#94a9c0;">{{ charLabel }}</span>
+        <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:var(--faint);">Enter ile gönder · Shift+Enter satır</span>
+        <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:var(--faint);">{{ charLabel }}</span>
       </div>
     </div>
   </div>
 
   <sc-if value="{{ overlayOpen }}" hint-placeholder-val="{{ false }}">
-    <div onClick="{{ closeDrawer }}" style="position:fixed; inset:0; background:rgba(15,37,66,.34); backdrop-filter:blur(3px); z-index:20; animation:msg-in .25s ease both;"></div>
+    <div onClick="{{ closeDrawer }}" style="position:fixed; inset:0; background:rgba(var(--shadow-rgb),.34); backdrop-filter:blur(3px); z-index:20; animation:msg-in .25s ease both;"></div>
   </sc-if>
 
-  <div style="position:fixed; top:0; right:0; height:100vh; width:min(520px, 94vw); z-index:21; background:#ffffff; border-left:1px solid rgba(30,74,139,.16); box-shadow:-30px 0 70px rgba(15,37,66,.14); display:flex; flex-direction:column; transform:{{ drawerTransform }}; transition:transform .42s cubic-bezier(.22,1,.36,1);">
-    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:18px 20px; border-bottom:1px solid rgba(30,74,139,.13); flex:none;">
+  <div style="position:fixed; top:0; right:0; height:100vh; width:min(520px, 94vw); z-index:21; background:var(--surface); border-left:1px solid rgba(var(--accent-rgb),.16); box-shadow:-30px 0 70px rgba(var(--shadow-rgb),.14); display:flex; flex-direction:column; transform:{{ drawerTransform }}; transition:transform .42s cubic-bezier(.22,1,.36,1);">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:18px 20px; border-bottom:1px solid rgba(var(--accent-rgb),.13); flex:none;">
       <div>
-        <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:#1e4a8b; margin-bottom:5px;">{{ drawerKicker }}</div>
+        <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--accent); margin-bottom:5px;">{{ drawerKicker }}</div>
         <div style="font-size:16px; font-weight:400; letter-spacing:-.01em;">{{ drawerTitle }}</div>
       </div>
-      <button onClick="{{ closeDrawer }}" style="width:32px; height:32px; flex:none; border-radius:9px; background:rgba(30,74,139,.05); border:1px solid rgba(30,74,139,.16); color:#5f7b9b; font-size:15px; cursor:pointer; transition:all .18s ease;" style-hover="color:#0f2542; border-color:rgba(30,74,139,.34);">×</button>
+      <button onClick="{{ closeDrawer }}" style="width:32px; height:32px; flex:none; border-radius:9px; background:rgba(var(--accent-rgb),.05); border:1px solid rgba(var(--accent-rgb),.16); color:var(--muted); font-size:15px; cursor:pointer; transition:all .18s ease;" style-hover="color:var(--ink); border-color:rgba(var(--accent-rgb),.34);">×</button>
     </div>
 
     <div style="flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:22px;">
@@ -182,12 +315,12 @@ textarea:focus-visible { outline: none; }
       <sc-if value="{{ isRegistry }}" hint-placeholder-val="{{ false }}">
         <div style="display:flex; flex-direction:column; gap:10px;">
           <sc-for list="{{ tools }}" as="t" hint-placeholder-count="6">
-            <div style="border:1px solid rgba(30,74,139,.13); border-radius:12px; padding:13px 15px; background:#f8fbfd; box-shadow:0 1px 2px rgba(15,37,66,.04);">
+            <div style="border:1px solid rgba(var(--accent-rgb),.13); border-radius:12px; padding:13px 15px; background:var(--surface-2); box-shadow:0 1px 2px rgba(var(--shadow-rgb),.04);">
               <div style="display:flex; align-items:center; gap:9px; margin-bottom:6px;">
-                <span style="font-family:'Space Mono',monospace; font-size:13px; color:#15386b;">{{ t.name }}</span>
-                <span style="font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:#5f7b9b; border:1px solid rgba(30,74,139,.18); border-radius:4px; padding:2px 6px;">{{ t.tag }}</span>
+                <span style="font-family:'Space Mono',monospace; font-size:13px; color:var(--accent-hover);">{{ t.name }}</span>
+                <span style="font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); border:1px solid rgba(var(--accent-rgb),.18); border-radius:4px; padding:2px 6px;">{{ t.tag }}</span>
               </div>
-              <p style="margin:0; font-size:12.5px; line-height:1.55; color:#5f7b9b;">{{ t.desc }}</p>
+              <p style="margin:0; font-size:12.5px; line-height:1.55; color:var(--muted);">{{ t.desc }}</p>
             </div>
           </sc-for>
         </div>
@@ -196,24 +329,24 @@ textarea:focus-visible { outline: none; }
       <sc-if value="{{ isTrace }}" hint-placeholder-val="{{ true }}">
         <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:9px;">
           <sc-for list="{{ drawerStats }}" as="s" hint-placeholder-count="3">
-            <div style="border:1px solid rgba(30,74,139,.13); border-radius:11px; padding:12px 13px; background:#f8fbfd; box-shadow:0 1px 2px rgba(15,37,66,.04);">
-              <div style="font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:#7790ab; margin-bottom:7px;">{{ s.label }}</div>
+            <div style="border:1px solid rgba(var(--accent-rgb),.13); border-radius:11px; padding:12px 13px; background:var(--surface-2); box-shadow:0 1px 2px rgba(var(--shadow-rgb),.04);">
+              <div style="font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); margin-bottom:7px;">{{ s.label }}</div>
               <div style="font-family:'Space Mono',monospace; font-size:17px; color:{{ s.color }};">{{ s.value }}</div>
-              <div style="font-family:'Space Mono',monospace; font-size:10.5px; color:#94a9c0; margin-top:3px;">{{ s.sub }}</div>
+              <div style="font-family:'Space Mono',monospace; font-size:10.5px; color:var(--faint); margin-top:3px;">{{ s.sub }}</div>
             </div>
           </sc-for>
         </div>
 
         <sc-if value="{{ showTimeline }}" hint-placeholder-val="{{ true }}">
-          <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#7790ab; margin-bottom:12px;">Timeline</div>
+          <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); margin-bottom:12px;">Timeline</div>
           <div style="display:flex; flex-direction:column; gap:11px;">
             <sc-for list="{{ drawerTimeline }}" as="ev" hint-placeholder-count="4">
               <div>
                 <div style="display:flex; justify-content:space-between; gap:10px; margin-bottom:5px;">
                   <span style="font-family:'Space Mono',monospace; font-size:11.5px; color:{{ ev.color }}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ ev.label }}</span>
-                  <span style="font-family:'Space Mono',monospace; font-size:11px; color:#7790ab; flex:none;">{{ ev.durationLabel }}</span>
+                  <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--dim); flex:none;">{{ ev.durationLabel }}</span>
                 </div>
-                <div style="height:6px; border-radius:3px; background:rgba(30,74,139,.08); position:relative; overflow:hidden;">
+                <div style="height:6px; border-radius:3px; background:rgba(var(--accent-rgb),.08); position:relative; overflow:hidden;">
                   <div style="position:absolute; top:0; bottom:0; left:{{ ev.offsetPct }}; width:{{ ev.widthPct }}; border-radius:3px; background:{{ ev.color }};"></div>
                 </div>
               </div>
@@ -222,29 +355,29 @@ textarea:focus-visible { outline: none; }
         </sc-if>
 
         <div>
-          <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#7790ab; margin-bottom:12px;">Calls</div>
+          <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); margin-bottom:12px;">Calls</div>
           <div style="display:flex; flex-direction:column; gap:10px;">
             <sc-for list="{{ drawerTrace }}" as="tc" hint-placeholder-count="3">
-              <div style="border:1px solid {{ tc.border }}; border-radius:12px; background:#f8fbfd; overflow:hidden; box-shadow:0 1px 2px rgba(15,37,66,.04);">
-                <button onClick="{{ tc.toggle }}" style="width:100%; display:flex; align-items:center; gap:11px; background:none; border:0; padding:13px 15px; cursor:pointer; text-align:left; transition:background .18s ease;" style-hover="background:rgba(30,74,139,.035);">
-                  <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:#94a9c0; flex:none;">{{ tc.index }}</span>
+              <div style="border:1px solid {{ tc.border }}; border-radius:12px; background:var(--surface-2); overflow:hidden; box-shadow:0 1px 2px rgba(var(--shadow-rgb),.04);">
+                <button onClick="{{ tc.toggle }}" style="width:100%; display:flex; align-items:center; gap:11px; background:none; border:0; padding:13px 15px; cursor:pointer; text-align:left; transition:background .18s ease;" style-hover="background:rgba(var(--accent-rgb),.035);">
+                  <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:var(--faint); flex:none;">{{ tc.index }}</span>
                   <span style="font-family:'Space Mono',monospace; font-size:13px; color:{{ tc.nameColor }}; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ tc.name }}</span>
-                  <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:#7790ab; flex:none;">{{ tc.roundLabel }}</span>
-                  <span style="font-family:'Space Mono',monospace; font-size:12px; color:#15386b; flex:none;">{{ tc.durationLabel }}</span>
-                  <span style="color:#94a9c0; font-size:11px; flex:none; transition:transform .25s ease; transform:{{ tc.caret }};">▾</span>
+                  <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:var(--dim); flex:none;">{{ tc.roundLabel }}</span>
+                  <span style="font-family:'Space Mono',monospace; font-size:12px; color:var(--accent-hover); flex:none;">{{ tc.durationLabel }}</span>
+                  <span style="color:var(--faint); font-size:11px; flex:none; transition:transform .25s ease; transform:{{ tc.caret }};">▾</span>
                 </button>
-                <div style="height:3px; background:rgba(30,74,139,.05);">
-                  <div style="height:100%; width:{{ tc.sharePct }}; background:linear-gradient(90deg, rgba(30,74,139,.30), #1e4a8b);"></div>
+                <div style="height:3px; background:rgba(var(--accent-rgb),.05);">
+                  <div style="height:100%; width:{{ tc.sharePct }}; background:linear-gradient(90deg, rgba(var(--accent-rgb),.30), var(--accent));"></div>
                 </div>
                 <sc-if value="{{ tc.open }}" hint-placeholder-val="{{ false }}">
-                  <div style="padding:14px 15px 15px; border-top:1px solid rgba(30,74,139,.11); display:flex; flex-direction:column; gap:12px; animation:stage-in .3s ease both;">
+                  <div style="padding:14px 15px 15px; border-top:1px solid rgba(var(--accent-rgb),.11); display:flex; flex-direction:column; gap:12px; animation:stage-in .3s ease both;">
                     <div>
-                      <div style="font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:#7790ab; margin-bottom:6px;">arguments</div>
-                      <pre style="margin:0; font-family:'Space Mono',monospace; font-size:11.5px; line-height:1.6; color:#3d5877; background:#f4f8fc; border:1px solid rgba(30,74,139,.11); border-radius:9px; padding:11px; max-height:200px; overflow:auto; white-space:pre-wrap; word-break:break-word;">{{ tc.args }}</pre>
+                      <div style="font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); margin-bottom:6px;">arguments</div>
+                      <pre style="margin:0; font-family:'Space Mono',monospace; font-size:11.5px; line-height:1.6; color:var(--text-2); background:var(--surface-3); border:1px solid rgba(var(--accent-rgb),.11); border-radius:9px; padding:11px; max-height:200px; overflow:auto; white-space:pre-wrap; word-break:break-word;">{{ tc.args }}</pre>
                     </div>
                     <div>
-                      <div style="font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:#7790ab; margin-bottom:6px;">result preview</div>
-                      <pre style="margin:0; font-family:'Space Mono',monospace; font-size:11.5px; line-height:1.6; color:{{ tc.resultColor }}; background:#f4f8fc; border:1px solid rgba(30,74,139,.11); border-radius:9px; padding:11px; max-height:260px; overflow:auto; white-space:pre-wrap; word-break:break-word;">{{ tc.result }}</pre>
+                      <div style="font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); margin-bottom:6px;">result preview</div>
+                      <pre style="margin:0; font-family:'Space Mono',monospace; font-size:11.5px; line-height:1.6; color:{{ tc.resultColor }}; background:var(--surface-3); border:1px solid rgba(var(--accent-rgb),.11); border-radius:9px; padding:11px; max-height:260px; overflow:auto; white-space:pre-wrap; word-break:break-word;">{{ tc.result }}</pre>
                     </div>
                   </div>
                 </sc-if>
@@ -254,25 +387,25 @@ textarea:focus-visible { outline: none; }
         </div>
 
         <div>
-          <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#7790ab; margin-bottom:10px;">Per tool</div>
+          <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); margin-bottom:10px;">Per tool</div>
           <sc-for list="{{ drawerPerTool }}" as="pt" hint-placeholder-count="2">
-            <div style="display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid rgba(30,74,139,.11); font-family:'Space Mono',monospace; font-size:11.5px;">
-              <span style="color:#3d5877;">{{ pt.label }}</span>
-              <span style="color:#7790ab; flex:none;">{{ pt.timing }}</span>
+            <div style="display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid rgba(var(--accent-rgb),.11); font-family:'Space Mono',monospace; font-size:11.5px;">
+              <span style="color:var(--text-2);">{{ pt.label }}</span>
+              <span style="color:var(--dim); flex:none;">{{ pt.timing }}</span>
             </div>
           </sc-for>
         </div>
 
-        <div style="font-size:12px; line-height:1.6; color:#7790ab; border-left:2px solid rgba(30,74,139,.35); padding-left:12px;">{{ drawerReason }}</div>
+        <div style="font-size:12px; line-height:1.6; color:var(--dim); border-left:2px solid rgba(var(--accent-rgb),.35); padding-left:12px;">{{ drawerReason }}</div>
       </sc-if>
     </div>
   </div>
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props="{&quot;stagePace&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:1,&quot;min&quot;:0.4,&quot;max&quot;:2,&quot;step&quot;:0.1,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;showTimeline&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Tool details&quot;},&quot;expandFirstCall&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Tool details&quot;}}">
-const ACC = '#1e4a8b';
-const ACC_DIM = 'rgba(30,74,139,.55)';
-const ERR = '#b42318';
+const ACC = 'var(--accent)';
+const ACC_DIM = 'rgba(var(--accent-rgb),.55)';
+const ERR = 'var(--error)';
 
 const fmtMs = (ms) => {
   const v = Number(ms) || 0;
@@ -393,8 +526,8 @@ function inlineToNodes(text) {
   let last = 0, key = 0, m;
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) nodes.push(text.slice(last, m.index));
-    if (m[1]) nodes.push(React.createElement('strong', { key: key++, style: { fontWeight: 500, color: '#0f2542' } }, m[2]));
-    else if (m[3]) nodes.push(React.createElement('code', { key: key++, style: { fontFamily: "'Space Mono',monospace", fontSize: '13px', background: 'rgba(30,74,139,.11)', border: '1px solid rgba(30,74,139,.13)', borderRadius: '5px', padding: '1px 6px', color: '#15386b' } }, m[4]));
+    if (m[1]) nodes.push(React.createElement('strong', { key: key++, style: { fontWeight: 500, color: 'var(--ink)' } }, m[2]));
+    else if (m[3]) nodes.push(React.createElement('code', { key: key++, style: { fontFamily: "'Space Mono',monospace", fontSize: '13px', background: 'rgba(var(--accent-rgb),.11)', border: '1px solid rgba(var(--accent-rgb),.13)', borderRadius: '5px', padding: '1px 6px', color: 'var(--accent-hover)' } }, m[4]));
     else nodes.push(React.createElement('a', { key: key++, href: m[7], target: '_blank', rel: 'noreferrer' }, m[6]));
     last = re.lastIndex;
   }
@@ -418,7 +551,7 @@ function mdToBlocks(markdown) {
     if (!line.trim()) { flush(); i++; continue; }
     if (h) {
       flush();
-      blocks.push(React.createElement('div', { key: key++, style: { margin: '18px 0 8px', fontSize: '13px', fontWeight: 500, letterSpacing: '.02em', color: '#0f2542' } }, inlineToNodes(h[2])));
+      blocks.push(React.createElement('div', { key: key++, style: { margin: '18px 0 8px', fontSize: '13px', fontWeight: 500, letterSpacing: '.02em', color: 'var(--ink)' } }, inlineToNodes(h[2])));
       i++; continue;
     }
     if (isRow(line)) {
@@ -437,11 +570,11 @@ function mdToBlocks(markdown) {
           fontWeight: th ? 400 : 300,
           letterSpacing: th ? '.1em' : 'normal',
           textTransform: th ? 'uppercase' : 'none',
-          color: th ? '#7790ab' : '#1c3553',
-          borderBottom: '1px solid rgba(30,74,139,.11)'
+          color: th ? 'var(--dim)' : 'var(--ink-2)',
+          borderBottom: '1px solid rgba(var(--accent-rgb),.11)'
         }
       }, inlineToNodes(c));
-      blocks.push(React.createElement('div', { key: key++, style: { overflowX: 'auto', margin: '6px 0 16px', border: '1px solid rgba(30,74,139,.13)', borderRadius: '11px', background: '#ffffff' } },
+      blocks.push(React.createElement('div', { key: key++, style: { overflowX: 'auto', margin: '6px 0 16px', border: '1px solid rgba(var(--accent-rgb),.13)', borderRadius: '11px', background: 'var(--surface)' } },
         React.createElement('table', { style: { borderCollapse: 'collapse', width: '100%' } },
           head ? React.createElement('thead', null, React.createElement('tr', null, head.map((c, ci) => cell(c, ci, true)))) : null,
           React.createElement('tbody', null, body.map((r, ri) => React.createElement('tr', { key: ri }, r.map((c, ci) => cell(c, ci, false)))))
@@ -476,15 +609,15 @@ function mdToBlocks(markdown) {
 // no value is reachable only by hovering.
 //
 // Palette is decided here, from the Bogazici tokens, and was checked for
-// contrast rather than eyeballed: CHART_INK #1e4a8b is 8.72:1 on white,
-// CHART_DIM #7790ab is 3.30:1 (above the 3:1 floor for graphical marks).
-// The brand light blue #8cc8ea measured 1.82:1 and is therefore NOT used
+// contrast rather than eyeballed: CHART_INK var(--accent) is 8.72:1 on white,
+// CHART_DIM var(--dim) is 3.30:1 (above the 3:1 floor for graphical marks).
+// The brand light blue var(--accent-2) measured 1.82:1 and is therefore NOT used
 // for any line or bar - only as a translucent area wash under a line,
 // where it is decoration and never the thing being read.
-const CHART_INK = '#1e4a8b';
-const CHART_DIM = '#7790ab';
-const CHART_GRID = 'rgba(30,74,139,.13)';
-const CHART_AXIS_TEXT = '#5f7b9b';
+const CHART_INK = 'var(--accent)';
+const CHART_DIM = 'var(--dim)';
+const CHART_GRID = 'rgba(var(--accent-rgb),.13)';
+const CHART_AXIS_TEXT = 'var(--muted)';
 
 // Axis ticks land on round numbers rather than on the data's own min/max.
 // A tick reading "33,84" is an artefact of the padding maths; "35" is a
@@ -520,12 +653,12 @@ function chartFrame(title, subtitle, unit, sourceNote, body, tableRows) {
   const el = React.createElement;
   return el('figure', {
     style: {
-      margin: '4px 0 18px', padding: '15px 16px 12px', border: '1px solid rgba(30,74,139,.13)',
-      borderRadius: '12px', background: '#ffffff', boxShadow: '0 1px 2px rgba(15,37,66,.04)',
+      margin: '4px 0 18px', padding: '15px 16px 12px', border: '1px solid rgba(var(--accent-rgb),.13)',
+      borderRadius: '12px', background: 'var(--surface)', boxShadow: '0 1px 2px rgba(var(--shadow-rgb),.04)',
     },
   },
     el('figcaption', { style: { marginBottom: '12px' } },
-      el('div', { style: { fontSize: '13.5px', fontWeight: 500, color: '#0f2542', lineHeight: 1.35 } }, title),
+      el('div', { style: { fontSize: '13.5px', fontWeight: 500, color: 'var(--ink)', lineHeight: 1.35 } }, title),
       el('div', { style: { marginTop: '3px', fontSize: '11.5px', color: CHART_AXIS_TEXT } },
         [subtitle, unit ? `birim: ${unit}` : null].filter(Boolean).join(' · ')),
     ),
@@ -541,21 +674,21 @@ function chartFrame(title, subtitle, unit, sourceNote, body, tableRows) {
           el('tbody', null, tableRows.map((r, i) => el('tr', { key: i },
             el('td', {
               style: {
-                padding: '4px 8px', borderBottom: '1px solid rgba(30,74,139,.08)',
-                color: '#3d5877', whiteSpace: 'nowrap',
+                padding: '4px 8px', borderBottom: '1px solid rgba(var(--accent-rgb),.08)',
+                color: 'var(--text-2)', whiteSpace: 'nowrap',
               },
             }, r[0]),
             el('td', {
               style: {
-                padding: '4px 8px', borderBottom: '1px solid rgba(30,74,139,.08)',
-                color: '#0f2542', textAlign: 'right', fontVariantNumeric: 'tabular-nums',
+                padding: '4px 8px', borderBottom: '1px solid rgba(var(--accent-rgb),.08)',
+                color: 'var(--ink)', textAlign: 'right', fontVariantNumeric: 'tabular-nums',
               },
             }, r[1]),
           ))),
         ),
       ),
     ),
-    el('div', { style: { marginTop: '9px', fontSize: '10.5px', color: '#94a9c0' } }, `Kaynak: ${sourceNote}`),
+    el('div', { style: { marginTop: '9px', fontSize: '10.5px', color: 'var(--faint)' } }, `Kaynak: ${sourceNote}`),
   );
 }
 
@@ -599,20 +732,20 @@ function lineChart(spec, key) {
             style: { fontSize: '10px', fill: CHART_AXIS_TEXT, fontVariantNumeric: 'tabular-nums' },
           }, fmtNum(t.v)),
         )),
-        el('path', { d: areaPath, fill: 'rgba(140,200,234,.16)' }),
+        el('path', { d: areaPath, fill: 'rgba(var(--accent2-rgb),.16)' }),
         el('path', { d: path, fill: 'none', stroke: highlights.length ? CHART_DIM : CHART_INK, strokeWidth: 2, strokeLinejoin: 'round', strokeLinecap: 'round' }),
         // Emphasis form: when the analysis flagged specific periods, the
         // line recedes and those points carry the accent. One hue, two
         // roles - not a second categorical colour.
         highlights.map(({ p, i }) => el('circle', {
           key: `h${i}`, cx: x(i), cy: y(p.value), r: 4.5,
-          fill: CHART_INK, stroke: '#ffffff', strokeWidth: 2,
+          fill: CHART_INK, stroke: 'var(--surface)', strokeWidth: 2,
         })),
-        el('circle', { cx: x(pts.length - 1), cy: y(last.value), r: 3.5, fill: CHART_INK, stroke: '#ffffff', strokeWidth: 2 }),
+        el('circle', { cx: x(pts.length - 1), cy: y(last.value), r: 3.5, fill: CHART_INK, stroke: 'var(--surface)', strokeWidth: 2 }),
         // Direct-label the endpoint only; a number on every point is noise.
         el('text', {
           x: Math.min(x(pts.length - 1) + 6, W - PAD_R), y: y(last.value) - 8, textAnchor: 'end',
-          style: { fontSize: '11px', fill: '#0f2542', fontWeight: 500 },
+          style: { fontSize: '11px', fill: 'var(--ink)', fontWeight: 500 },
         }, fmtNum(last.value)),
         xLabels.map(({ p, i }) => el('text', {
           key: `x${i}`, x: x(i), y: H - PAD_B + 15,
@@ -644,10 +777,10 @@ function barChart(spec, key) {
         style: { display: 'grid', gridTemplateColumns: 'minmax(78px, 22%) 1fr auto', alignItems: 'center', gap: '10px', height: `${rowH}px` },
       },
         el('span', {
-          style: { fontSize: '12px', color: '#3d5877', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+          style: { fontSize: '12px', color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
           title: b.label,
         }, b.label),
-        el('div', { style: { position: 'relative', height: '12px', background: 'rgba(30,74,139,.06)', borderRadius: '3px' } },
+        el('div', { style: { position: 'relative', height: '12px', background: 'rgba(var(--accent-rgb),.06)', borderRadius: '3px' } },
           el('div', {
             // Nominal categories, so every bar is the same colour - a
             // darker-where-bigger ramp would re-encode length as hue.
@@ -659,7 +792,7 @@ function barChart(spec, key) {
           }),
         ),
         el('span', {
-          style: { fontSize: '11.5px', color: '#0f2542', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' },
+          style: { fontSize: '11.5px', color: 'var(--ink)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' },
         }, fmtNum(b.value) + (b.note ? ` · ${b.note}` : '')),
       )),
     ),
@@ -688,10 +821,37 @@ class Component extends DCLogic {
     messages: [], nextId: 1,
     drawer: null,              // {kind:'trace', id} | {kind:'registry'}
     openCalls: {},             // `${msgId}:${idx}` -> true
-    tools: [], live: false, focused: false
+    tools: [], live: false, focused: false,
+    // null = follow the OS; the anti-flash <script> in <head> already
+    // applied any saved explicit choice before this component mounted,
+    // so this just reads back what is already on the document.
+    themeMode: (document.documentElement.getAttribute('data-theme') || null)
+  };
+
+  isDarkNow = () => {
+    if (this.state.themeMode === 'dark') return true;
+    if (this.state.themeMode === 'light') return false;
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  };
+
+  toggleTheme = () => {
+    const next = this.isDarkNow() ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('kkb-theme', next); } catch (e) {}
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', next === 'dark' ? '#0a1220' : '#1e4a8b');
+    this.setState({ themeMode: next });
   };
 
   componentDidMount() {
+    // Keeps the icon correct if the OS theme changes live while this tab
+    // is open and the user has never made an explicit choice here.
+    if (window.matchMedia) {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      const onChange = () => { if (this.state.themeMode == null) this.forceUpdate(); };
+      (mq.addEventListener ? mq.addEventListener.bind(mq) : mq.addListener.bind(mq))('change', onChange);
+    }
+
     fetch('/api/tools')
       .then(r => r.json())
       .then(d => {
@@ -823,13 +983,13 @@ class Component extends DCLogic {
       return {
         index: String(i + 1).padStart(2, '0'),
         name: tc.name,
-        nameColor: tc.error ? ERR : '#15386b',
+        nameColor: tc.error ? ERR : 'var(--accent-hover)',
         roundLabel: `r${tc.round}`,
         durationLabel: fmtMs(tc.durationMs),
         sharePct: `${Math.max(2, (tc.durationMs / maxCall) * 100)}%`,
-        border: tc.error ? 'rgba(180,35,24,.30)' : 'rgba(30,74,139,.13)',
+        border: tc.error ? 'rgba(var(--error-rgb),.30)' : 'rgba(var(--accent-rgb),.13)',
         args: tc.args, result: tc.result,
-        resultColor: tc.error ? ERR : '#3d5877',
+        resultColor: tc.error ? ERR : 'var(--text-2)',
         open, caret: open ? 'rotate(180deg)' : 'none',
         toggle: () => this.toggleCall(k)
       };
@@ -837,15 +997,15 @@ class Component extends DCLogic {
 
     const drawerTimeline = (msg && msg.timing ? msg.timing.timeline : []).map(ev => ({
       label: ev.kind === 'llm' ? ev.name : `${ev.name} · r${ev.round}`,
-      color: ev.error ? ERR : (ev.kind === 'llm' ? 'rgba(74,143,192,.9)' : ACC),
+      color: ev.error ? ERR : (ev.kind === 'llm' ? 'rgba(var(--web-marker-rgb),.9)' : ACC),
       durationLabel: fmtMs(ev.duration_ms),
       offsetPct: pctOf(ev.start_ms, total),
       widthPct: total > 0 ? `${Math.max((ev.duration_ms / total) * 100, 1.5)}%` : '0%'
     }));
 
     const drawerStats = summary ? [
-      { label: 'total', value: fmtMs(summary.total_ms), sub: 'wall clock', color: '#0f2542' },
-      { label: 'model', value: fmtMs(summary.llm_ms), sub: `${summary.llm_calls} rounds · ${pctOf(summary.llm_ms, total)}`, color: 'rgba(74,143,192,.95)' },
+      { label: 'total', value: fmtMs(summary.total_ms), sub: 'wall clock', color: 'var(--ink)' },
+      { label: 'model', value: fmtMs(summary.llm_ms), sub: `${summary.llm_calls} rounds · ${pctOf(summary.llm_ms, total)}`, color: 'rgba(var(--web-marker-rgb),.95)' },
       { label: 'tools', value: fmtMs(summary.tool_ms), sub: `${summary.tool_calls} calls · ${pctOf(summary.tool_ms, total)}`, color: ACC }
     ] : [];
 
@@ -861,6 +1021,8 @@ class Component extends DCLogic {
       toolCount: s.tools.length || 9,
       openRegistry: this.openRegistry,
       resetChat: this.resetChat,
+      toggleTheme: this.toggleTheme,
+      themeIcon: this.isDarkNow() ? '☀️' : '🌙',
       isEmpty: s.messages.length === 0 && !s.thinking,
       examples: EXAMPLES.map(ex => ({ label: ex.label, tag: ex.tag, use: () => this.send(ex.label) })),
       messages,
@@ -872,10 +1034,10 @@ class Component extends DCLogic {
       onFocus: this.onFocus, onBlur: this.onBlur,
       send: () => this.send(),
       sendDisabled: !canSend,
-      sendBg: canSend ? 'linear-gradient(160deg, #8cc8ea, #1e4a8b)' : 'rgba(30,74,139,.15)',
+      sendBg: canSend ? 'linear-gradient(160deg, var(--accent-2), var(--accent))' : 'rgba(var(--accent-rgb),.15)',
       sendCursor: canSend ? 'pointer' : 'default',
-      composerBorder: s.focused ? 'rgba(30,74,139,.40)' : 'rgba(30,74,139,.16)',
-      composerShadow: s.focused ? '0 0 0 3px rgba(30,74,139,.06)' : 'none',
+      composerBorder: s.focused ? 'rgba(var(--accent-rgb),.40)' : 'rgba(var(--accent-rgb),.16)',
+      composerShadow: s.focused ? '0 0 0 3px rgba(var(--accent-rgb),.06)' : 'none',
       charLabel: `${s.input.length}/2000`,
       overlayOpen: !!s.drawer,
       drawerTransform: s.drawer ? 'translateX(0)' : 'translateX(103%)',
