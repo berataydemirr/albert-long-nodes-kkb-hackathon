@@ -26,7 +26,10 @@ MIA_EMBEDDING_MODEL = os.getenv("MIA_EMBEDDING_MODEL", "kkbhackathon2026/Qwen3-E
 # for the measured speed/quality trade-off behind the default.
 MIA_REASONING_EFFORT = os.getenv("MIA_REASONING_EFFORT", "low")
 WEB_SEARCH_PROVIDER = os.getenv("WEB_SEARCH_PROVIDER", "duckduckgo")
-TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
+# Self-hosted SearXNG instance (see docker-compose.searxng.yml). Open-source
+# requirement: no third-party paid search API (Tavily was removed for this
+# reason - see git history if it needs to come back).
+SEARXNG_BASE_URL = os.getenv("SEARXNG_BASE_URL", "http://localhost:8888")
 
 # --- Data layers (medallion architecture: bronze=raw, silver=clean, gold=analysis-ready) ---
 DATA_DIR = PROJECT_ROOT / "data"

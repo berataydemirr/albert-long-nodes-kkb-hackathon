@@ -161,3 +161,117 @@ def test_successful_search_carries_no_retry_prompt(monkeypatch):
     assert result["provider_available"] is True
     assert result["result_count"] == 1
     assert "next_step" not in result
+
+
+# --- the SearXNG provider ------------------------------------------------
+
+def test_searxng_success_is_parsed_into_the_common_result_shape(monkeypatch):
+    """Field names confirmed against a real running instance, not assumed
+    from docs: results carry {url, title, content, engine}."""
+    import src.agent.web_search as ws
+
+    class _Resp:
+        status_code = 200
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"results": [
+                {"url": "https://www.tcmb.gov.tr/x", "title": "TCMB Faiz",
+                 "content": "Politika faizi ...", "engine": "brave"},
+            ]}
+
+    monkeypatch.setattr(ws.requests, "get", lambda *a, **k: _Resp())
+    monkeypatch.setattr(ws, "WEB_SEARCH_PROVIDER", "searxng")
+
+    result = ws.web_search("TCMB faiz")
+
+    assert result["provider_available"] is True
+    assert result["result_count"] == 1
+    assert result["results"][0]["url"] == "https://www.tcmb.gov.tr/x"
+    assert result["results"][0]["engine"] == "brave"
+
+
+def test_searxng_403_means_json_format_not_enabled(monkeypatch):
+    """The JSON API is off by default in SearXNG's own template. A 403 here
+    is a config problem, not 'no results' - it must not look retryable by
+    rephrasing, same as a DuckDuckGo bot challenge."""
+    import src.agent.web_search as ws
+
+    class _Resp:
+        status_code = 403
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(ws.requests, "get", lambda *a, **k: _Resp())
+    monkeypatch.setattr(ws, "WEB_SEARCH_PROVIDER", "searxng")
+
+    result = ws.web_search("TCMB faiz")
+
+    assert result["provider_available"] is False
+    assert "json" in result["error"].lower()
+
+
+def test_searxng_unreachable_instance_is_reported_not_a_zero_result(monkeypatch):
+    """The likeliest real failure: the container is not running."""
+    import src.agent.web_search as ws
+
+    def boom(*a, **k):
+        raise ws.requests.ConnectionError("Connection refused")
+
+    monkeypatch.setattr(ws.requests, "get", boom)
+    monkeypatch.setattr(ws, "WEB_SEARCH_PROVIDER", "searxng")
+
+    result = ws.web_search("TCMB faiz")
+
+    assert result["provider_available"] is False
+    assert "next_step" in result
+
+
+def test_searxng_non_json_body_is_reported_not_a_zero_result(monkeypatch):
+    import src.agent.web_search as ws
+
+    class _Resp:
+        status_code = 200
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            raise ValueError("not JSON")
+
+    monkeypatch.setattr(ws.requests, "get", lambda *a, **k: _Resp())
+    monkeypatch.setattr(ws, "WEB_SEARCH_PROVIDER", "searxng")
+
+    result = ws.web_search("TCMB faiz")
+
+    assert result["provider_available"] is False
+
+
+def test_unknown_provider_is_rejected(monkeypatch):
+    import src.agent.web_search as ws
+
+    monkeypatch.setattr(ws, "WEB_SEARCH_PROVIDER", "bing")
+
+    with pytest.raises(RuntimeError, match="duckduckgo.*searxng"):
+        ws.web_search("TCMB faiz")
+
+
+def test_tavily_has_no_functional_path_left(monkeypatch):
+    """The open-source requirement means no residual path back to a paid
+    provider. Comments explaining WHY it was removed are fine and expected
+    (that is documentation, not a leftover integration) - what must be gone
+    is anything that could still call it: the config value, the request
+    function, and the provider branch."""
+    import config.settings as settings
+    import src.agent.web_search as ws
+
+    assert not hasattr(settings, "TAVILY_API_KEY")
+    assert not hasattr(ws, "_tavily_search")
+    assert not hasattr(ws, "_TAVILY_SEARCH_URL")
+
+    monkeypatch.setattr(ws, "WEB_SEARCH_PROVIDER", "tavily")
+    with pytest.raises(RuntimeError, match="duckduckgo.*searxng"):
+        ws.web_search("TCMB faiz")

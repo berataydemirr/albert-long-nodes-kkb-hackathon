@@ -1,10 +1,22 @@
 """Web-search capability used by the agent's ``web_search`` tool.
 
-The default provider is DuckDuckGo's HTML endpoint, so a demo works without
-an API key. Deployments can opt into Tavily by setting
-``WEB_SEARCH_PROVIDER=tavily`` and ``TAVILY_API_KEY``. Only compact,
-source-attributed search results are returned; page retrieval belongs to the
-separate web-URL tool.
+Two providers, both usable with no paid third-party API - the project's
+open-source requirement rules out a commercial search API (Tavily was used
+briefly and removed for exactly this reason; see git history if that
+trade-off ever needs revisiting):
+
+  - "duckduckgo" (default): scrapes html.duckduckgo.com directly. No setup,
+    but this IP-reputation-blocks automated/cloud traffic - confirmed live,
+    it returns a CAPTCHA challenge from this network, not results.
+  - "searxng": a self-hosted SearXNG meta-search instance (AGPL-3.0, see
+    docker-compose.searxng.yml). It fans a query out to whichever of its
+    ~70 backend engines are reachable, so one engine's block does not take
+    search down entirely. Requires SEARXNG_BASE_URL to point at a running
+    instance with `search.formats: [html, json]` set in its settings.yml -
+    the JSON API is off by default.
+
+Only compact, source-attributed search results are returned; page retrieval
+belongs to the separate web-URL tool.
 """
 
 from __future__ import annotations
@@ -14,13 +26,12 @@ from urllib.parse import parse_qs, unquote, urlparse
 import requests
 from bs4 import BeautifulSoup
 
-from config.settings import TAVILY_API_KEY, WEB_SEARCH_PROVIDER
+from config.settings import SEARXNG_BASE_URL, WEB_SEARCH_PROVIDER
 from src.common.logging_setup import get_logger
 
 logger = get_logger("web_search")
 
 _DUCKDUCKGO_HTML_URL = "https://html.duckduckgo.com/html/"
-_TAVILY_SEARCH_URL = "https://api.tavily.com/search"
 _MAX_QUERY_LENGTH = 500
 _MAX_RESULTS = 10
 _TIMEOUT_SECONDS = 12
@@ -127,17 +138,45 @@ def _duckduckgo_search(query: str, max_results: int) -> list[dict[str, str]]:
     return results
 
 
-def _tavily_search(query: str, max_results: int) -> list[dict[str, str]]:
-    if not TAVILY_API_KEY:
-        raise RuntimeError("TAVILY_API_KEY is required when WEB_SEARCH_PROVIDER=tavily.")
-    response = requests.post(
-        _TAVILY_SEARCH_URL,
-        json={"api_key": TAVILY_API_KEY, "query": query, "max_results": max_results, "search_depth": "basic"},
-        timeout=_TIMEOUT_SECONDS,
-    )
+def _searxng_search(query: str, max_results: int) -> list[dict[str, str]]:
+    """Query a self-hosted SearXNG instance's JSON API.
+
+    Confirmed live against a local instance rather than assumed from docs:
+    results carry {url, title, content, engine, engines, score, ...}. The
+    JSON format must be enabled in the instance's settings.yml
+    (search.formats: [html, json]) - it is OFF by default, and an instance
+    that has not enabled it answers with 403 rather than JSON, which is
+    reported as SearchProviderUnavailable below so the model does not
+    mistake a misconfigured instance for a zero-result query.
+    """
+    try:
+        response = requests.get(
+            f"{SEARXNG_BASE_URL.rstrip('/')}/search",
+            params={"q": query, "format": "json"},
+            headers={"User-Agent": "KKB-Agentic-Research/1.0 (+web search)"},
+            timeout=_TIMEOUT_SECONDS,
+        )
+    except requests.ConnectionError as exc:
+        # The most common failure in practice: the container is not running.
+        # A connection error is not "no results", so it must not read as one.
+        raise SearchProviderUnavailable(
+            f"Could not reach the SearXNG instance at {SEARXNG_BASE_URL}: {exc}"
+        ) from exc
+
+    if response.status_code == 403:
+        raise SearchProviderUnavailable(
+            "SearXNG instance rejected the JSON request (HTTP 403) - "
+            "search.formats in its settings.yml likely does not include 'json'."
+        )
     response.raise_for_status()
+
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise SearchProviderUnavailable(f"SearXNG response was not valid JSON: {exc}") from exc
+
     results = []
-    for item in response.json().get("results", []):
+    for item in payload.get("results", []):
         url = str(item.get("url", ""))
         if not _is_http_url(url):
             continue
@@ -146,8 +185,14 @@ def _tavily_search(query: str, max_results: int) -> list[dict[str, str]]:
             "url": url,
             "snippet": _compact_text(str(item.get("content", "")), _MAX_SNIPPET_LENGTH),
             "source": urlparse(url).netloc,
+            # Which backend engine(s) actually answered - useful for a
+            # human debugging "why did this result stop coming back"
+            # without needing to check the SearXNG container's own logs.
+            "engine": str(item.get("engine", "")),
         })
-    return results[:max_results]
+        if len(results) == max_results:
+            break
+    return results
 
 
 def web_search(query: str, max_results: int = 5) -> dict:
@@ -157,10 +202,10 @@ def web_search(query: str, max_results: int = 5) -> dict:
     try:
         if provider == "duckduckgo":
             results = _duckduckgo_search(query, max_results)
-        elif provider == "tavily":
-            results = _tavily_search(query, max_results)
+        elif provider == "searxng":
+            results = _searxng_search(query, max_results)
         else:
-            raise RuntimeError("WEB_SEARCH_PROVIDER must be either 'duckduckgo' or 'tavily'.")
+            raise RuntimeError("WEB_SEARCH_PROVIDER must be either 'duckduckgo' or 'searxng'.")
     except SearchProviderUnavailable as exc:
         # Returned, not raised: the model needs to read this and change
         # strategy. Raising would surface as a generic tool error, which

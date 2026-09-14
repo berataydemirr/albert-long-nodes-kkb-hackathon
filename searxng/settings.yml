@@ -1,0 +1,28 @@
+# SearXNG instance config for docker-compose.searxng.yml.
+#
+# `search.formats` must include "json" - it is OFF by default in SearXNG's
+# own template, and web_search.py's SearXNG provider needs the JSON API.
+# Without this line the instance answers 403 to a JSON request.
+#
+# `secret_key` below is a randomly generated value, not the literal
+# "ultrasecretkey" default - SearXNG (this version) refuses to start at
+# all with that placeholder ("server.secret_key is not changed"), so the
+# usual "ship a placeholder and let the entrypoint replace it" approach
+# does not work here: the entrypoint only auto-generates a key when this
+# file does not exist yet, and it already does (this one). It is a
+# session-signing key, not an external credential - no accounts, no PII
+# flow through this instance - but regenerate it before running anywhere
+# reachable beyond localhost, and every deployer sharing this exact value
+# is not ideal either way:
+#   sed -i "s/^\(\s*secret_key:\s*\).*/\1\"$(openssl rand -hex 16)\"/" searxng/settings.yml
+
+use_default_settings: true
+
+server:
+  secret_key: "886e45083fd0b516e6c3ed79dd19943b"
+  image_proxy: true
+
+search:
+  formats:
+    - html
+    - json

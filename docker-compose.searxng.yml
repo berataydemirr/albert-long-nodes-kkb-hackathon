@@ -1,0 +1,30 @@
+# Self-hosted, open-source web search for src/agent/web_search.py.
+#
+# WHY THIS EXISTS: DuckDuckGo's free scraping endpoint (the code's default
+# provider) IP-reputation-blocks automated/cloud traffic - confirmed live,
+# it answers this project's dev network with a bot-challenge page instead
+# of results. A commercial search API (Tavily) worked around that but was
+# removed: the project requires open-source components, and Tavily is a
+# closed-source paid service. SearXNG (AGPL-3.0) is the open-source
+# alternative - it fans a query out to ~70 backend engines, so one engine
+# being blocked does not take search down.
+#
+# Usage:
+#   docker compose -f docker-compose.searxng.yml up -d
+#   # then in .env: WEB_SEARCH_PROVIDER=searxng
+#
+# The JSON API SearXNG's web_search() call needs is OFF by default and is
+# enabled by ./searxng/settings.yml (bind-mounted below) - without it the
+# instance answers 403 to a JSON request, which src/agent/web_search.py
+# reports as SearchProviderUnavailable rather than a false "no results".
+services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: kkb-searxng
+    ports:
+      - "8888:8080"
+    volumes:
+      - ./searxng:/etc/searxng
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8888/
+    restart: unless-stopped

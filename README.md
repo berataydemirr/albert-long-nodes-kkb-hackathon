@@ -73,18 +73,34 @@ SQL or prompt-injection requests are refused before the model gets any tools.
 Web search defaults to DuckDuckGo, but **DuckDuckGo's HTML endpoint answers
 with a bot challenge from some networks**, including the one this was
 developed on ("select all squares containing a duck"), so it may return
-nothing at all. This deployment runs on Tavily instead
-(`WEB_SEARCH_PROVIDER=tavily` + `TAVILY_API_KEY` in `.env`) — set your own key
-the same way if DuckDuckGo is blocked from your network too.
+nothing at all.
 
-A blocked provider says so rather than returning an empty result list: a
-blocked DuckDuckGo comes back with `provider_available: false` and an
-instruction not to retry, instead of a result shape that reads as "your query
-found nothing". That distinction matters more than it sounds — with the old
-behaviour the model rephrased and searched four times in five rounds against a
-provider that could never answer (32.4 s, 6 tool calls). The same question
-against Tavily now answers correctly, citing TCMB's own announcement, in
-8.8 s with one search call and zero tool errors.
+The working alternative is **SearXNG**, self-hosted — open-source (AGPL-3.0),
+no API key, no request quota, no dependency on a paid third-party service. A
+commercial search API (Tavily) was tried first and removed once the project's
+open-source requirement ruled it out.
+
+```bash
+docker compose -f docker-compose.searxng.yml up -d
+# then in .env: WEB_SEARCH_PROVIDER=searxng, SEARXNG_BASE_URL=http://localhost:8888
+```
+
+SearXNG fans a query out to whichever of its ~70 backend engines are
+reachable, so one engine being blocked does not take search down entirely.
+Its JSON API is off by default — `searxng/settings.yml` (bind-mounted into the
+container) turns it on; without that line the instance answers 403 to a JSON
+request. `secret_key` in that file is a session-signing value, not an
+external credential, but regenerate it before running anywhere reachable
+beyond localhost (a `sed` command for that is in the file's own comment).
+
+A blocked or unreachable provider says so rather than returning an empty
+result list: `provider_available: false` plus an instruction not to retry,
+instead of a result shape that reads as "your query found nothing". That
+distinction matters more than it sounds — with the old behaviour the model
+rephrased and searched four times in five rounds against a provider that could
+never answer (32.4 s, 6 tool calls). The same question against SearXNG now
+answers correctly, citing TCMB's own announcement, in 14.4 s with zero tool
+errors.
 
 A second guard sits in the tool loop for the general case: an identical repeat
 call is refused, and any single tool is cut off after three calls in one
