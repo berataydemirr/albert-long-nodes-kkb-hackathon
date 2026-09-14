@@ -1,0 +1,49 @@
+{
+  "database_cost": [
+    {
+      "label": "lakehouse_schema()",
+      "median_ms": 31.0,
+      "min_ms": 15.0,
+      "max_ms": 32.0
+    },
+    {
+      "label": "lakehouse_query() full series",
+      "median_ms": 16.0,
+      "min_ms": 15.0,
+      "max_ms": 16.0
+    },
+    {
+      "label": "resolve_series()",
+      "median_ms": 15.0,
+      "min_ms": 0.0,
+      "max_ms": 16.0
+    }
+  ],
+  "argument_payload": {
+    "array_path_chars": 2372,
+    "array_path_est_tokens": 593,
+    "seri_kod_path_chars": 80,
+    "seri_kod_path_est_tokens": 20,
+    "reduction_factor": 29.6,
+    "series_lengths": {
+      "TP.BISPOLFAIZ.TUR": 66,
+      "TP.BKR.TRY.18": 66
+    }
+  },
+  "results_identical": {
+    "identical": true,
+    "shared_periods": 66,
+    "best_lag": {
+      "lag": 3,
+      "correlation": 0.7765
+    }
+  },
+  "compaction": {
+    "before_est_tokens": 5137,
+    "after_est_tokens": 2282,
+    "saved_est_tokens": 2855,
+    "reduction_pct": 55.6,
+    "messages_digested": 5,
+    "message_count_unchanged": true
+  }
+}

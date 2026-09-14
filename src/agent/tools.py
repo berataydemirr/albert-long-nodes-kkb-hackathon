@@ -11,6 +11,7 @@ import pandas as pd
 from statsmodels.tsa.stattools import grangercausalitytests
 
 from config.settings import GOLD_DIR
+from src.agent.series_resolver import resolve_series
 from src.common.logging_setup import get_logger
 from src.agent.web_search import web_search
 from src.agent.web_url import web_url_extract
@@ -147,9 +148,70 @@ def lakehouse_query(sql: str) -> dict:
         con.close()
 
 
-def anomaly_analysis(periods: list[str], values: list[float], threshold: float = 3.0) -> dict:
+def _series_input(label: str, seri_kod: str | None, periods: list[str] | None,
+                  values: list[float] | None, bolge: str | None = None,
+                  start_period: str | None = None, end_period: str | None = None) -> tuple[list[str], list[float], dict]:
+    """Resolve one analysis input from EITHER a Seri_Kod or explicit arrays.
+
+    seri_kod is the cheap path: the values are read from DuckDB instead of
+    being retyped by the model (see src/agent/series_resolver.py for the
+    measured token cost of the array path). The arrays stay supported for
+    data that is not in the lakehouse at all - e.g. numbers the model just
+    pulled off a web page - and because every existing caller uses them.
+
+    Returns (periods, values, source_meta) where source_meta is echoed back
+    in the tool result so the answer can cite where the numbers came from.
+    """
+    logger.debug(
+        f"_series_input[{label}]: seri_kod={seri_kod!r}, "
+        f"periods={'None' if periods is None else len(periods)}, "
+        f"values={'None' if values is None else len(values)}"
+    )
+
+    if seri_kod is not None:
+        if periods is not None or values is not None:
+            # Ambiguous input: silently preferring one side would make the
+            # result impossible to explain later, so it is rejected loudly.
+            logger.error(f"_series_input[{label}]: both seri_kod and explicit arrays supplied")
+            raise ValueError(
+                f"Pass either {label}seri_kod or {label}periods/{label}values, not both."
+            )
+        logger.info(f"_series_input[{label}]: resolving from lakehouse, seri_kod={seri_kod!r}")
+        resolved = resolve_series(seri_kod, bolge=bolge, start_period=start_period, end_period=end_period)
+        meta = {
+            "source": "lakehouse",
+            "seri_kod": resolved["seri_kod"],
+            "seri_adi": resolved["seri_adi"],
+            "birim": resolved["birim"],
+            "tip": resolved["tip"],
+            "bolge": resolved["bolge"],
+            "row_count": resolved["row_count"],
+            "first_period": resolved["periods"][0] if resolved["periods"] else None,
+            "last_period": resolved["periods"][-1] if resolved["periods"] else None,
+        }
+        logger.info(f"_series_input[{label}]: resolved {meta['row_count']} point(s) from {meta['first_period']} to {meta['last_period']}")
+        return resolved["periods"], resolved["values"], meta
+
+    if periods is None or values is None:
+        logger.error(f"_series_input[{label}]: neither seri_kod nor complete arrays supplied")
+        raise ValueError(
+            f"Provide {label}seri_kod (preferred - reads the series straight from the "
+            f"lakehouse) or both {label}periods and {label}values."
+        )
+
+    logger.debug(f"_series_input[{label}]: using caller-supplied arrays, n={len(values)}")
+    return periods, values, {"source": "inline_arrays", "row_count": len(values)}
+
+
+def anomaly_analysis(periods: list[str] | None = None, values: list[float] | None = None,
+                     threshold: float = 3.0, seri_kod: str | None = None,
+                     bolge: str | None = None, start_period: str | None = None,
+                     end_period: str | None = None) -> dict:
     """Detect robust outliers using median absolute deviation."""
-    logger.info(f"anomaly_analysis start: n={len(values)}, threshold={threshold}")
+    periods, values, source = _series_input(
+        "", seri_kod, periods, values, bolge=bolge, start_period=start_period, end_period=end_period
+    )
+    logger.info(f"anomaly_analysis start: n={len(values)}, threshold={threshold}, source={source['source']}")
     if len(periods) != len(values) or len(values) < 3:
         logger.error("anomaly_analysis: bad input lengths")
         raise ValueError("periods and values must have equal length and at least 3 points")
@@ -166,12 +228,17 @@ def anomaly_analysis(periods: list[str], values: list[float], threshold: float =
         if score >= threshold
     ]
     logger.info(f"anomaly_analysis done: {len(anomalies)} anomalies found")
-    return {"method": "median_absolute_deviation", "threshold": threshold, "anomalies": anomalies}
+    return {"method": "median_absolute_deviation", "threshold": threshold, "anomalies": anomalies, "source": source}
 
 
-def change_detection(periods: list[str], values: list[float]) -> dict:
+def change_detection(periods: list[str] | None = None, values: list[float] | None = None,
+                     seri_kod: str | None = None, bolge: str | None = None,
+                     start_period: str | None = None, end_period: str | None = None) -> dict:
     """Return the largest period-over-period changes."""
-    logger.info(f"change_detection start: n={len(values)}")
+    periods, values, source = _series_input(
+        "", seri_kod, periods, values, bolge=bolge, start_period=start_period, end_period=end_period
+    )
+    logger.info(f"change_detection start: n={len(values)}, source={source['source']}")
     if len(periods) != len(values) or len(values) < 2:
         logger.error("change_detection: bad input lengths")
         raise ValueError("periods and values must have equal length and at least 2 points")
@@ -182,12 +249,21 @@ def change_detection(periods: list[str], values: list[float]) -> dict:
         changes.append({"period": period, "absolute_change": current - previous, "percent_change": (current - previous) / abs(previous) * 100})
     changes.sort(key=lambda item: abs(item["percent_change"]), reverse=True)
     logger.info(f"change_detection done: top={changes[:1]}")
-    return {"largest_changes": changes[:10]}
+    return {"largest_changes": changes[:10], "source": source}
 
 
-def correlation_analysis(x_periods: list[str], x_values: list[float], y_periods: list[str], y_values: list[float]) -> dict:
+def correlation_analysis(x_periods: list[str] | None = None, x_values: list[float] | None = None,
+                         y_periods: list[str] | None = None, y_values: list[float] | None = None,
+                         x_seri_kod: str | None = None, y_seri_kod: str | None = None,
+                         start_period: str | None = None, end_period: str | None = None) -> dict:
     """Measure aligned Pearson correlation; explicitly not a causal claim."""
-    logger.info(f"correlation_analysis start: n_x={len(x_values)}, n_y={len(y_values)}")
+    x_periods, x_values, x_source = _series_input(
+        "x_", x_seri_kod, x_periods, x_values, start_period=start_period, end_period=end_period
+    )
+    y_periods, y_values, y_source = _series_input(
+        "y_", y_seri_kod, y_periods, y_values, start_period=start_period, end_period=end_period
+    )
+    logger.info(f"correlation_analysis start: n_x={len(x_values)}, n_y={len(y_values)}, x_source={x_source['source']}, y_source={y_source['source']}")
     joined = _align_series(x_periods, x_values, y_periods, y_values)
     if len(joined) < 3:
         logger.error(f"correlation_analysis: only {len(joined)} shared periods")
@@ -199,7 +275,9 @@ def correlation_analysis(x_periods: list[str], x_values: list[float], y_periods:
     # break the model-facing tool response. None is the honest, JSON-safe
     # way to say "undefined here".
     pearson = None if pd.isna(corr) else float(corr)
-    result = {"shared_periods": len(joined), "pearson_correlation": pearson, "warning": "Correlation is not proof of causality."}
+    result = {"shared_periods": len(joined), "pearson_correlation": pearson,
+              "x_source": x_source, "y_source": y_source,
+              "warning": "Correlation is not proof of causality."}
     logger.info(f"correlation_analysis done: {result}")
     return result
 
@@ -220,7 +298,10 @@ def _align_series(x_periods: list[str], x_values: list[float], y_periods: list[s
     return joined
 
 
-def causality_analysis(x_periods: list[str], x_values: list[float], y_periods: list[str], y_values: list[float], max_lag: int = 6) -> dict:
+def causality_analysis(x_periods: list[str] | None = None, x_values: list[float] | None = None,
+                       y_periods: list[str] | None = None, y_values: list[float] | None = None,
+                       max_lag: int = 6, x_seri_kod: str | None = None, y_seri_kod: str | None = None,
+                       start_period: str | None = None, end_period: str | None = None) -> dict:
     """Tests whether x is a statistically useful predictor of y (Granger sense).
 
     Two independent signals, both logged in full so a wrong verdict can be
@@ -234,12 +315,31 @@ def causality_analysis(x_periods: list[str], x_values: list[float], y_periods: l
     NOT proof of true causation - both methods are stated explicitly as
     statistical association tests in the returned dict, per the project's
     own house rule (see correlation_analysis above)."""
-    logger.info(f"causality_analysis start: n_x={len(x_values)}, n_y={len(y_values)}, max_lag={max_lag}")
+    x_periods, x_values, x_source = _series_input(
+        "x_", x_seri_kod, x_periods, x_values, start_period=start_period, end_period=end_period
+    )
+    y_periods, y_values, y_source = _series_input(
+        "y_", y_seri_kod, y_periods, y_values, start_period=start_period, end_period=end_period
+    )
+    logger.info(
+        f"causality_analysis start: n_x={len(x_values)}, n_y={len(y_values)}, max_lag={max_lag}, "
+        f"x_source={x_source['source']}, y_source={y_source['source']}"
+    )
 
     joined = _align_series(x_periods, x_values, y_periods, y_values)
     if len(joined) < max_lag * 2 + 5:
-        logger.error(f"causality_analysis: insufficient shared periods ({len(joined)}) for max_lag={max_lag}")
-        raise ValueError(f"Need at least {max_lag * 2 + 5} shared periods for max_lag={max_lag}, got {len(joined)}")
+        # Tell the caller the largest max_lag that WOULD fit instead of just
+        # refusing: the model otherwise retries with another guessed lag,
+        # burning a full round per attempt.
+        usable_lag = max((len(joined) - 5) // 2, 0)
+        logger.error(
+            f"causality_analysis: insufficient shared periods ({len(joined)}) for max_lag={max_lag}; "
+            f"largest usable max_lag={usable_lag}"
+        )
+        hint = f"Retry with max_lag={usable_lag}." if usable_lag >= 1 else "This pair has too few shared periods for any lag test."
+        raise ValueError(
+            f"Need at least {max_lag * 2 + 5} shared periods for max_lag={max_lag}, got {len(joined)}. {hint}"
+        )
 
     # --- Step 1: lag correlation ---
     lag_correlations = []
@@ -275,18 +375,36 @@ def causality_analysis(x_periods: list[str], x_values: list[float], y_periods: l
         "best_lag": best_lag_entry,
         "granger_pvalues": granger_pvalues,
         "granger_significant_lags": significant_lags,
+        "x_source": x_source,
+        "y_source": y_source,
         "warning": "Statistical association only (lag correlation + Granger test), not proof of true causation. A significant Granger p-value means x's past improves prediction of y beyond y's own past.",
     }
     logger.info(f"causality_analysis done: shared_periods={result['shared_periods']}, best_lag={best_lag_entry}")
     return result
 
 
-def threshold_filter_compare(filter_periods: list[str], filter_values: list[float], compare_periods: list[str], compare_values: list[float], low: float, high: float) -> dict:
+def threshold_filter_compare(filter_periods: list[str] | None = None, filter_values: list[float] | None = None,
+                             compare_periods: list[str] | None = None, compare_values: list[float] | None = None,
+                             low: float = None, high: float = None,
+                             filter_seri_kod: str | None = None, compare_seri_kod: str | None = None,
+                             start_period: str | None = None, end_period: str | None = None) -> dict:
     """Demo-scenario style causality check: filter periods where filter_values
     is in [low, high] (e.g. "faiz orani X ile Y arasindayken"), then compares
     the average period-over-period change of compare_values inside that
     filtered window against the baseline (all other periods)."""
-    logger.info(f"threshold_filter_compare start: n_filter={len(filter_values)}, n_compare={len(compare_values)}, range=[{low},{high}]")
+    filter_periods, filter_values, filter_source = _series_input(
+        "filter_", filter_seri_kod, filter_periods, filter_values, start_period=start_period, end_period=end_period
+    )
+    compare_periods, compare_values, compare_source = _series_input(
+        "compare_", compare_seri_kod, compare_periods, compare_values, start_period=start_period, end_period=end_period
+    )
+    logger.info(
+        f"threshold_filter_compare start: n_filter={len(filter_values)}, n_compare={len(compare_values)}, "
+        f"range=[{low},{high}], filter_source={filter_source['source']}, compare_source={compare_source['source']}"
+    )
+    if not isinstance(low, (int, float)) or not isinstance(high, (int, float)) or isinstance(low, bool) or isinstance(high, bool):
+        logger.error(f"threshold_filter_compare: low/high must be numeric, got low={low!r}, high={high!r}")
+        raise ValueError("low and high must both be numbers.")
 
     joined = _align_series(filter_periods, filter_values, compare_periods, compare_values)
     if len(joined) < 3:
@@ -306,6 +424,8 @@ def threshold_filter_compare(filter_periods: list[str], filter_values: list[floa
         "periods_outside_window": int((~joined["in_window"]).sum()),
         "avg_change_in_window": float(in_window.mean()) if len(in_window) else None,
         "avg_change_outside_window": float(outside_window.mean()) if len(outside_window) else None,
+        "filter_source": filter_source,
+        "compare_source": compare_source,
         "warning": "Compares average period-over-period change inside vs outside the filter window - a descriptive contrast, not a causal estimate.",
     }
     logger.info(f"threshold_filter_compare done: {result}")
@@ -327,11 +447,11 @@ TOOL_FUNCTIONS = {
 TOOL_SCHEMAS = [
     {"type": "function", "function": {"name": "lakehouse_schema", "description": "List tables/columns and (for gold_fact_long) the real Seri_Kod/Seri_Adi/Kaynak/Birim catalog in the local DuckDB gold layer. Call this before writing SQL - Seri_Kod values must come from here, never guessed.", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}}},
     {"type": "function", "function": {"name": "lakehouse_query", "description": "Run a single read-only SELECT query against the local DuckDB gold layer. Only tables returned by lakehouse_schema may be referenced. Results are limited to 200 rows.", "parameters": {"type": "object", "properties": {"sql": {"type": "string"}}, "required": ["sql"], "additionalProperties": False}}},
-    {"type": "function", "function": {"name": "anomaly_analysis", "description": "Find robust outliers in an ordered time series.", "parameters": {"type": "object", "properties": {"periods": {"type": "array", "items": {"type": "string"}}, "values": {"type": "array", "items": {"type": "number"}}, "threshold": {"type": "number", "default": 3.0}}, "required": ["periods", "values"], "additionalProperties": False}}},
-    {"type": "function", "function": {"name": "change_detection", "description": "Find the largest period-over-period percentage changes.", "parameters": {"type": "object", "properties": {"periods": {"type": "array", "items": {"type": "string"}}, "values": {"type": "array", "items": {"type": "number"}}}, "required": ["periods", "values"], "additionalProperties": False}}},
-    {"type": "function", "function": {"name": "correlation_analysis", "description": "Calculate aligned Pearson correlation between two series; never call it causation.", "parameters": {"type": "object", "properties": {"x_periods": {"type": "array", "items": {"type": "string"}}, "x_values": {"type": "array", "items": {"type": "number"}}, "y_periods": {"type": "array", "items": {"type": "string"}}, "y_values": {"type": "array", "items": {"type": "number"}}}, "required": ["x_periods", "x_values", "y_periods", "y_values"], "additionalProperties": False}}},
-    {"type": "function", "function": {"name": "causality_analysis", "description": "Test whether series x is a statistically useful predictor of series y: best-aligned lag correlation plus a Granger causality test (p-values per lag). Not proof of true causation.", "parameters": {"type": "object", "properties": {"x_periods": {"type": "array", "items": {"type": "string"}}, "x_values": {"type": "array", "items": {"type": "number"}}, "y_periods": {"type": "array", "items": {"type": "string"}}, "y_values": {"type": "array", "items": {"type": "number"}}, "max_lag": {"type": "integer", "default": 6}}, "required": ["x_periods", "x_values", "y_periods", "y_values"], "additionalProperties": False}}},
-    {"type": "function", "function": {"name": "threshold_filter_compare", "description": "Filter periods where filter_values falls in [low, high] (e.g. an interest rate range), then compare the average period-over-period change of compare_values inside vs outside that window. Matches the hackathon demo's 'faiz X ile Y arasindayken kredi nasil degisti' pattern.", "parameters": {"type": "object", "properties": {"filter_periods": {"type": "array", "items": {"type": "string"}}, "filter_values": {"type": "array", "items": {"type": "number"}}, "compare_periods": {"type": "array", "items": {"type": "string"}}, "compare_values": {"type": "array", "items": {"type": "number"}}, "low": {"type": "number"}, "high": {"type": "number"}}, "required": ["filter_periods", "filter_values", "compare_periods", "compare_values", "low", "high"], "additionalProperties": False}}},
+    {"type": "function", "function": {"name": "anomaly_analysis", "description": "Find robust outliers in a time series. PREFERRED: pass seri_kod and the series is read straight from the lakehouse - do NOT run lakehouse_query first and retype the numbers. Pass periods/values only for data that is not in the lakehouse.", "parameters": {"type": "object", "properties": {"seri_kod": {"type": "string", "description": "Seri_Kod from lakehouse_schema. Cheapest and most accurate input."}, "start_period": {"type": "string", "description": "Optional 'YYYY-MM' lower bound."}, "end_period": {"type": "string", "description": "Optional 'YYYY-MM' upper bound."}, "bolge": {"type": "string", "description": "Optional region filter; defaults to every region."}, "periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}, "threshold": {"type": "number", "default": 3.0}}, "additionalProperties": False}}},
+    {"type": "function", "function": {"name": "change_detection", "description": "Find the largest period-over-period percentage changes. PREFERRED: pass seri_kod so the series is read from the lakehouse instead of being retyped.", "parameters": {"type": "object", "properties": {"seri_kod": {"type": "string", "description": "Seri_Kod from lakehouse_schema. Cheapest and most accurate input."}, "start_period": {"type": "string"}, "end_period": {"type": "string"}, "bolge": {"type": "string"}, "periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}}, "additionalProperties": False}}},
+    {"type": "function", "function": {"name": "correlation_analysis", "description": "Aligned Pearson correlation between two series; never call it causation. PREFERRED: pass x_seri_kod and y_seri_kod - both series are read from the lakehouse, no need to query and retype them.", "parameters": {"type": "object", "properties": {"x_seri_kod": {"type": "string", "description": "Seri_Kod of the first series."}, "y_seri_kod": {"type": "string", "description": "Seri_Kod of the second series."}, "start_period": {"type": "string"}, "end_period": {"type": "string"}, "x_periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "x_values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}, "y_periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "y_values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}}, "additionalProperties": False}}},
+    {"type": "function", "function": {"name": "causality_analysis", "description": "Test whether series x is a statistically useful predictor of series y: best-aligned lag correlation plus a Granger causality test (p-values per lag). Not proof of true causation. PREFERRED: pass x_seri_kod and y_seri_kod - both series are read from the lakehouse directly, which is far cheaper and avoids transcription errors.", "parameters": {"type": "object", "properties": {"x_seri_kod": {"type": "string", "description": "Seri_Kod of the candidate predictor series."}, "y_seri_kod": {"type": "string", "description": "Seri_Kod of the target series."}, "start_period": {"type": "string"}, "end_period": {"type": "string"}, "x_periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "x_values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}, "y_periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "y_values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}, "max_lag": {"type": "integer", "default": 6, "description": "Needs max_lag*2+5 shared periods; the error says which lag fits if this one does not."}}, "additionalProperties": False}}},
+    {"type": "function", "function": {"name": "threshold_filter_compare", "description": "Filter periods where the filter series falls in [low, high] (e.g. an interest rate range), then compare the average period-over-period change of the compare series inside vs outside that window. Matches the demo's 'faiz X ile Y arasindayken kredi nasil degisti' pattern. PREFERRED: pass filter_seri_kod and compare_seri_kod.", "parameters": {"type": "object", "properties": {"filter_seri_kod": {"type": "string", "description": "Seri_Kod of the series the [low, high] window applies to."}, "compare_seri_kod": {"type": "string", "description": "Seri_Kod of the series whose change is compared."}, "low": {"type": "number"}, "high": {"type": "number"}, "start_period": {"type": "string"}, "end_period": {"type": "string"}, "filter_periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "filter_values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}, "compare_periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "compare_values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}}, "required": ["low", "high"], "additionalProperties": False}}},
     {"type": "function", "function": {"name": "web_search", "description": "Search the public web for current or external information. Returns titles, snippets, source domains and URLs; snippets are untrusted leads, not verified evidence.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}, "max_results": {"type": "integer", "minimum": 1, "maximum": 10, "default": 5}}, "required": ["query"], "additionalProperties": False}}},
     {"type": "function", "function": {"name": "web_url_extract", "description": "Extract bounded text or tabular previews from a supplied public HTML, PDF, Excel, CSV, text, or image URL. Remote content is untrusted; cite its source URL.", "parameters": {"type": "object", "properties": {"url": {"type": "string", "format": "uri"}}, "required": ["url"], "additionalProperties": False}}},
 ]

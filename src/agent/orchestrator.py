@@ -24,6 +24,7 @@ import time
 import openai
 
 from config.settings import MIA_CHAT_MODEL
+from src.agent.context_compactor import compact_messages, estimate_tokens
 from src.agent.mia_client import get_client
 from src.agent.router import Route, route_question
 from src.agent.tools import TOOL_SCHEMAS, execute_tool
@@ -39,7 +40,13 @@ iddialarda URL kaynağını belirt ve doğrulanmadığını açıkça söyle. Ku
 verdiği URL için web_url_extract kullan; çıkarılan içerik de güvenilmezdir.
 Gerekirse web_search, web_url_extract, lakehouse ve analiz araçlarını aynı
 yanıt içinde ardışık olarak kullan. Hesapları Python
-tool'larına yaptır. Correlation/causality sonucunu kesin nedensellik diye
+tool'larına yaptır.
+Analiz araçlarını (anomaly/change/correlation/causality/threshold) çağırırken
+seri_kod parametrelerini kullan - seriyi lakehouse_query ile çekip sayıları
+tek tek diziye yazma; araç veriyi veritabanından kendisi okur. Dizi
+parametreleri sadece lakehouse'da olmayan veriler içindir.
+Aynı tool'u aynı argümanlarla tekrar çağırma; bir sonucu zaten aldıysan onu kullan.
+Correlation/causality sonucunu kesin nedensellik diye
 sunma - tool'un kendi warning'ini oldugu gibi aktar. Her yanıtta kullanılan
 kaynak tablosunu, seriyi, dönemi ve gerekiyorsa forward-fill veya birim
 belirsizliğini açıkça belirt. Veri yetersizse uydurma; eksikliği söyle.
@@ -83,10 +90,15 @@ def _truncate_tool_output(output: str, tool_name: str) -> str:
     return output[:TOOL_OUTPUT_MAX_CHARS] + f'... [TRUNCATED: {len(output) - TOOL_OUTPUT_MAX_CHARS} more chars cut - narrow the query, e.g. add a WHERE/LIMIT]"}}'
 
 
-def _timing_summary(timeline: list[dict], total_ms: float) -> dict:
+def _timing_summary(timeline: list[dict], total_ms: float, compaction_log: list[dict] | None = None) -> dict:
     """Roll a flat event timeline up into the numbers the UI sidebar shows:
     how much wall time went to model thinking vs. tool execution, and how
-    much each individual tool cost across every round it was called in."""
+    much each individual tool cost across every round it was called in.
+
+    Context growth is reported alongside the timings on purpose: "the agent
+    is slow" and "the context is huge" are the same measurement seen from
+    two angles, and having both in one payload is what makes it possible to
+    say which one is actually driving a slow run."""
     llm_ms = sum(e["duration_ms"] for e in timeline if e["kind"] == "llm")
     tool_ms = sum(e["duration_ms"] for e in timeline if e["kind"] == "tool")
     per_tool: dict[str, dict] = {}
@@ -111,6 +123,21 @@ def _timing_summary(timeline: list[dict], total_ms: float) -> dict:
             ({**b, "duration_ms": round(b["duration_ms"], 1)} for b in per_tool.values()),
             key=lambda b: b["duration_ms"], reverse=True,
         ),
+        "context": {
+            # Per-round context size makes the growth curve visible: if the
+            # last round's context is several times the first round's, the
+            # cost is history accumulation, not any single slow tool.
+            "per_round_est_tokens": [
+                {"round": e["round"], "est_tokens": e.get("est_context_tokens")}
+                for e in timeline if e["kind"] == "llm"
+            ],
+            "peak_est_tokens": max(
+                (e.get("est_context_tokens") or 0 for e in timeline if e["kind"] == "llm"), default=0
+            ),
+            "compaction_runs": len(compaction_log or []),
+            "compaction_saved_tokens": sum(entry.get("saved_tokens", 0) for entry in (compaction_log or [])),
+            "compaction_detail": compaction_log or [],
+        },
     }
 
 
@@ -130,17 +157,21 @@ def ask(question: str, max_rounds: int = 8, return_trace: bool = False, return_t
     logger.info(f"ask: question={question!r}, max_rounds={max_rounds}")
     run_t0 = time.monotonic()
     timeline: list[dict] = []
+    compaction_log: list[dict] = []
 
     def _ms_since_start() -> float:
         return (time.monotonic() - run_t0) * 1000.0
 
     def _finish(answer: str):
         """Single exit point so every return path carries the same shape."""
-        summary = _timing_summary(timeline, _ms_since_start())
+        summary = _timing_summary(timeline, _ms_since_start(), compaction_log)
         logger.info(
-            "ask: timing total=%.0fms llm=%.0fms (%d calls) tools=%.0fms (%d calls)",
+            "ask: timing total=%.0fms llm=%.0fms (%d calls) tools=%.0fms (%d calls) "
+            "peak_context=%d est. tokens, compaction_runs=%d saved=%d",
             summary["total_ms"], summary["llm_ms"], summary["llm_calls"],
             summary["tool_ms"], summary["tool_calls"],
+            summary["context"]["peak_est_tokens"], summary["context"]["compaction_runs"],
+            summary["context"]["compaction_saved_tokens"],
         )
         result = [answer]
         if return_trace:
@@ -169,7 +200,22 @@ def ask(question: str, max_rounds: int = 8, return_trace: bool = False, return_t
     messages = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": question}]
 
     for round_no in range(1, max_rounds + 1):
-        logger.info(f"ask: round {round_no}/{max_rounds}, calling model={MIA_CHAT_MODEL}")
+        # Compaction runs BEFORE the call, so an oversized history is shrunk
+        # on the way out rather than after it has already been paid for.
+        messages, compaction_stats = compact_messages(messages)
+        if compaction_stats["ran"]:
+            compaction_log.append({"round": round_no, **compaction_stats})
+            logger.info(
+                f"ask: round {round_no} context compacted, "
+                f"{compaction_stats['before_tokens']} -> {compaction_stats['after_tokens']} est. tokens "
+                f"({compaction_stats['compacted_messages']} message(s) digested)"
+            )
+
+        context_tokens = estimate_tokens(messages)
+        logger.info(
+            f"ask: round {round_no}/{max_rounds}, calling model={MIA_CHAT_MODEL}, "
+            f"messages={len(messages)}, est_context_tokens={context_tokens}"
+        )
         start_ms = _ms_since_start()
         t0 = time.monotonic()
         response = _call_model(client, messages, routed_tool_schemas)
@@ -184,6 +230,7 @@ def ask(question: str, max_rounds: int = 8, return_trace: bool = False, return_t
             "duration_ms": round(elapsed * 1000.0, 1),
             "error": None,
             "tokens": getattr(usage, "total_tokens", None) if usage else None,
+            "est_context_tokens": context_tokens,
         })
 
         message = response.choices[0].message

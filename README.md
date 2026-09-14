@@ -36,6 +36,10 @@ answer can combine them:
 - `web_search` — search current public information
 - `web_url_extract` — read bounded HTML, PDF, Excel, CSV, text or image URLs
 
+The analysis tools take a `seri_kod` and read the series from the database
+themselves. Passing explicit `periods`/`values` arrays still works, but is only
+meant for data that is not in the lakehouse.
+
 For example, a current-rate question may call `web_search`, open a result with
 `web_url_extract`, query the local series, and then run an analysis tool. Unsafe
 SQL or prompt-injection requests are refused before the model gets any tools.
@@ -56,6 +60,34 @@ Web search uses DuckDuckGo by default. To use Tavily instead, set
 
 The gold build is network-free; it reads the checked-in silver files. The
 collectors need the relevant source keys in `.env` and should be run with care.
+
+## Cost and speed
+
+Two things dominate a run, and only one of them is the data layer:
+
+```bash
+.venv/bin/python -m benchmarks.context_cost_benchmark   # local, no API calls
+```
+
+Measured on the built database:
+
+| What | Result |
+|---|---|
+| `lakehouse_schema` / `lakehouse_query` / `resolve_series` | 15–31 ms each |
+| Tool time in a real 5-round run | 0.58 s of 20.3 s (2.8%) |
+| `causality_analysis` arguments, array path vs `seri_kod` | 2372 → 80 chars (29.6x), identical results |
+| History over a simulated 8-round chain, after compaction | 5137 → 2282 est. tokens (55.6%), no message dropped |
+
+So the database is not the bottleneck; generated tokens are. Two changes follow
+from that: the analysis tools read series by `seri_kod` instead of having the
+model retype them, and older tool outputs in a long chain are replaced with
+short digests once the history passes a budget. Compaction only rewrites
+message content — it never drops a message, because a `tool` message that loses
+its pairing breaks the next API call.
+
+Every run reports where its time and context went (`return_timing=True`, also
+shown in the browser page), so a slow answer can be attributed rather than
+guessed at.
 
 ## Checks
 
