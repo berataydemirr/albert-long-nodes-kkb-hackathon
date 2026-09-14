@@ -37,6 +37,16 @@ answer can combine them:
 - `web_search` — search current public information
 - `web_url_extract` — read bounded HTML, PDF, Excel, CSV, text or image URLs
 
+Answers that produced chartable numbers get a chart under the prose. The specs
+are derived from the tool results the backend already has
+(`src/agent/charts.py`) — the model is never asked to emit chart JSON, which
+would be both wall time (generated tokens are this model's bottleneck) and a
+second chance to transcribe a number wrong. Province rankings become horizontal
+bars, series become lines, and an analysis that flagged specific periods
+recedes the line and accents those points. Two series never share one plot with
+two y-axes; they become two charts. Every chart carries its unit, its source,
+and a table view, so no value is reachable only by hovering.
+
 The analysis tools take a `seri_kod` and read the series from the database
 themselves. Passing explicit `periods`/`values` arrays still works, but is only
 meant for data that is not in the lakehouse.

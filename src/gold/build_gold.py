@@ -55,14 +55,14 @@ GOLD_DB_PATH = GOLD_DIR / "lakehouse.duckdb"
 # EVDS series we pull into the long fact table, with human labels for
 # the LLM-facing schema (see docs/gold_schema.md).
 EVDS_SERIES_LABELS = {
-    "TP.KFE.TR": "Konut Fiyat Endeksi (TR Geneli)",
-    "TP.BKR.TRY.18": "Konut Kredisi Faiz Orani (TL, Stok, %)",
-    "TP.BISPOLFAIZ.TUR": "TCMB Politika Faizi (%)",
-    "TP.GENENDEKS.T1": "TUFE Genel Endeks (2003=100)",
-    "TP.TSANAYMT2021.BCD": "Sanayi Uretim Endeksi (Mevsim/Takvim Etkisinden Arindirilmis)",
-    "TP.MT210AGS.TRY.MT06": "TL Mevduat Faiz Orani (Vadesiz Haric, Stok, %)",
-    "TP.GY1.N2": "Reel Kesim Guven Endeksi",
-    "TP.BKR.TRY.KTFTUK": "Tuketici Kredisi Faiz Orani, Ihtiyac+Tasit+Konut Birlikte (TL, Stok, %)",
+    "TP.KFE.TR": ("Konut Fiyat Endeksi (TR Geneli)", "Endeks"),
+    "TP.BKR.TRY.18": ("Konut Kredisi Faiz Orani (TL, Stok, %)", "%"),
+    "TP.BISPOLFAIZ.TUR": ("TCMB Politika Faizi (%)", "%"),
+    "TP.GENENDEKS.T1": ("TUFE Genel Endeks (2003=100)", "Endeks (2003=100)"),
+    "TP.TSANAYMT2021.BCD": ("Sanayi Uretim Endeksi (Mevsim/Takvim Etkisinden Arindirilmis)", "Endeks"),
+    "TP.MT210AGS.TRY.MT06": ("TL Mevduat Faiz Orani (Vadesiz Haric, Stok, %)", "%"),
+    "TP.GY1.N2": ("Reel Kesim Guven Endeksi", "Endeks"),
+    "TP.BKR.TRY.KTFTUK": ("Tuketici Kredisi Faiz Orani, Ihtiyac+Tasit+Konut Birlikte (TL, Stok, %)", "%"),
     # TP.ALTINPIYASA.KAP05 (gold price) deliberately NOT included here -
     # see the data-quality warning next to it in config/evds_series.py.
 }
@@ -73,6 +73,9 @@ EVDS_SERIES_LABELS = {
 # not just read off the last week like a stock/rate would be; M2 (a
 # stock) uses the last observation of the month instead.
 EVDS_WEEKLY_SERIES = {
+    # birim=None for both: EVDS's own metadata for these two series states
+    # no currency/scale (checked via get_series()), so it is left empty
+    # rather than filled with a plausible-looking guess.
     "TP.KKHARTUT.KT1": ("Kredi/Banka Karti Harcamasi, Toplam (Haftalik, Aylik Ortalama)", None, "flow", "mean"),
     "TP.HPBITABLO1.11": ("M2 Para Arzi (Ay Sonu)", None, "stock", "last"),
 }
@@ -88,14 +91,14 @@ def _fact_row(period, kaynak, seri_kod, seri_adi, deger, birim, tip, kaynak_dosy
 
 def build_evds_facts() -> pd.DataFrame:
     rows = []
-    for code, label in EVDS_SERIES_LABELS.items():
+    for code, (label, birim) in EVDS_SERIES_LABELS.items():
         path = EVDS_SILVER_DIR / f"{code.replace('.', '_')}.csv"
         if not path.exists():
             logger.warning(f"Missing EVDS silver file, skipped: {path}")
             continue
         df = pd.read_csv(path, encoding="utf-8")
         for _, r in df.iterrows():
-            rows.append(_fact_row(r["Period"], "evds", code, label, r["Value"], None, "stock", path.name))
+            rows.append(_fact_row(r["Period"], "evds", code, label, r["Value"], birim, "stock", path.name))
 
     # USD/TRY is daily -> downsample to monthly (last trading day of month = month-end rate)
     usd_path = EVDS_SILVER_DIR / "TP_DK_USD_A_YTL.csv"

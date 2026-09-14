@@ -467,6 +467,221 @@ function mdToBlocks(markdown) {
   return blocks.length ? blocks : [React.createElement('p', { key: 0 }, '(boş yanıt)')];
 }
 
+// --- Charts -------------------------------------------------------------
+// Built from tool results the backend already has (src/agent/charts.py),
+// not from anything the model generated. Audience is readers with basic
+// financial literacy, so the defaults lean on legibility over density:
+// one colour per chart, a hairline grid, few axis ticks, direct labels on
+// the points that carry the story, and a table view under every chart so
+// no value is reachable only by hovering.
+//
+// Palette is decided here, from the Bogazici tokens, and was checked for
+// contrast rather than eyeballed: CHART_INK #1e4a8b is 8.72:1 on white,
+// CHART_DIM #7790ab is 3.30:1 (above the 3:1 floor for graphical marks).
+// The brand light blue #8cc8ea measured 1.82:1 and is therefore NOT used
+// for any line or bar - only as a translucent area wash under a line,
+// where it is decoration and never the thing being read.
+const CHART_INK = '#1e4a8b';
+const CHART_DIM = '#7790ab';
+const CHART_GRID = 'rgba(30,74,139,.13)';
+const CHART_AXIS_TEXT = '#5f7b9b';
+
+// Axis ticks land on round numbers rather than on the data's own min/max.
+// A tick reading "33,84" is an artefact of the padding maths; "35" is a
+// number a reader can hold in their head, which is the whole point for a
+// non-expert audience.
+function niceTicks(min, max, count) {
+  const span = max - min;
+  if (!(span > 0)) return [min];
+  const rawStep = span / (count - 1);
+  const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const norm = rawStep / mag;
+  const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag;
+  const ticks = [];
+  for (let t = Math.ceil(min / step) * step; t <= max + step * 1e-9; t += step) {
+    ticks.push(Number(t.toFixed(10)));
+  }
+  return ticks.length >= 2 ? ticks : [min, max];
+}
+
+const fmtNum = (v) => {
+  const n = Number(v);
+  if (!isFinite(n)) return '—';
+  const abs = Math.abs(n);
+  // Turkish grouping, and a magnitude suffix so a 9-digit lending figure
+  // does not run past its own axis label.
+  if (abs >= 1e9) return (n / 1e9).toLocaleString('tr-TR', { maximumFractionDigits: 1 }) + ' mlr';
+  if (abs >= 1e6) return (n / 1e6).toLocaleString('tr-TR', { maximumFractionDigits: 1 }) + ' mn';
+  if (abs >= 1e4) return (n / 1e3).toLocaleString('tr-TR', { maximumFractionDigits: 0 }) + ' bin';
+  return n.toLocaleString('tr-TR', { maximumFractionDigits: 2 });
+};
+
+function chartFrame(title, subtitle, unit, sourceNote, body, tableRows) {
+  const el = React.createElement;
+  return el('figure', {
+    style: {
+      margin: '4px 0 18px', padding: '15px 16px 12px', border: '1px solid rgba(30,74,139,.13)',
+      borderRadius: '12px', background: '#ffffff', boxShadow: '0 1px 2px rgba(15,37,66,.04)',
+    },
+  },
+    el('figcaption', { style: { marginBottom: '12px' } },
+      el('div', { style: { fontSize: '13.5px', fontWeight: 500, color: '#0f2542', lineHeight: 1.35 } }, title),
+      el('div', { style: { marginTop: '3px', fontSize: '11.5px', color: CHART_AXIS_TEXT } },
+        [subtitle, unit ? `birim: ${unit}` : null].filter(Boolean).join(' · ')),
+    ),
+    body,
+    // Tooltips enhance, they never gate: every plotted value is also
+    // readable here without a mouse.
+    el('details', { style: { marginTop: '10px' } },
+      el('summary', {
+        style: { fontSize: '11.5px', color: CHART_AXIS_TEXT, cursor: 'pointer', listStyle: 'revert' },
+      }, 'Değerleri tablo olarak gör'),
+      el('div', { style: { overflowX: 'auto', marginTop: '8px' } },
+        el('table', { style: { borderCollapse: 'collapse', width: '100%', fontSize: '12px' } },
+          el('tbody', null, tableRows.map((r, i) => el('tr', { key: i },
+            el('td', {
+              style: {
+                padding: '4px 8px', borderBottom: '1px solid rgba(30,74,139,.08)',
+                color: '#3d5877', whiteSpace: 'nowrap',
+              },
+            }, r[0]),
+            el('td', {
+              style: {
+                padding: '4px 8px', borderBottom: '1px solid rgba(30,74,139,.08)',
+                color: '#0f2542', textAlign: 'right', fontVariantNumeric: 'tabular-nums',
+              },
+            }, r[1]),
+          ))),
+        ),
+      ),
+    ),
+    el('div', { style: { marginTop: '9px', fontSize: '10.5px', color: '#94a9c0' } }, `Kaynak: ${sourceNote}`),
+  );
+}
+
+function lineChart(spec, key) {
+  const el = React.createElement;
+  const pts = spec.points || [];
+  if (pts.length < 2) return null;
+
+  const W = 640, H = 190, PAD_L = 52, PAD_R = 14, PAD_T = 10, PAD_B = 30;
+  const values = pts.map(p => Number(p.value));
+  let min = Math.min(...values), max = Math.max(...values);
+  if (min === max) { min -= 1; max += 1; }
+  // A rate series that never approaches zero reads as flat when the axis
+  // is forced to zero, so the axis follows the data with a 8% margin.
+  const span = max - min;
+  min -= span * 0.08; max += span * 0.08;
+
+  const x = i => PAD_L + (i / (pts.length - 1)) * (W - PAD_L - PAD_R);
+  const y = v => PAD_T + (1 - (v - min) / (max - min)) * (H - PAD_T - PAD_B);
+
+  const path = pts.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ');
+  const areaPath = `${path} L${x(pts.length - 1).toFixed(1)},${(H - PAD_B).toFixed(1)} L${x(0).toFixed(1)},${(H - PAD_B).toFixed(1)} Z`;
+
+  const ticks = niceTicks(min, max, 4).map(v => ({ v, y: y(v) }));
+  // At most 6 date labels: a label per month on 66 points is unreadable.
+  const step = Math.max(1, Math.floor(pts.length / 5));
+  const xLabels = pts.map((p, i) => ({ p, i })).filter(({ i }) => i % step === 0 || i === pts.length - 1);
+  const highlights = pts.map((p, i) => ({ p, i })).filter(({ p }) => p.highlight);
+  const last = pts[pts.length - 1];
+
+  return chartFrame(spec.title, spec.subtitle, spec.unit, spec.source_note,
+    el('div', { style: { overflowX: 'auto' } },
+      el('svg', {
+        viewBox: `0 0 ${W} ${H}`, style: { width: '100%', minWidth: '320px', height: 'auto', display: 'block' },
+        role: 'img', 'aria-label': `${spec.title}: ${pts[0].label} ile ${last.label} arasi degisim`,
+      },
+        ticks.map((t, i) => el('g', { key: `t${i}` },
+          el('line', { x1: PAD_L, x2: W - PAD_R, y1: t.y, y2: t.y, stroke: CHART_GRID, strokeWidth: 1 }),
+          el('text', {
+            x: PAD_L - 7, y: t.y + 3.5, textAnchor: 'end',
+            style: { fontSize: '10px', fill: CHART_AXIS_TEXT, fontVariantNumeric: 'tabular-nums' },
+          }, fmtNum(t.v)),
+        )),
+        el('path', { d: areaPath, fill: 'rgba(140,200,234,.16)' }),
+        el('path', { d: path, fill: 'none', stroke: highlights.length ? CHART_DIM : CHART_INK, strokeWidth: 2, strokeLinejoin: 'round', strokeLinecap: 'round' }),
+        // Emphasis form: when the analysis flagged specific periods, the
+        // line recedes and those points carry the accent. One hue, two
+        // roles - not a second categorical colour.
+        highlights.map(({ p, i }) => el('circle', {
+          key: `h${i}`, cx: x(i), cy: y(p.value), r: 4.5,
+          fill: CHART_INK, stroke: '#ffffff', strokeWidth: 2,
+        })),
+        el('circle', { cx: x(pts.length - 1), cy: y(last.value), r: 3.5, fill: CHART_INK, stroke: '#ffffff', strokeWidth: 2 }),
+        // Direct-label the endpoint only; a number on every point is noise.
+        el('text', {
+          x: Math.min(x(pts.length - 1) + 6, W - PAD_R), y: y(last.value) - 8, textAnchor: 'end',
+          style: { fontSize: '11px', fill: '#0f2542', fontWeight: 500 },
+        }, fmtNum(last.value)),
+        xLabels.map(({ p, i }) => el('text', {
+          key: `x${i}`, x: x(i), y: H - PAD_B + 15,
+          textAnchor: i === 0 ? 'start' : (i === pts.length - 1 ? 'end' : 'middle'),
+          style: { fontSize: '10px', fill: CHART_AXIS_TEXT, fontVariantNumeric: 'tabular-nums' },
+        }, p.label)),
+        pts.map((p, i) => el('title', { key: `tip${i}` })),
+      ),
+    ),
+    pts.map(p => [p.label + (p.highlight ? ' ★' : ''), fmtNum(p.value)]),
+  );
+}
+
+function barChart(spec, key) {
+  const el = React.createElement;
+  const bars = spec.bars || [];
+  if (!bars.length) return null;
+
+  const max = Math.max(...bars.map(b => Math.abs(Number(b.value))), 1);
+  const rowH = 26;
+
+  return chartFrame(spec.title, spec.subtitle, spec.unit, spec.source_note,
+    // Horizontal bars in plain HTML rather than SVG: province names are
+    // long and variable, and letting the browser lay out the text avoids
+    // the clipped-label failure an SVG width guess would produce.
+    el('div', { style: { display: 'flex', flexDirection: 'column', gap: '2px' } },
+      bars.map((b, i) => el('div', {
+        key: i,
+        style: { display: 'grid', gridTemplateColumns: 'minmax(78px, 22%) 1fr auto', alignItems: 'center', gap: '10px', height: `${rowH}px` },
+      },
+        el('span', {
+          style: { fontSize: '12px', color: '#3d5877', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+          title: b.label,
+        }, b.label),
+        el('div', { style: { position: 'relative', height: '12px', background: 'rgba(30,74,139,.06)', borderRadius: '3px' } },
+          el('div', {
+            // Nominal categories, so every bar is the same colour - a
+            // darker-where-bigger ramp would re-encode length as hue.
+            style: {
+              position: 'absolute', left: 0, top: 0, bottom: 0,
+              width: `${Math.max((Math.abs(Number(b.value)) / max) * 100, 1.5)}%`,
+              background: CHART_INK, borderRadius: '3px',
+            },
+          }),
+        ),
+        el('span', {
+          style: { fontSize: '11.5px', color: '#0f2542', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' },
+        }, fmtNum(b.value) + (b.note ? ` · ${b.note}` : '')),
+      )),
+    ),
+    bars.map(b => [b.label, fmtNum(b.value) + (b.note ? ` (${b.note})` : '')]),
+  );
+}
+
+function chartsToBlocks(charts) {
+  if (!Array.isArray(charts) || !charts.length) return [];
+  const out = [];
+  charts.forEach((spec, i) => {
+    try {
+      const node = spec.kind === 'bar' ? barChart(spec, i) : lineChart(spec, i);
+      if (node) out.push(React.cloneElement(node, { key: `chart${i}` }));
+    } catch (err) {
+      // A chart is an enhancement; a broken one must not blank the answer.
+      console.warn('chart render failed', err);
+    }
+  });
+  return out;
+}
+
 class Component extends DCLogic {
   state = {
     input: '', thinking: false, elapsed: 0,
@@ -539,7 +754,9 @@ class Component extends DCLogic {
         this.pushAssistant({
           routeName: data.route ? data.route.name : 'agent',
           routeReason: data.route ? data.route.reason : '',
-          blocks: mdToBlocks(data.answer),
+          // Charts sit after the prose, inside the same answer block - the
+          // reader gets the conclusion in words first, then the shape.
+          blocks: [...mdToBlocks(data.answer), ...chartsToBlocks(data.charts)],
           trace: (data.trace || []).map(tc => ({
             name: tc.name, round: tc.round, durationMs: tc.duration_ms || 0,
             args: prettyJson(tc.arguments),

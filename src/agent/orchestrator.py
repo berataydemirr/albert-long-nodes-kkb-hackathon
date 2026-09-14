@@ -406,6 +406,14 @@ def ask(question: str, max_rounds: int = 8, return_trace: bool = False, return_t
             entry["start_ms"] = round(tool_start_ms, 1)
             entry["duration_ms"] = round(tool_elapsed_ms, 1)
             entry["output_preview"] = output[:4_000]
+            # The parsed result, kept whole. output_preview is truncated for
+            # the debug panel and cannot be parsed back reliably; chart
+            # derivation needs every row. web_app strips this before the
+            # trace goes over the wire, so the API response does not grow.
+            try:
+                entry["output_json"] = json.loads(output)
+            except (json.JSONDecodeError, TypeError):
+                entry["output_json"] = None
             timeline.append({
                 "kind": "tool",
                 "round": round_no,
