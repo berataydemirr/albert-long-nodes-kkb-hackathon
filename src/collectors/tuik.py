@@ -22,6 +22,7 @@ Usage (from the repo root):
 """
 import re
 import argparse
+import xml.etree.ElementTree as ET
 
 import requests
 
@@ -33,6 +34,12 @@ logger = get_logger("tuik")
 
 TOKEN_URL = "https://giris.tuik.gov.tr/realms/web/protocol/openid-connect/token"
 DATA_BASE_URL = "https://nsiws.tuik.gov.tr/rest/data/TR"
+DATAFLOW_LIST_URL = "https://nsiws.tuik.gov.tr/rest/dataflow/TR/all/latest"
+_SDMX_NS = {
+    "structure": "http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure",
+    "common": "http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common",
+    "xml": "http://www.w3.org/XML/1998/namespace",
+}
 
 
 def get_access_token() -> str:
@@ -92,6 +99,86 @@ def fetch_series(dataflow_id: str, version: str, key: str, series_code: str, for
     n_obs = len(re.findall(r"<generic:Obs>", resp.text))
     logger.info(f"Saved: {bronze_path} ({n_obs} observations)")
     return True
+
+
+_DATAFLOW_CATALOG_CACHE: list[dict] | None = None
+
+
+def list_dataflows(refresh: bool = False) -> list[dict]:
+    """TUIK's full dataflow catalog - id, version, and Turkish/English
+    name for every one of TUIK's ~427 published dataflows. Metadata only:
+    this endpoint (confirmed live, standard SDMX 2.1 structure query)
+    never returns actual observation data, so listing/searching it
+    carries none of the "guessed a key, got a real-but-wrong series"
+    risk that fetching data by an unresolved key would.
+
+    Cached per process (the catalog is ~450KB and does not change during
+    a session) - pass refresh=True to refetch."""
+    global _DATAFLOW_CATALOG_CACHE
+    if _DATAFLOW_CATALOG_CACHE is not None and not refresh:
+        logger.debug("list_dataflows: served from cache")
+        return _DATAFLOW_CATALOG_CACHE
+
+    token = get_access_token()
+    resp = requests.get(
+        DATAFLOW_LIST_URL,
+        headers={"Authorization": f"Bearer {token}", "Accept": "application/xml"},
+        timeout=30,
+    )
+    resp.raise_for_status()
+
+    root = ET.fromstring(resp.content)
+    dataflows = []
+    for df in root.iter(f"{{{_SDMX_NS['structure']}}}Dataflow"):
+        name_tr_el = df.find(f"{{{_SDMX_NS['common']}}}Name[@{{{_SDMX_NS['xml']}}}lang='tr']")
+        name_en_el = df.find(f"{{{_SDMX_NS['common']}}}Name[@{{{_SDMX_NS['xml']}}}lang='en']")
+        dataflows.append({
+            "dataflow_id": df.get("id"),
+            "version": df.get("version"),
+            "name_tr": name_tr_el.text if name_tr_el is not None else "",
+            "name_en": name_en_el.text if name_en_el is not None else "",
+        })
+    logger.info(f"list_dataflows: fetched {len(dataflows)} dataflow(s)")
+    _DATAFLOW_CATALOG_CACHE = dataflows
+    return dataflows
+
+
+# Python's plain str.lower() is not Turkish-locale-aware: 'İ'.lower()
+# produces 'i' followed by a COMBINING DOT ABOVE (U+0307), two
+# codepoints, not the plain ASCII 'i' a query would type - so a search
+# for "işgücü" against a catalog name containing "İşgücü" silently found
+# nothing, even though it is an exact match by eye. Found live: the
+# real registered series' own dataflow is titled "Temel İşgücü
+# Göstergeleri", and searching for its own domain word returned zero
+# results. Swapping the Turkish capital dotted/dotless I forms first
+# fixes both directions before the generic casefold runs.
+_TR_CASEFOLD_MAP = str.maketrans({"İ": "i", "I": "ı"})
+
+
+def _tr_casefold(s: str) -> str:
+    return s.translate(_TR_CASEFOLD_MAP).lower()
+
+
+def search_dataflows(query: str, limit: int = 10) -> list[dict]:
+    """Case-insensitive (Turkish-aware) substring match against every
+    dataflow's Turkish AND English name - discovery only. A match here is
+    the FIRST step of the manual dataflow -> DSD -> codelist key-
+    resolution process this project's TUIK integration always requires
+    (see config/tuik_series.py module docstring for a worked example,
+    including one - DF_DOGUM_KDH_C - that was investigated and abandoned
+    because the key could not be confirmed). Finding a matching
+    dataflow_id does NOT mean the series can be fetched: fetch_series
+    still needs a resolved 'key' that only a human, reading that
+    dataflow's own DSD codelists, can produce safely."""
+    if not query or not isinstance(query, str):
+        raise ValueError("query must be a non-empty string.")
+    q = _tr_casefold(query.strip())
+    matches = [
+        d for d in list_dataflows()
+        if q in _tr_casefold(d["name_tr"]) or q in _tr_casefold(d["name_en"]) or q in _tr_casefold(d["dataflow_id"])
+    ]
+    logger.info(f"search_dataflows: query={query!r} -> {len(matches)} match(es), returning up to {limit}")
+    return matches[:limit]
 
 
 def parse_args():

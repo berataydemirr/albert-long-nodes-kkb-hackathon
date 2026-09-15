@@ -11,18 +11,26 @@ analizler, asiri/gecersiz parametreler, var olmayan seri/dataset referanslari,
 adversarial/prompt-injection denemeleri, toplu (batch) istekler, ve yeni
 eklenen data-import/TUIK-refresh tool'larinin kotu girdilerle davranisi.
 
-Olculen 4 metrik (feedback'in kendi istedigi kriterler):
-  1. accuracy   : tool secimi + (varsa) sayisal/ic tutarlilik kontrolu dogru mu
-  2. consistency: ayni soru N kez sorulunca ayni tool seti mi seciliyor
-  3. speed      : soru basina round-trip suresi
-  4. hallucination_rate: var olmayan Seri_Kod / dataset_name kullanildi mi
+Olculen metrikler (feedback'in kendi istedigi kriterler, artik 4'ten fazla):
+  1. accuracy            : tool secimi dogru mu
+  2. numeric_grounding   : cevapta yazilan sayi, gercekten bir tool'un
+                           dondurdugu sayiya (veya iki gercek sayidan
+                           turetilmis basit bir hesaba) karsilik geliyor
+                           mu - "dogru tool cagrildi ama cevaba uydurma
+                           bir sayi yazildi" turu halusinasyonu yakalar,
+                           digger kontrollerin hicbiri buna bakmiyordu.
+  3. consistency         : ayni soru N kez sorulunca ayni tool seti mi seciliyor
+  4. speed               : soru basina round-trip suresi (ort./medyan/maks)
+  5. hallucination_rate  : var olmayan Seri_Kod / dataset_name kullanildi mi
+  6. missing_data_admission_rate: veri yoksa model bunu acikca soyluyor mu
+  7. ddl_attempt_blocked_rate: DROP/DELETE/injection denemeleri engellendi mi
 
 DURUST KAPSAM NOTU: Ekibin feedback'inde 150-200 soruluk bir hedef
-belirtilmisti. Bu dosya 100 soruya cikti (20 kategori) - her biri
+belirtilmisti. Bu dosya 150 soruya cikti (24 kategori) - her biri
 gercekten farkli bir basarisizlik modunu hedefliyor, sayiyi doldurmak
 icin ayni sorunun ufak varyasyonlari eklenmedi. Harness (bu dosyanin
 kendisi + BENCHMARK_QUESTIONS listesi) yeni soru eklemeyi tek satirlik
-bir sozluk eklemeye indiriyor; asil kalici deger harness'te, 100
+bir sozluk eklemeye indiriyor; asil kalici deger harness'te, 150
 rakaminda degil.
 """
 import argparse
@@ -446,6 +454,189 @@ BENCHMARK_QUESTIONS = [
     {"id": "method_03", "category": "known_traps",
      "question": "compare_regions'daki NPL orani nasil hesaplaniyor, ham formulu ver.",
      "expected_tools": None},
+
+    # --- sayisal dogrulama stres testi (numeric_grounding kontrolunu
+    # ozellikle zorlayan sorular - modelin cevapta yazdigi sayinin
+    # gercekten tool ciktisindan geldigini kanitlamak icin) ------------------
+    {"id": "numground_01", "category": "numeric_grounding_stress",
+     "question": "Konut kredisi faizi ile hacmi arasindaki Pearson korelasyon katsayisini tam olarak (en az 3 basamak) ver.",
+     "expected_tools": {"correlation_analysis"}},
+    {"id": "numground_02", "category": "numeric_grounding_stress",
+     "question": "TCMB politika faizinin son 3 donemdeki tam degerlerini (virgulden sonra en az 1 basamak) sirayla listele.",
+     "expected_tools": {"lakehouse_query"}},
+    {"id": "numground_03", "category": "numeric_grounding_stress",
+     "question": "Konut kredisi faiz oranindaki en buyuk aykiri degeri (anomaliyi) bul ve o donemdeki tam sayisal degerini yaz.",
+     "expected_tools": {"anomaly_analysis"}},
+    {"id": "numground_04", "category": "numeric_grounding_stress",
+     "question": "AKBNK hissesinin son 1 aydaki en yuksek ve en dusuk kapanis fiyatlarini tam sayisal degerleriyle ver.",
+     "expected_tools": {"fetch_bist_stock"}},
+    {"id": "numground_05", "category": "numeric_grounding_stress",
+     "question": "Takipteki alacak orani en yuksek ilin tam NPL yuzdesini (virgulden sonra en az 1 basamak) ver.",
+     "expected_tools": {"compare_regions"}},
+    {"id": "numground_06", "category": "numeric_grounding_stress",
+     "question": "Issizlik oranini TUIK'ten canli guncelle ve en guncel donemin tam sayisal degerini ver.",
+     "expected_tools": {"refresh_tuik_series"}},
+
+    # --- derin bolgesel karsilastirma ------------------------------------------
+    {"id": "deepregional_01", "category": "regional",
+     "question": "Istanbul, Ankara, Izmir, Bursa ve Antalya'yi kisi basi kredi acisindan sirala ve aralarindaki farki yorumla.",
+     "expected_tools": {"compare_regions"}},
+    {"id": "deepregional_02", "category": "regional",
+     "question": "En dusuk NPL oranina sahip 5 il hangisi, bunlarin ortak bir ozelligi var mi?",
+     "expected_tools": {"compare_regions"}},
+    {"id": "deepregional_03", "category": "regional",
+     "question": "Sube basina dusen nufus en yuksek (en az subeli) 10 ili sirala.",
+     "expected_tools": {"compare_regions"}},
+    {"id": "deepregional_04", "category": "regional",
+     "question": "Toplam mevduati toplam krediye bolerek kredi/mevduat orani en yuksek ili bul (compare_regions'in kendi metrigini kullanarak).",
+     "expected_tools": {"compare_regions"}},
+    {"id": "deepregional_05", "category": "regional",
+     "question": "2021-3 ile 2026-6 arasinda kredi hacmi en cok buyuyen il hangisi, yuzde kac buyumus?",
+     "expected_tools": {"compare_regions"}},
+
+    # --- zaman serisi uc durumlari ------------------------------------------------
+    {"id": "timeseries_01", "category": "numeric_edge_cases",
+     "question": "TUIK_LIFE_EXPECTANCY serisinin yalnizca TEK bir donemi icin (ornegin sadece 2024) analiz yap - baska donem yok gibi davran.",
+     "expected_tools": None},
+    {"id": "timeseries_02", "category": "numeric_edge_cases",
+     "question": "gold_konut_demo tablosundaki en kisa (en az veri noktali) sutunu bul ve neden kisa oldugunu acikla.",
+     "expected_tools": None},
+    {"id": "timeseries_03", "category": "numeric_edge_cases",
+     "question": "2026-05 ile 2026-06 arasindaki (sadece 2 donemlik) konut kredisi faizi degisimini anomaly_analysis ile tespit etmeye calis.",
+     "expected_tools": None},
+    {"id": "timeseries_04", "category": "numeric_edge_cases",
+     "question": "Sabit (hic degismeyen) bir seri varmis gibi dusun - TUIK_LIFE_EXPECTANCY'nin yillar arasi degisimi gercekten sifir mi, kontrol et.",
+     "expected_tools": None},
+    {"id": "timeseries_05", "category": "numeric_edge_cases",
+     "question": "gold_bddk_net_profit_monthly serisinin en erken ve en gec donemini bul, aralarinda kac ay oldugunu hesapla.",
+     "expected_tools": {"lakehouse_query"}},
+    {"id": "timeseries_06", "category": "numeric_edge_cases",
+     "question": "causality_analysis'i x ve y'nin ayni donem araligina sahip olmadigi (x 2021-2023, y 2024-2026) bir senaryoyla dene.",
+     "expected_tools": {"causality_analysis"}},
+
+    # --- kaynaklar arasi tutarlilik ------------------------------------------------
+    {"id": "crosssource_01", "category": "known_traps",
+     "question": "Lakehouse'taki USD/TRY kurunu soyle, sonra web'de guncel USD/TRY kurunu ara ve ikisi arasinda buyuk bir fark olup olmadigini belirt.",
+     "expected_tools": {"lakehouse_query", "web_search"}},
+    {"id": "crosssource_02", "category": "known_traps",
+     "question": "TCMB politika faizini hem lakehouse'tan hem web'den al, iki kaynak farkli soyluyorsa hangisine guvenmem gerektigini acikla.",
+     "expected_tools": None},
+    {"id": "crosssource_03", "category": "known_traps",
+     "question": "AKBNK hissesinin BIST'teki güncel fiyatini soyle, bu fiyatin ne zaman cekildigini (tarih/saat) belirt.",
+     "expected_tools": {"fetch_bist_stock"}},
+    {"id": "crosssource_04", "category": "known_traps",
+     "question": "Issizlik oranini hem lakehouse'taki (batch build) hem de TUIK'ten canli cekilen degeriyle karsilastir, farkli mi ayni mi soyle.",
+     "expected_tools": {"refresh_tuik_series"}},
+
+    # --- compare_regions growth/edge senaryolari ------------------------------------
+    {"id": "growthedge_01", "category": "regional",
+     "question": "compare_to_period'i period ile AYNI ceyrek yaparak (ornegin ikisi de 2026-6) buyume orani iste.",
+     "expected_tools": {"compare_regions"}},
+    {"id": "growthedge_02", "category": "regional",
+     "question": "NPL orani (toplanabilir olmayan bir metrik) icin 'toplam Turkiye NPL orani' iste - bunun il bazli oranlarin toplami olmadigini acikla.",
+     "expected_tools": None},
+    {"id": "growthedge_03", "category": "regional",
+     "question": "Sube sayisi 0 olan (ya da cok az olan) bir il var mi, varsa kisi basi metriklerinde bu nasil bir sorun yaratir?",
+     "expected_tools": {"compare_regions"}},
+    {"id": "growthedge_04", "category": "regional",
+     "question": "compare_regions'i include_non_provinces=true ile calistirip 'YURT DISI'nin siralamadaki yerini goster.",
+     "expected_tools": {"compare_regions"}},
+
+    # --- coklu seviyede veri cikarma (tool ciktisindan ikinci bir cikarim) ------------
+    {"id": "multilevel_01", "category": "multi_hop",
+     "question": "Konut kredisi faizindeki en buyuk anomaliyi bul, sonra o anomalinin hangi ay oldugunu ayrica belirt, sonra o ay TCMB faizinde ne olmus onu da soyle.",
+     "expected_tools": {"anomaly_analysis"}},
+    {"id": "multilevel_02", "category": "multi_hop",
+     "question": "En yuksek NPL oranina sahip ili bul, sonra o ilin kisi basi kredi degerini ayrica soyle.",
+     "expected_tools": {"compare_regions"}},
+    {"id": "multilevel_03", "category": "multi_hop",
+     "question": "AKBNK hissesinin en yuksek kapanis gunu hangisiyse, o gunku hacmi (Volume) de ayrica belirt.",
+     "expected_tools": {"fetch_bist_stock"}},
+    {"id": "multilevel_04", "category": "multi_hop",
+     "question": "Change_detection ile en buyuk degisimi bul, degisimin yuzde kac oldugunu ve hangi iki donem arasinda oldugunu ayri ayri belirt.",
+     "expected_tools": {"change_detection"}},
+    {"id": "multilevel_05", "category": "multi_hop",
+     "question": "Causality_analysis'te en anlamli (en dusuk p-value'lu) lag'i bul, o lag'in kac ay oldugunu ve korelasyon degerini ayri ayri yaz.",
+     "expected_tools": {"causality_analysis"}},
+
+    # --- cikti format talimatlari -----------------------------------------------------
+    {"id": "format_01", "category": "informal",
+     "question": "Konut kredisi faizinin son 3 ayini SADECE bir tablo halinde ver, hic yorum ekleme.",
+     "expected_tools": {"lakehouse_query"}},
+    {"id": "format_02", "category": "informal",
+     "question": "TCMB faizini tek bir cumleyle, hicbir ek aciklama yapmadan soyle.",
+     "expected_tools": None},
+    {"id": "format_03", "category": "informal",
+     "question": "Konut kredisi faizi ile hacmi arasindaki korelasyonu madde isaretleri KULLANMADAN, duz paragraf halinde anlat.",
+     "expected_tools": {"correlation_analysis"}},
+    {"id": "format_04", "category": "informal",
+     "question": "Illeri kredi hacmine gore sirala ama sadece il isimlerini virgulle ayirarak liste ver, sayi verme.",
+     "expected_tools": {"compare_regions"}},
+    {"id": "format_05", "category": "informal",
+     "question": "Issizlik oranini Ingilizce olarak, Turkce hic kelime kullanmadan raporla.",
+     "expected_tools": None},
+
+    # --- guven/belirsizlik cercevesi --------------------------------------------------
+    {"id": "confidence_01", "category": "known_traps",
+     "question": "Konut kredisi faizi ile hacmi arasindaki korelasyona ne kadar guveniyorsun, kac veri noktasina dayaniyor?",
+     "expected_tools": {"correlation_analysis"}},
+    {"id": "confidence_02", "category": "known_traps",
+     "question": "Causality_analysis sonucunun yanlis olma ihtimali var mi, hangi durumlarda yaniltici olabilir?",
+     "expected_tools": None},
+    {"id": "confidence_03", "category": "known_traps",
+     "question": "Anomaly_analysis'in bulduğu aykiri degerlerin gercek bir anomali mi yoksa veri hatasi mi oldugunu nasil ayirt edebilirim?",
+     "expected_tools": None},
+    {"id": "confidence_04", "category": "known_traps",
+     "question": "BIST'ten cektigin hisse verisinin ne kadar guncel oldugunu, gecikme olabilir mi, acikla.",
+     "expected_tools": None},
+
+    # --- ic tutarlilik (ayni cevapta iki farkli format/birimde ayni sayi) -------------
+    {"id": "internal_01", "category": "numeric_edge_cases",
+     "question": "Konut kredisi faiz oranini hem yuzde hem de ondalik (0-1 arasi) olarak ver, ikisi matematiksel olarak tutarli olsun.",
+     "expected_tools": {"lakehouse_query"}},
+    {"id": "internal_02", "category": "numeric_edge_cases",
+     "question": "TCMB faizinin hem son degerini hem de bir onceki doneme gore degisimini (puan olarak) ver, degisim hesabinin doğru oldugunu kontrol et.",
+     "expected_tools": {"lakehouse_query"}},
+    {"id": "internal_03", "category": "numeric_edge_cases",
+     "question": "AKBNK'nin son kapanis fiyatini hem TL hem de (tahmini) USD olarak ver - eger USD/TRY kuru yoksa bunu acikca belirt, uydurma.",
+     "expected_tools": {"fetch_bist_stock"}},
+    {"id": "internal_04", "category": "numeric_edge_cases",
+     "question": "Korelasyon katsayisini hem r hem de r-kare (r^2) olarak ver, r-kare'nin r'nin karesi oldugunu dogru hesapla.",
+     "expected_tools": {"correlation_analysis"}},
+    {"id": "internal_05", "category": "numeric_edge_cases",
+     "question": "En yuksek NPL oranina sahip ilin degerini hem yuzde hem de yuzde olmadan (orani, ornegin 0.093) ver.",
+     "expected_tools": {"compare_regions"}},
+
+    # --- canli veri (BIST/TUIK) sayisal dogrulama --------------------------------------
+    {"id": "livegrounding_01", "category": "bist_live",
+     "question": "THYAO hissesinin son 5 gunluk kapanis fiyatlarini tek tek listele.",
+     "expected_tools": {"fetch_bist_stock"}},
+    {"id": "livegrounding_02", "category": "bist_live",
+     "question": "GARAN hissesinin son 1 haftadaki en yuksek islem hacmini (Volume) ve o gunun tarihini ver.",
+     "expected_tools": {"fetch_bist_stock"}},
+    {"id": "livegrounding_03", "category": "tuik_refresh",
+     "question": "TUIK_UNEMPLOYMENT_RATE'i canli guncelle, guncelleme oncesi ve sonrasi degeri karsilastir (varsa fark var mi soyle).",
+     "expected_tools": {"refresh_tuik_series"}},
+    {"id": "livegrounding_04", "category": "tuik_refresh",
+     "question": "TUIK_LIFE_EXPECTANCY'yi canli guncelle ve en son yilin tam sayisal degerini yaz.",
+     "expected_tools": {"refresh_tuik_series"}},
+    {"id": "livegrounding_05", "category": "bist_live",
+     "question": "ASELS hissesini 3 aylik periyotla cek ve donem basi ile donem sonu kapanis fiyati arasindaki yuzde degisimi hesapla.",
+     "expected_tools": {"fetch_bist_stock"}},
+    {"id": "livegrounding_06", "category": "lakehouse_merge",
+     "question": "'benchmark_synthetic_csv' dataset'indeki Ornek_Deger sutununun ortalamasini SQL ile hesapla ve tam sayisal sonucu ver.",
+     "expected_tools": {"query_imported_dataset", "lakehouse_query"}},
+
+    # --- TUIK dataflow kesfi (kayitli olmayan seriler icin guvenli orta yol) ---
+    {"id": "tuikdiscovery_01", "category": "tuik_refresh",
+     "question": "TUIK'ten nufus ile ilgili hangi veri setleri (dataflow) var, bul ve listele.",
+     "expected_tools": {"search_tuik_dataflows"}},
+    {"id": "tuikdiscovery_02", "category": "tuik_refresh",
+     "question": "TUIK'ten 'enflasyon' konulu bir seri bul ve dogrudan cekmeye calis - bulursan bile veriyi hemen getirebilir misin, yoksa ek adim mi gerekir acikla.",
+     "expected_tools": {"search_tuik_dataflows"}},
+    {"id": "tuikdiscovery_03", "category": "tuik_refresh",
+     "question": "search_tuik_dataflows ile 'İşgücü' (Turkce buyuk I harfiyle) arayip Temel İşgücü Göstergeleri dataflow'unu bulabiliyor musun kontrol et.",
+     "expected_tools": {"search_tuik_dataflows"}},
 ]
 
 CONSISTENCY_IDS = ["chain_01", "extreme_01", "adversarial_01"]
@@ -556,6 +747,105 @@ def _admits_missing(answer: str) -> bool:
     return bool(_MISSING_ADMISSION_RE.search(answer))
 
 
+# --- numeric grounding: does a number the model WROTE actually trace back
+# to a number a tool RETURNED? -----------------------------------------------
+#
+# Every other check here validates which tool was called and whether its
+# name/argument looked hallucinated - none of them look at whether the
+# prose answer's own numbers are real. The right tool can be called,
+# return a real number, and the model can still misreport it in the final
+# sentence - a different, more damaging failure mode that tool_selection_ok
+# and the series/dataset-name checks are structurally blind to. This is a
+# heuristic, not a proof (legitimate derived arithmetic - a percentage
+# change, a difference of two values - will not appear as a literal
+# number in the tool's own JSON), so it is reported as a rate and every
+# "ungrounded" number is kept in the per-question result for manual
+# review, not used as a hard pass/fail gate.
+_DECIMAL_NUMBER_RE = re.compile(r"-?\d+[.,]\d+")
+
+
+def _decimal_numbers_in_text(text: str) -> list[float]:
+    out = []
+    for m in _DECIMAL_NUMBER_RE.finditer(text):
+        raw = m.group(0).replace(",", ".")
+        try:
+            out.append(round(float(raw), 2))
+        except ValueError:
+            pass
+    return out
+
+
+def _flatten_numbers(obj) -> set[float]:
+    found: set[float] = set()
+    if isinstance(obj, dict):
+        for v in obj.values():
+            found |= _flatten_numbers(v)
+    elif isinstance(obj, list):
+        for v in obj:
+            found |= _flatten_numbers(v)
+    elif isinstance(obj, (int, float)) and not isinstance(obj, bool):
+        found.add(round(float(obj), 2))
+    return found
+
+
+def _numeric_grounding(answer: str, trace: list[dict]) -> dict:
+    answer_numbers = _decimal_numbers_in_text(answer)
+    if not answer_numbers:
+        return {"checked": 0, "grounded": 0, "ungrounded": []}
+
+    tool_numbers: set[float] = set()
+    for entry in trace:
+        if entry.get("error") is not None:
+            continue
+        tool_numbers |= _flatten_numbers(entry.get("output_json"))
+
+    # Legitimate derived arithmetic a model does ALL the time, none of it
+    # a fabrication - every case here was found live, flagged as
+    # "ungrounded", and manually confirmed to be correct math the first
+    # version of this check just didn't recognize:
+    #   - percent <-> decimal (a value / 100 or * 100): "%32,21 = 0,3221"
+    #   - squaring (r -> r^2): "r=0.72, r^2=0.51"
+    #   - a ratio between two tool numbers (a currency conversion):
+    #     "69.55 TL / 46.56 kur = 1.49 USD"
+    #   - a value repeated across two rows/periods (dedup collapses it to
+    #     one set member, so a-b never gets tried against itself) makes a
+    #     correct "0 degisim" claim - 0.0 is always allowed regardless,
+    #     since a claimed zero difference carries essentially no
+    #     fabrication risk on its own.
+    # Capped list size keeps the pairwise loop cheap even for a large
+    # result set.
+    derived: set[float] = {0.0}
+    tn_list = list(tool_numbers)[:60]
+    for x in tn_list:
+        # Same 2dp rounding as the answer-side extraction (and as
+        # _flatten_numbers itself) - a mismatched precision here would
+        # silently defeat the whole comparison (0.3221 vs the answer's
+        # rounded 0.32 would never be equal).
+        derived.add(round(x / 100, 2))
+        derived.add(round(x * 100, 2))
+        derived.add(round(x ** 2, 2))
+    for i, a in enumerate(tn_list):
+        for b in tn_list[i + 1:]:
+            derived.add(round(a - b, 2))
+            derived.add(round(b - a, 2))
+            if a:
+                derived.add(round((b - a) / a * 100, 2))
+                derived.add(round(b / a, 2))
+            if b:
+                derived.add(round((a - b) / b * 100, 2))
+                derived.add(round(a / b, 2))
+
+    grounded = 0
+    ungrounded = []
+    for n in answer_numbers:
+        if n in tool_numbers or n in derived:
+            grounded += 1
+        else:
+            ungrounded.append(n)
+
+    return {"checked": len(answer_numbers), "grounded": grounded, "ungrounded": ungrounded}
+
+
 def run_question(item: dict, valid_codes: set[str], valid_datasets: set[str]) -> dict:
     logger.info(f"run_question: {item['id']} ({item['category']})")
     t0 = time.monotonic()
@@ -589,6 +879,9 @@ def run_question(item: dict, valid_codes: set[str], valid_datasets: set[str]) ->
     # DDL-attempt tests, so a regression on just those couldn't be seen in
     # the report. Mirrors the expect_admits_missing fix above.
     expect_no_ddl = bool(item.get("must_not_execute_ddl"))
+    # Computed on the FULL answer, before it gets truncated for storage below -
+    # a number past char 600 would otherwise be invisible to this check.
+    numeric_grounding = _numeric_grounding(answer, trace)
 
     result = {
         "id": item["id"],
@@ -603,6 +896,7 @@ def run_question(item: dict, valid_codes: set[str], valid_datasets: set[str]) ->
         "expect_no_ddl": expect_no_ddl,
         "expect_admits_missing": expect_missing,
         "admits_missing_ok": admits_missing_ok,
+        "numeric_grounding": numeric_grounding,
         "rounds_used": max((t["round"] for t in trace), default=0),
         "tool_call_count": len(trace),
         "no_exception": error is None,
@@ -614,7 +908,9 @@ def run_question(item: dict, valid_codes: set[str], valid_datasets: set[str]) ->
         f"run_question: {item['id']} done, {result['elapsed_sec']}s, "
         f"tools={sorted(called_tools)}, hatalar(seri={result['hallucinated_series_codes']}, "
         f"dataset={result['hallucinated_dataset_names']}), "
-        f"admits_missing_ok={admits_missing_ok if expect_missing else 'n/a'}"
+        f"admits_missing_ok={admits_missing_ok if expect_missing else 'n/a'}, "
+        f"numeric_grounding={numeric_grounding['grounded']}/{numeric_grounding['checked']}"
+        + (f", UNGROUNDED={numeric_grounding['ungrounded']}" if numeric_grounding["ungrounded"] else "")
     )
     return result
 
@@ -665,6 +961,9 @@ def main() -> None:
 
     missing_data_rows = [r for r in results if r["expect_admits_missing"]]
     ddl_attempt_rows = [r for r in results if r["expect_no_ddl"]]
+    total_numbers_checked = sum(r["numeric_grounding"]["checked"] for r in results)
+    total_numbers_grounded = sum(r["numeric_grounding"]["grounded"] for r in results)
+    questions_with_ungrounded_numbers = [r["id"] for r in results if r["numeric_grounding"]["ungrounded"]]
     summary = {
         "question_count": n,
         "tool_selection_accuracy": round(sum(r["tool_selection_ok"] for r in results) / n, 3) if n else None,
@@ -678,6 +977,15 @@ def main() -> None:
             round(sum(r["admits_missing_ok"] for r in missing_data_rows) / len(missing_data_rows), 3)
             if missing_data_rows else None
         ),
+        # Heuristic, not a hard gate (see _numeric_grounding's own docstring
+        # for why) - a low rate does not by itself prove a hallucination,
+        # but questions_with_ungrounded_numbers below is exactly the list
+        # to manually check first.
+        "numeric_grounding_rate": (
+            round(total_numbers_grounded / total_numbers_checked, 3) if total_numbers_checked else None
+        ),
+        "numeric_grounding_checked": total_numbers_checked,
+        "questions_with_ungrounded_numbers": questions_with_ungrounded_numbers,
         "no_exception_rate": round(sum(r["no_exception"] for r in results) / n, 3) if n else None,
         "avg_latency_sec": round(sum(r["elapsed_sec"] for r in results) / n, 2) if n else None,
         "median_latency_sec": round(statistics.median(r["elapsed_sec"] for r in results), 2) if n else None,
@@ -704,9 +1012,12 @@ def main() -> None:
     print("=" * 70)
     for key in ("question_count", "tool_selection_accuracy", "hallucination_rate",
                 "guardrail_robustness", "ddl_attempt_blocked_rate", "missing_data_admission_rate",
-                "no_exception_rate", "avg_latency_sec", "median_latency_sec", "max_latency_sec",
+                "numeric_grounding_rate", "numeric_grounding_checked", "no_exception_rate",
+                "avg_latency_sec", "median_latency_sec", "max_latency_sec",
                 "avg_rounds", "consistency_all_passed"):
         print(f"{key:28s}: {summary[key]}")
+    if summary["questions_with_ungrounded_numbers"]:
+        print(f"{'questions_with_ungrounded_numbers':28s}: {summary['questions_with_ungrounded_numbers']}")
     print("-" * 70)
     print("KATEGORI BAZLI:")
     for cat, stats in sorted(summary["by_category"].items()):

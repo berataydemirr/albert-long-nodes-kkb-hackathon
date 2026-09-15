@@ -23,7 +23,7 @@ def _fresh_lakehouse_db(monkeypatch, tmp_path):
     yield
 
 
-def _make_pdf(path, rows, page_break_before=None):
+def _make_pdf(path, rows, page_break_before=None, repeat_header=False):
     doc = SimpleDocTemplate(str(path), pagesize=A4)
     elements = []
     if page_break_before:
@@ -31,7 +31,12 @@ def _make_pdf(path, rows, page_break_before=None):
         from reportlab.lib.styles import getSampleStyleSheet
         elements.append(Paragraph("Not a table - just text.", getSampleStyleSheet()["Normal"]))
         elements.append(PageBreak())
-    t = Table(rows)
+    # repeatRows=1 makes reportlab re-draw the header row on every page a
+    # long table spills onto - without it, a table split across pages has
+    # a header ONLY on the first page, which is not representative of the
+    # real-world multi-page tables (BDDK bulletins, bank statements) this
+    # is meant to simulate.
+    t = Table(rows, repeatRows=1 if repeat_header else 0)
     t.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 1, colors.black)]))
     elements.append(t)
     doc.build(elements)
@@ -131,6 +136,71 @@ def test_import_pdf_table_converts_turkish_formatted_numbers(tmp_path):
     from src.agent.data_import import query_imported_dataset
     rows = query_imported_dataset("turkish_numbers_pdf", "SELECT Tutar FROM turkish_numbers_pdf ORDER BY Tutar")["rows"]
     assert [r["Tutar"] for r in rows] == [999.0, 1234.56, 2500.0]
+
+
+def test_import_pdf_table_does_not_corrupt_international_decimal_notation(tmp_path):
+    """Real bug found live: the original normalization unconditionally
+    stripped every '.' as if it were always a Turkish thousands
+    separator, so a plain international-notation value like '2.009'
+    silently became 2009 - a 1000x corruption, no error raised. A
+    period-only value (no comma anywhere) must be read as an ordinary
+    decimal point instead."""
+    p = tmp_path / "international_numbers.pdf"
+    _make_pdf(p, [
+        ["Il", "Oran"],
+        ["Ankara", "2.009"],
+        ["Istanbul", "8.176"],
+        ["Izmir", "5.500"],
+    ])
+
+    result = import_pdf_table(p, "intl_numbers_pdf")
+    types = {c["column"]: c["inferred_type"] for c in result["columns"]}
+    assert types["Oran"] == "numeric"
+
+    from src.agent.data_import import query_imported_dataset
+    rows = query_imported_dataset("intl_numbers_pdf", "SELECT Oran FROM intl_numbers_pdf ORDER BY Oran")["rows"]
+    assert [r["Oran"] for r in rows] == [2.009, 5.5, 8.176]
+
+
+def test_import_pdf_table_still_handles_turkish_numbers_mixed_with_plain_integers(tmp_path):
+    """A column mixing a Turkish-decimal value with a plain integer (no
+    separator at all) - both must parse correctly, independently, since
+    the normalization now runs per-cell rather than per-column."""
+    p = tmp_path / "mixed_numbers.pdf"
+    _make_pdf(p, [
+        ["Il", "Deger"],
+        ["Ankara", "1.234,56"],
+        ["Istanbul", "42"],
+    ])
+
+    from src.agent.data_import import query_imported_dataset
+    import_pdf_table(p, "mixed_numbers_pdf")
+    rows = query_imported_dataset("mixed_numbers_pdf", "SELECT Deger FROM mixed_numbers_pdf ORDER BY Deger")["rows"]
+    assert [r["Deger"] for r in rows] == [42.0, 1234.56]
+
+
+def test_import_pdf_table_flags_a_continuation_page(tmp_path):
+    """A table split across two pages (same header repeated, e.g. via
+    reportlab's repeatRows) must be surfaced as a warning - it is not
+    stitched together automatically, and importing page 0 alone silently
+    drops every row that landed on page 1 otherwise."""
+    p = tmp_path / "continued_table.pdf"
+    header = ["Il", "Deger"]
+    page0_rows = [["Il_%d" % i, str(i)] for i in range(40)]  # enough rows to force a page break
+    _make_pdf(p, [header] + page0_rows, repeat_header=True)
+
+    preview = list_pdf_tables(p)
+    assert preview["page_count"] >= 2, "test fixture did not actually span multiple pages"
+
+    result = import_pdf_table(p, "continued_pdf", page=0)
+    assert result["continuation_pages"] == [1]
+    assert "continues" in result["note"]
+
+
+def test_import_pdf_table_no_continuation_warning_for_a_single_page_table(simple_pdf):
+    result = import_pdf_table(simple_pdf, "single_page_pdf")
+    assert result["continuation_pages"] == []
+    assert "continues" not in result["note"]
 
 
 def test_import_pdf_table_rejects_gold_prefixed_name(simple_pdf):

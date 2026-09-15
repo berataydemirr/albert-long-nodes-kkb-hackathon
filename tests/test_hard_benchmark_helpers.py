@@ -5,7 +5,15 @@ from pytest (network + token cost + non-determinism, see its own module
 docstring). These few functions have no network dependency, so they get
 normal test coverage like everything else.
 """
-from benchmarks.hard_benchmark import _admits_missing, _ddl_blocked, _extract_dataset_names_from_trace, _extract_series_codes_from_trace
+from benchmarks.hard_benchmark import (
+    _admits_missing,
+    _ddl_blocked,
+    _decimal_numbers_in_text,
+    _extract_dataset_names_from_trace,
+    _extract_series_codes_from_trace,
+    _flatten_numbers,
+    _numeric_grounding,
+)
 
 
 def test_admits_missing_recognizes_turkish_negative_phrasing():
@@ -95,3 +103,69 @@ def test_extract_dataset_names_ignores_a_name_the_guardrail_rejected():
         "arguments": '{"dataset_name": "fake_ds", "sql": "SELECT 1"}',
     }]
     assert _extract_dataset_names_from_trace(trace) == set()
+
+
+# --- numeric grounding: does a number the model wrote trace back to one a
+# tool actually returned? ----------------------------------------------------
+
+def test_decimal_numbers_in_text_ignores_bare_integers():
+    """Bare integers (a year, a row count) match too much by coincidence
+    to be useful signal - only numbers with a decimal point count."""
+    nums = _decimal_numbers_in_text("2026 yılında 66 ay boyunca r=0.97 oldu, %38,2 artış var.")
+    assert nums == [0.97, 38.2]
+
+
+def test_decimal_numbers_in_text_handles_turkish_comma_decimals():
+    assert _decimal_numbers_in_text("Faiz %37,5 oldu.") == [37.5]
+
+
+def test_flatten_numbers_walks_nested_dicts_and_lists():
+    obj = {"pearson_correlation": 0.9682171866235223, "source": {"row_count": 66, "birim": "%"},
+           "anomalies": [{"period": "2025-09", "value": 32.2}, {"period": "2026-01", "value": 8.0}]}
+    flat = _flatten_numbers(obj)
+    assert 0.97 in flat  # 0.9682... rounds to 0.97 at 2dp
+    assert 32.2 in flat
+    assert 8.0 in flat
+    assert 66.0 in flat
+
+
+def test_flatten_numbers_ignores_booleans():
+    """bool is a subclass of int in Python - True/False must not become
+    the numbers 1.0/0.0 and silently 'ground' an unrelated 1 or 0 in the
+    answer text."""
+    assert _flatten_numbers({"guardrail_robustness": True, "hallucinations": False}) == set()
+
+
+def test_numeric_grounding_matches_a_real_reported_number():
+    trace = [{"error": None, "output_json": {"pearson_correlation": 0.9682171866235223, "shared_periods": 66}}]
+    result = _numeric_grounding("Korelasyon r = 0.97 olarak bulundu.", trace)
+    assert result == {"checked": 1, "grounded": 1, "ungrounded": []}
+
+
+def test_numeric_grounding_flags_a_number_that_never_appeared_anywhere():
+    trace = [{"error": None, "output_json": {"pearson_correlation": 0.97}}]
+    result = _numeric_grounding("Korelasyon r = 0.55 olarak bulundu.", trace)
+    assert result == {"checked": 1, "grounded": 0, "ungrounded": [0.55]}
+
+
+def test_numeric_grounding_accepts_a_simple_derived_percentage():
+    """'arttı %14' derived from two real values (8.0 -> 9.12) is legitimate
+    arithmetic, not a fabricated number - must not be flagged."""
+    trace = [{"error": None, "output_json": {"first_value": 8.0, "last_value": 9.12}}]
+    pct = round((9.12 - 8.0) / 8.0 * 100, 2)
+    result = _numeric_grounding(f"Değer %{pct} arttı.", trace)
+    assert result["ungrounded"] == []
+
+
+def test_numeric_grounding_ignores_a_number_from_a_failed_tool_call():
+    """A tool call that errored (guardrail-rejected, or a real failure)
+    must not lend its numbers as 'grounding' for an unrelated claim -
+    only successful calls' results count as real, returned data."""
+    trace = [{"error": "some failure", "output_json": {"pearson_correlation": 0.55}}]
+    result = _numeric_grounding("Korelasyon r = 0.55 olarak bulundu.", trace)
+    assert result == {"checked": 1, "grounded": 0, "ungrounded": [0.55]}
+
+
+def test_numeric_grounding_with_no_decimal_numbers_in_answer():
+    result = _numeric_grounding("Bu seri lakehouse'ta bulunmuyor.", [])
+    assert result == {"checked": 0, "grounded": 0, "ungrounded": []}

@@ -504,3 +504,37 @@ def refresh_tuik_series(seri_kod: str) -> dict:
     }
     logger.info(f"refresh_tuik_series: done, {len(result['periods'])} point(s), latest={result['periods'][-1] if result['periods'] else None}")
     return result
+
+
+def search_tuik_dataflows(query: str, limit: int = 10) -> dict:
+    """Search TUIK's full dataflow catalog (~430 dataflows) by keyword -
+    metadata only, never fetches or guesses at actual data. Team feedback
+    pushed back on refresh_tuik_series being limited to a 2-series
+    registry: "her istediğini getirsin" (it should fetch whatever is
+    asked). A flat rejection for anything unregistered was the safe
+    answer but not a very USEFUL one - this is the safe middle ground:
+    the model can now show the user real candidate dataflow_ids and
+    titles instead of just refusing, without the actual risk (an
+    unresolved SDMX key returning "NoRecordsFound" or, worse, a real but
+    WRONG series silently mislabeled - see refresh_tuik_series' own
+    docstring) that made arbitrary fetching unsafe in the first place.
+    A result from this tool is a lead for a human to resolve further
+    (config/tuik_series.py's own docstring shows what that process looks
+    like), not something refresh_tuik_series can act on directly."""
+    from src.collectors.tuik import search_dataflows
+
+    matches = search_dataflows(query, limit=limit)
+    result = {
+        "query": query,
+        "match_count": len(matches),
+        "matches": [{"dataflow_id": m["dataflow_id"], "version": m["version"], "name_tr": m["name_tr"], "name_en": m["name_en"]} for m in matches],
+        "note": (
+            "Metadata search only - none of this data has been fetched. A dataflow_id here cannot be "
+            "passed to refresh_tuik_series directly; that tool only works for the series already "
+            "registered in config/tuik_series.py, because turning a dataflow_id into a fetchable "
+            "series 'key' requires resolving its dimensions against that dataflow's own SDMX "
+            "codelists by hand - guessing risks a real but wrong series being reported as correct."
+        ),
+    }
+    logger.info(f"search_tuik_dataflows: query={query!r} -> {len(matches)} match(es)")
+    return result

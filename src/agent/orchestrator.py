@@ -23,8 +23,9 @@ import time
 
 import openai
 
-from config.settings import MIA_CHAT_MODEL, MIA_REASONING_EFFORT
+from config.settings import LAKEHOUSE_DB_PATH, MIA_CHAT_MODEL, MIA_REASONING_EFFORT
 from src.agent.context_compactor import compact_messages, estimate_tokens
+from src.agent.db_utils import connect_with_retry
 from src.agent.series_resolver import catalog_block
 from src.agent.mia_client import get_client
 from src.agent.router import Route, route_question
@@ -32,6 +33,64 @@ from src.agent.tools import TOOL_SCHEMAS, execute_tool
 from src.common.logging_setup import get_logger
 
 logger = get_logger("orchestrator")
+
+# One-line purpose for every gold_* table OTHER than gold_fact_long - a
+# real gap found live: the model was told (below, TOOL DISCIPLINE) not to
+# call lakehouse_schema because "the catalog is already in your prompt",
+# but that catalog (catalog_block(), gold_fact_long's own Seri_Kod list)
+# never mentioned these sibling tables. Asked directly about
+# gold_bddk_net_profit_monthly, the model confidently answered "no such
+# table" without calling anything - it genuinely did not know the table
+# existed, and had just been told not to check. A table with no entry
+# here (any gold_* table added later, or - importantly - anything a user
+# imports/fetches at runtime) still gets listed, just with its column
+# names instead of a hand-written description.
+_KNOWN_TABLE_PURPOSES = {
+    "gold_bddk_net_profit_monthly": "BDDK aylik net kar/zarar (YTD'den aylik akima cevrilmis - decumulated)",
+    "gold_konut_demo": "konut kredisi + faiz orani + konut fiyat endeksi + TUFE + enflasyondan arindirilmis kredi, tek tabloda",
+    "gold_finturk_regional_quarterly": "il bazli toplam kredi + takipteki alacak, native ceyreklik",
+    "gold_health_life_expectancy": "TUIK dogusta beklenen yasam suresi, yillik",
+    "gold_regional_long": "il bazli ~35 metrik, uzun format - compare_regions tool'unun kendi kaynagi",
+}
+
+
+def _other_tables_block() -> str:
+    """Not cached like catalog_block(): a user-imported or live-fetched
+    table (CSV/Excel/PDF upload, fetch_bist_stock) can appear at any point
+    during the server's lifetime, so this has to reflect the CURRENT
+    table list on every call, not whatever existed when the process
+    started."""
+    if not LAKEHOUSE_DB_PATH.exists():
+        return ""
+    try:
+        con = connect_with_retry(LAKEHOUSE_DB_PATH, read_only=True)
+    except Exception:
+        logger.warning("_other_tables_block: could not open lakehouse", exc_info=True)
+        return ""
+    try:
+        tables = [r[0] for r in con.execute("SHOW TABLES").fetchall()]
+        skip = {"gold_fact_long", "_import_registry"}
+        lines = []
+        for t in sorted(tables):
+            if t in skip:
+                continue
+            try:
+                count = con.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0]
+            except Exception:
+                count = "?"
+            if t in _KNOWN_TABLE_PURPOSES:
+                lines.append(f"- {t} ({count} satir): {_KNOWN_TABLE_PURPOSES[t]}")
+            else:
+                cols = [r[0] for r in con.execute(f'DESCRIBE "{t}"').fetchall()]
+                lines.append(f"- {t} ({count} satir, kullanici tarafindan yuklendi/canli cekildi, dogrulanmamis): {', '.join(cols)}")
+        if not lines:
+            return ""
+        return (
+            "\nDIGER LAKEHOUSE TABLOLARI (gold_fact_long DISINDA - bunlar da lakehouse_query "
+            "ile sorgulanabilir; 'boyle bir tablo yok' demeden once bu listeye bak):\n" + "\n".join(lines)
+        )
+    finally:
+        con.close()
 
 SYSTEM_PROMPT_BASE = """Sen KKB Agentic Data Analytics asistanısın.
 Önce local Lakehouse tool ile veriyi keşfet ve sorgula; güncel veya harici
@@ -60,7 +119,11 @@ taşır) olduğunu belirt, BDDK/EVDS/TUIK verisiyle aynı güvenilirlik
 seviyesindeymiş gibi sunma. refresh_tuik_series zaten katalogda olan bir
 TUIK serisini canlı günceller ve sonucu gold_fact_long'a
 (Kaynak=tuik_live) yazar; kayıtlı olmayan bir TUIK serisi istenirse
-tahmin etme, tool'un döndürdüğü hatayı ve kayıtlı listeyi aktar.
+ASLA tahmin etme - bunun yerine search_tuik_dataflows ile TUIK'in ~430
+dataflow'luk katalogunda anahtar kelimeyle ara ve bulduğun gerçek
+dataflow_id/başlık adaylarını kullanıcıya göster. Bu sadece bir kesif
+sonucu: bulunan bir dataflow'un verisini "getirdim" gibi sunma, hâlâ
+elle key çözümlemesi gerektiğini açıkça belirt.
 fetch_bist_stock ile herhangi bir BIST hissesinin (İMKB) güncel fiyat
 geçmişini canlı çek - önceden kayıtlı bir listeyle sınırlı değil, "AKBNK
 hissesini getir" gibi bir istekte doğrudan çağır; sonuç da lakehouse'a
@@ -111,6 +174,7 @@ def _system_prompt() -> str:
         f"sube_sayisi, kredi_mevduat_orani, sektörel takip oranları). "
         f"Bilinmeyen metrik adı tam listeyi geri döndürür.\n"
         f"{catalog}"
+        f"{_other_tables_block()}"
     )
     logger.info(f"_system_prompt: built with catalog, {len(prompt)} chars (~{len(prompt) // 4} tokens)")
     return prompt
@@ -139,6 +203,14 @@ MAX_CALLS_PER_TOOL_PER_RUN_OVERRIDES = {
     "correlation_analysis": 10,
     "causality_analysis": 8,
     "compare_regions": 8,
+    # A metadata-only search (see search_tuik_dataflows' own docstring) -
+    # no data is fetched, so trying a few different keyword phrasings
+    # before concluding "nothing matches" carries none of the cost/risk
+    # web_search's tight cap exists to guard against. Found live: a
+    # legitimate single question ("enflasyon var mı") reasonably tried 4
+    # phrasings (enflasyon / TÜFE fiyat / CPI consumer price / a 4th) and
+    # hit the default cap of 3 mid-search.
+    "search_tuik_dataflows": 6,
 }
 
 
