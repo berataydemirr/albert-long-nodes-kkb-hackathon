@@ -186,6 +186,77 @@ def list_sheets(path: str | Path) -> list[str]:
     return sheets
 
 
+def _clean_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    """Runs every src/agent/data_cleaning.py normalization over a
+    freshly-read DataFrame, BEFORE schema detection or writing - so
+    detect_schema and import_dataset always agree on what the file
+    actually contains. Every change is reported back, never silent: a
+    dropped subtotal row or a column recovered from Turkish/abbreviated
+    number text is exactly the kind of thing a caller needs to see, the
+    same discipline as the pre-existing row-truncation report."""
+    from src.agent.data_cleaning import is_null_token, is_subtotal_label, normalize_numeric_text, repair_mojibake
+
+    df = df.copy()
+    report = {
+        "null_tokens_normalized": 0,
+        "numeric_columns_recovered": [],
+        "subtotal_rows_excluded": 0,
+        "mojibake_repaired_columns": [],
+    }
+
+    repaired_columns = [repair_mojibake(str(c)) for c in df.columns]
+    if repaired_columns != [str(c) for c in df.columns]:
+        report["mojibake_repaired_columns"].append("(column headers)")
+    df.columns = repaired_columns
+
+    for col in df.columns:
+        # NOT "dtype == object": pandas 3.x defaults a plain text column
+        # to its own dedicated 'str' dtype, not legacy 'object' - found
+        # live, this check silently skipped every text column in this
+        # environment, so none of the cleaning below ever ran. Skip only
+        # columns that are ALREADY numeric/bool/datetime; anything else
+        # (object OR the new string dtype) is a candidate for cleaning.
+        if pd.api.types.is_numeric_dtype(df[col]) or pd.api.types.is_bool_dtype(df[col]) or pd.api.types.is_datetime64_any_dtype(df[col]):
+            continue
+
+        repaired = df[col].apply(lambda v: repair_mojibake(v) if isinstance(v, str) else v)
+        if not repaired.equals(df[col]):
+            report["mojibake_repaired_columns"].append(str(col))
+            df[col] = repaired
+
+        # "-", "N/A", ".." etc -> real NaN, before anything downstream
+        # (numeric conversion, analysis) has to special-case them.
+        is_null_mask = df[col].apply(lambda v: isinstance(v, str) and is_null_token(v))
+        if is_null_mask.any():
+            report["null_tokens_normalized"] += int(is_null_mask.sum())
+            df.loc[is_null_mask, col] = None
+
+        # Recover a numeric column pandas' own inference left as text
+        # because it does not understand Turkish separators ('1.234,56')
+        # or abbreviated magnitudes ('1.5M', '2,3 milyar') - only applied
+        # when >90% of the non-null values actually parse, so a genuinely
+        # mixed/text column is never silently mangled.
+        non_null = df[col].dropna()
+        if len(non_null) == 0:
+            continue
+        converted = non_null.apply(normalize_numeric_text)
+        if converted.notna().mean() > 0.9:
+            report["numeric_columns_recovered"].append(str(col))
+            df[col] = df[col].apply(lambda v: normalize_numeric_text(v) if v is not None and not (isinstance(v, float) and pd.isna(v)) else None)
+
+    # Subtotal-row exclusion, checked against the FIRST column only - the
+    # conventional label/category position in a BDDK/TUIK-style table. A
+    # subtotal marker anywhere else is data, not noise, and left alone.
+    if len(df.columns) > 0:
+        first_col = df.columns[0]
+        subtotal_mask = df[first_col].apply(lambda v: isinstance(v, str) and is_subtotal_label(v))
+        if subtotal_mask.any():
+            report["subtotal_rows_excluded"] = int(subtotal_mask.sum())
+            df = df[~subtotal_mask].reset_index(drop=True)
+
+    return df, report
+
+
 def _infer_column(series: pd.Series) -> dict:
     non_null = series.dropna()
     null_count = int(series.isna().sum())
@@ -252,7 +323,8 @@ def detect_schema(path: str | Path, sheet: str | int | None = None) -> dict:
         raise ValueError(f"Duplicate column name(s) in the file: {dupes}. Rename them and re-upload.")
 
     df = _read_table(path, sheet)
-    logger.info(f"detect_schema: {path.name} -> {len(df)} rows, {len(df.columns)} columns")
+    df, cleaning_report = _clean_dataframe(df)
+    logger.info(f"detect_schema: {path.name} -> {len(df)} rows, {len(df.columns)} columns, cleaning={cleaning_report}")
 
     columns = [_infer_column(df[col]) for col in df.columns]
     result = {
@@ -261,6 +333,7 @@ def detect_schema(path: str | Path, sheet: str | int | None = None) -> dict:
         "row_count": len(df),
         "column_count": len(df.columns),
         "columns": columns,
+        "data_quality": cleaning_report,
     }
     logger.info(f"detect_schema: done, types={[c['inferred_type'] for c in columns]}")
     return result
@@ -293,6 +366,7 @@ def import_dataset(path: str | Path, dataset_name: str, sheet: str | int | None 
     schema = detect_schema(path, sheet)
     schema["file_name"] = display_name
     df = _read_table(path, sheet)
+    df, _ = _clean_dataframe(df)  # same cleaning detect_schema already applied and reported in schema["data_quality"]
     if len(df) > MAX_ROWS_PER_IMPORT:
         logger.warning(f"import_dataset: {len(df)} rows exceeds cap {MAX_ROWS_PER_IMPORT}, truncating")
         df = df.head(MAX_ROWS_PER_IMPORT)

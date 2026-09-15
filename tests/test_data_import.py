@@ -394,3 +394,83 @@ def test_source_label_overrides_the_reported_file_name(csv_path):
 def test_without_source_label_the_path_name_is_used(csv_path):
     result = import_dataset(csv_path, "hastane")
     assert result["file_name"] == csv_path.name
+
+
+# --- data cleaning integration: real-world messiness scenarios -------------
+
+def test_import_normalizes_mixed_null_representations(tmp_path):
+    """5. Farklı boş veri gösterimleri: a real konut satış-style file
+    marks a missing month with a dash, N/A, or a plain empty cell in the
+    SAME column - all three must become one consistent null, not three
+    different 'values'. (pandas' own CSV reader already treats 'N/A' and
+    an empty cell as NaN by default - only the dash needs this project's
+    own normalization; what matters is the FINAL null_count agrees on all
+    three regardless of which stage caught each one.)"""
+    p = tmp_path / "konut_satis.csv"
+    p.write_text("Ay,Satis\nOcak,120\nSubat,-\nMart,N/A\nNisan,\nMayis,95\n", encoding="utf-8")
+
+    result = import_dataset(p, "konut_satis_test")
+    assert result["data_quality"]["null_tokens_normalized"] >= 1  # at least the dash, not caught by pandas itself
+    types = {c["column"]: c for c in result["columns"]}
+    assert types["Satis"]["inferred_type"] == "numeric"
+    assert types["Satis"]["null_count"] == 3
+
+
+def test_import_recovers_turkish_formatted_numeric_column(tmp_path):
+    """3. Avrupa/Amerikan sayı formatı: a column pandas' own inference
+    would leave as text because '1.234,56' does not parse as a plain
+    float - normalize_numeric_text recovers it."""
+    p = tmp_path / "mevduat.csv"
+    p.write_text("Il,Tutar\nAnkara,\"1.234,56\"\nIstanbul,\"2.500,00\"\nIzmir,\"999,00\"\n", encoding="utf-8")
+
+    result = import_dataset(p, "mevduat_test")
+    assert "Tutar" in result["data_quality"]["numeric_columns_recovered"]
+    types = {c["column"]: c for c in result["columns"]}
+    assert types["Tutar"]["inferred_type"] == "numeric"
+
+    rows = query_imported_dataset("mevduat_test", "SELECT Tutar FROM mevduat_test ORDER BY Tutar")["rows"]
+    assert [r["Tutar"] for r in rows] == [999.0, 1234.56, 2500.0]
+
+
+def test_import_expands_abbreviated_financial_figures(tmp_path):
+    """8. Kısaltılmış finansal büyüklükler: '1.5M'/'2.3B' style values
+    must expand to their real magnitude, not stay as unusable text."""
+    p = tmp_path / "buyukluk.csv"
+    p.write_text("Sirket,Ciro\nA,1.5M\nB,2.3B\nC,750K\n", encoding="utf-8")
+
+    result = import_dataset(p, "buyukluk_test")
+    rows = query_imported_dataset("buyukluk_test", "SELECT Sirket, Ciro FROM buyukluk_test ORDER BY Sirket")["rows"]
+    by_sirket = {r["Sirket"]: r["Ciro"] for r in rows}
+    assert by_sirket == {"A": 1_500_000.0, "B": 2_300_000_000.0, "C": 750_000.0}
+
+
+def test_import_excludes_subtotal_rows_from_first_column(tmp_path):
+    """9. Ara toplamların ham veriye karışması: a TUIK-style file with a
+    'Toplam' row mixed into the same column as real observations must not
+    have that row counted as a data point."""
+    p = tmp_path / "sanayi_uretim.csv"
+    p.write_text(
+        "Donem,Endeks\n2024-01,102.3\n2024-02,103.1\n2024-03,101.8\nToplam,307.2\n2024-04,104.5\n",
+        encoding="utf-8",
+    )
+
+    result = import_dataset(p, "sanayi_uretim_test")
+    assert result["data_quality"]["subtotal_rows_excluded"] == 1
+    assert result["row_count"] == 4
+
+    rows = query_imported_dataset("sanayi_uretim_test", "SELECT Donem FROM sanayi_uretim_test")["rows"]
+    assert "Toplam" not in [r["Donem"] for r in rows]
+
+
+def test_import_repairs_mojibake_column_header(tmp_path):
+    """10. Bozuk Türkçe karakter kodlaması: a column header mangled by a
+    wrong-codec round trip must be recovered, not left as garbage or
+    silently dropped."""
+    p = tmp_path / "disborc.csv"
+    mangled_header = "İşgücü".encode("utf-8").decode("windows-1254")
+    p.write_bytes(f"Il,{mangled_header}\nAnkara,42\n".encode("utf-8"))
+
+    result = import_dataset(p, "disborc_test")
+    columns = [c["column"] for c in result["columns"]]
+    assert "İşgücü" in columns
+    assert "(column headers)" in result["data_quality"]["mojibake_repaired_columns"]

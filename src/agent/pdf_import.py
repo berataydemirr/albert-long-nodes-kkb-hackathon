@@ -22,6 +22,7 @@ from pathlib import Path
 import pandas as pd
 import pdfplumber
 
+from src.agent.data_cleaning import is_null_token, is_subtotal_label, normalize_numeric_text, repair_mojibake
 from src.agent.data_import import MAX_FILE_BYTES, _infer_column, _validate_dataset_name, _write_dataset
 from src.common.logging_setup import get_logger
 
@@ -65,15 +66,21 @@ def list_pdf_tables(path: str | Path) -> dict:
         pdf.close()
 
 
-def _table_to_dataframe(table: list[list]) -> pd.DataFrame:
+def _table_to_dataframe(table: list[list]) -> tuple[pd.DataFrame, dict]:
     """pdfplumber returns a raw grid of strings/None - first row is
     treated as the header. Rejected outright rather than guessed at: a
     duplicate or blank header column (pdfplumber's most common failure
     mode, usually from a merged cell in the source table) means the
-    extraction is not trustworthy, not that it needs a best-effort fix."""
+    extraction is not trustworthy, not that it needs a best-effort fix.
+
+    Returns (dataframe, cleaning_report) - the same shared
+    src/agent/data_cleaning.py normalizations data_import.py applies to
+    CSV/Excel (Turkish/abbreviated numbers, null-token variants, subtotal
+    rows, mojibake) run here too, so a PDF import is not the one path
+    left unclean."""
     if not table or len(table) < 2:
         raise ValueError("Extracted table has no data rows (only a header, or nothing at all).")
-    header = [("" if c is None else str(c).strip()) for c in table[0]]
+    header = [repair_mojibake(("" if c is None else str(c).strip())) for c in table[0]]
     if any(h == "" for h in header):
         raise ValueError(
             "The extracted table has a blank column header - pdfplumber likely mis-split a merged "
@@ -83,43 +90,39 @@ def _table_to_dataframe(table: list[list]) -> pd.DataFrame:
         dupes = sorted(name for name, count in Counter(header).items() if count > 1)
         raise ValueError(f"Duplicate column name(s) in the extracted table header: {dupes}.")
 
-    rows = [[("" if c is None else str(c).strip()) for c in row] for row in table[1:]]
+    rows = [[repair_mojibake(("" if c is None else str(c).strip())) for c in row] for row in table[1:]]
     df = pd.DataFrame(rows, columns=header)
+    report = {"numeric_columns_recovered": [], "null_tokens_normalized": 0, "subtotal_rows_excluded": 0}
 
     # There is no cell dtype in a PDF - every value comes back as text.
-    # A column where >90% of values parse as a number is converted, so it
-    # reaches analysis tools as a real number instead of text; anything
-    # below that bar is left as text rather than forcing a bad conversion
-    # that would turn "n/a" or a footnote marker into NaN silently mixed
-    # in with real values.
+    # normalize_numeric_text handles Turkish vs international separator
+    # ambiguity AND abbreviated magnitudes ('1.5M', '2,3 milyar') - a
+    # column where >90% of values parse as a number this way is
+    # converted; anything below that bar is left as text rather than
+    # forcing a bad conversion that would turn a footnote marker into NaN
+    # silently mixed in with real values.
     for col in df.columns:
-        normalized = df[col].apply(_normalize_numeric_cell)
-        numeric = pd.to_numeric(normalized, errors="coerce")
-        if numeric.notna().mean() > 0.9:
-            df[col] = numeric
-    return df
+        is_null_mask = df[col].apply(is_null_token)
+        if is_null_mask.any():
+            report["null_tokens_normalized"] += int(is_null_mask.sum())
+            df.loc[is_null_mask, col] = None
 
+        non_null = df[col].dropna()
+        if len(non_null) == 0:
+            continue
+        converted = non_null.apply(normalize_numeric_text)
+        if converted.notna().mean() > 0.9:
+            report["numeric_columns_recovered"].append(str(col))
+            df[col] = df[col].apply(lambda v: normalize_numeric_text(v) if v is not None else None)
 
-def _normalize_numeric_cell(value: str) -> str:
-    """A PDF has no cell dtype, so every value arrives as plain text in
-    whatever separator convention the source document used - unlike an
-    Excel/CSV import, there is no way to ask the format itself. Only a
-    value that ALSO contains a comma is unambiguously Turkish-formatted
-    ('1.234,56': period=thousands, comma=decimal) - safe to strip the
-    period and swap the comma. A period-only value ('2.009') is left as a
-    plain decimal point instead, matching the international convention
-    pandas' own to_numeric already expects.
+    if len(df.columns) > 0:
+        first_col = df.columns[0]
+        subtotal_mask = df[first_col].apply(lambda v: isinstance(v, str) and is_subtotal_label(v))
+        if subtotal_mask.any():
+            report["subtotal_rows_excluded"] = int(subtotal_mask.sum())
+            df = df[~subtotal_mask].reset_index(drop=True)
 
-    Found live: blindly stripping every period (the previous version of
-    this function) turned a real value of 2.009 into 2009 - a silent
-    1000x corruption - on a test PDF built with ordinary international
-    decimal notation instead of Turkish formatting. Real BDDK/EVDS-style
-    documents mostly use Turkish formatting, but a PDF generated by a
-    non-Turkish tool (many spreadsheet exports, most APIs) will not, and
-    the wrong guess should not corrupt data silently."""
-    if "," in value:
-        return value.replace(".", "").replace(",", ".")
-    return value
+    return df, report
 
 
 def import_pdf_table(path: str | Path, dataset_name: str, page: int = 0, table_index: int = 0,
@@ -168,7 +171,7 @@ def import_pdf_table(path: str | Path, dataset_name: str, page: int = 0, table_i
     finally:
         pdf.close()
 
-    df = _table_to_dataframe(raw_table)
+    df, cleaning_report = _table_to_dataframe(raw_table)
     columns = [_infer_column(df[col]) for col in df.columns]
 
     imported_at = _write_dataset(dataset_name, display_name, df)
@@ -193,6 +196,7 @@ def import_pdf_table(path: str | Path, dataset_name: str, page: int = 0, table_i
         "row_count": len(df),
         "column_count": len(df.columns),
         "columns": columns,
+        "data_quality": cleaning_report,
         "continuation_pages": continuation_pages,
         "note": note,
     }

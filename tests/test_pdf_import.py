@@ -260,3 +260,34 @@ def test_pdf_import_joinable_via_lakehouse_query(simple_pdf, tmp_path):
     con.close()
 
     assert joined == [("Ankara", 100.0)]
+
+
+# --- data cleaning wired into the PDF path too ------------------------------
+
+def test_pdf_import_excludes_subtotal_rows(tmp_path):
+    p = tmp_path / "sanayi.pdf"
+    _make_pdf(p, [
+        ["Donem", "Endeks"], ["2024-01", "102,3"], ["2024-02", "103,1"], ["Toplam", "205,4"],
+    ])
+
+    result = import_pdf_table(p, "sanayi_pdf")
+    assert result["data_quality"]["subtotal_rows_excluded"] == 1
+    assert result["row_count"] == 2
+
+
+def test_pdf_import_expands_abbreviated_figures():
+    from src.agent.pdf_import import _table_to_dataframe
+
+    table = [["Sirket", "Ciro"], ["A", "1.5M"], ["B", "2.3B"]]
+    df, report = _table_to_dataframe(table)
+    assert "Ciro" in report["numeric_columns_recovered"]
+    assert list(df["Ciro"]) == [1_500_000.0, 2_300_000_000.0]
+
+
+def test_pdf_import_normalizes_null_tokens():
+    from src.agent.pdf_import import _table_to_dataframe
+
+    table = [["Il", "Deger"], ["Ankara", "42"], ["Istanbul", "-"], ["Izmir", "N/A"]]
+    df, report = _table_to_dataframe(table)
+    assert report["null_tokens_normalized"] == 2
+    assert df["Deger"].isna().sum() == 2

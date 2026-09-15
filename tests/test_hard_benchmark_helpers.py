@@ -110,13 +110,40 @@ def test_extract_dataset_names_ignores_a_name_the_guardrail_rejected():
 
 def test_decimal_numbers_in_text_ignores_bare_integers():
     """Bare integers (a year, a row count) match too much by coincidence
-    to be useful signal - only numbers with a decimal point count."""
+    to be useful signal - only numbers with a decimal point/comma count."""
     nums = _decimal_numbers_in_text("2026 yılında 66 ay boyunca r=0.97 oldu, %38,2 artış var.")
-    assert nums == [0.97, 38.2]
+    assert nums == [[0.97], [38.2]]
 
 
 def test_decimal_numbers_in_text_handles_turkish_comma_decimals():
-    assert _decimal_numbers_in_text("Faiz %37,5 oldu.") == [37.5]
+    assert _decimal_numbers_in_text("Faiz %37,5 oldu.") == [[37.5]]
+
+
+def test_decimal_numbers_in_text_reads_thousands_grouped_integers():
+    """'66.583' in Turkish prose is ambiguous on its own - it was found
+    live as BOTH a thousands-grouped integer (66583, a raw haftalık
+    kullandırım toplamı) and a literal decimal (9.268 milyar TL) in
+    different real answers, so both readings must be offered; the
+    thousands-grouped one is what actually appears in gold_fact_long
+    here, so it must be among the candidates."""
+    candidates = _decimal_numbers_in_text("Toplam 66.583 birim.")[0]
+    assert 66583.0 in candidates
+
+
+def test_decimal_numbers_in_text_offers_both_readings_for_a_genuinely_ambiguous_number():
+    """A lone-period number with exactly 3 trailing digits is NOT
+    resolvable from the text alone: '9.268' could be the thousands-
+    grouped integer 9268, or a literal decimal (e.g. '9.268 milyar TL' -
+    a value already scaled to billions with 3 decimals of precision).
+    Both real cases were found live in real answers - offering both
+    readings and accepting either as grounded is the honest fix, not
+    picking one and hoping."""
+    candidates = _decimal_numbers_in_text("9.268 milyar TL")[0]
+    assert set(candidates) == {9268.0, 9.27}  # 9.268 rounds to 9.27 at 2dp
+
+
+def test_decimal_numbers_in_text_multi_group_thousands_with_decimal_tail():
+    assert _decimal_numbers_in_text("1.234.567,89 TL") == [[1234567.89]]
 
 
 def test_flatten_numbers_walks_nested_dicts_and_lists():
