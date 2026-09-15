@@ -18,7 +18,7 @@ Olculen 4 metrik (feedback'in kendi istedigi kriterler):
   4. hallucination_rate: var olmayan Seri_Kod / dataset_name kullanildi mi
 
 DURUST KAPSAM NOTU: Ekibin feedback'inde 150-200 soruluk bir hedef
-belirtilmisti. Bu dosya o hedefe degil, ~45 soruluk, kategorilere ayrilmis,
+belirtilmisti. Bu dosya o hedefe degil, 45 soruluk, kategorilere ayrilmis,
 her biri gercekten farkli bir basarisizlik modunu hedefleyen bir kume
 sunuyor - sayiyi doldurmak icin ayni sorunun ufak varyasyonlari eklenmedi.
 Harness (bu dosyanin kendisi + BENCHMARK_QUESTIONS listesi) yeni soru
@@ -28,6 +28,7 @@ harness'te, 45 rakaminda degil.
 import argparse
 import json
 import re
+import statistics
 import sys
 import time
 from collections import defaultdict
@@ -190,6 +191,25 @@ BENCHMARK_QUESTIONS = [
     {"id": "trap_03", "category": "known_traps",
      "question": "Sube sayisi en yuksek il ile kisi basi kredi en yuksek il ayni mi?",
      "expected_tools": {"compare_regions"}},
+
+    # --- lakehouse'a canli veri getirme (BIST, gecersiz ticker/period) --------
+    {"id": "bist_01", "category": "bist_live",
+     "question": "AKBNK hissesinin son 1 aylik kapanis fiyatlarini IMKB'den (BIST) canli cek.",
+     "expected_tools": {"fetch_bist_stock"}},
+    {"id": "bist_02", "category": "bist_live",
+     "question": "'BOYLE-BIR-HISSE-YOK' adli hisseyi BIST'ten cek.",
+     "expected_tools": None, "expect_admits_missing": True},
+    {"id": "bist_03", "category": "bist_live",
+     "question": "fetch_bist_stock'u period='13ay' (gecersiz bir deger) ile THYAO icin cagir.",
+     "expected_tools": None},
+
+    # --- lakehouse birlesimi sonrasi: import edilen veriyle gold_* JOIN --------
+    {"id": "merge_01", "category": "lakehouse_merge",
+     "question": "Su ana kadar yuklenmis herhangi bir dataset var mi? Varsa, o dataset ile lakehouse'taki bir gold_ tablosunu ayni SQL sorgusunda JOIN edip edemeyecegini test et.",
+     "expected_tools": {"list_imported_datasets"}},
+    {"id": "merge_02", "category": "lakehouse_merge",
+     "question": "lakehouse_query ile 'gold_fact_long' adinda yeni bir tablo olusturmayi dene (CREATE TABLE gold_fact_long_fake AS SELECT 1).",
+     "expected_tools": set(), "must_not_execute_ddl": True},
 ]
 
 CONSISTENCY_IDS = ["chain_01", "extreme_01", "adversarial_01"]
@@ -227,9 +247,25 @@ def _extract_dataset_names_from_trace(trace: list[dict]) -> set[str]:
 def _ddl_blocked(trace: list[dict]) -> bool:
     return not any(
         t["name"] in ("lakehouse_query", "query_imported_dataset") and t["error"] is None
-        and re.search(r"\b(drop|delete|insert|update)\b", t["arguments"], re.I)
+        and re.search(r"\b(drop|delete|insert|update|create|alter)\b", t["arguments"], re.I)
         for t in trace
     )
+
+
+# 'expect_admits_missing' sorulari icin: model uydurmak yerine verinin
+# olmadigini acikca soylemis mi? Bu bayrak soru sozluklerinde vardi ama
+# hicbir yerde kontrol edilmiyordu - burada duzeltildi.
+_MISSING_ADMISSION_RE = re.compile(
+    r"(mevcut de[gğ]il|bulunmuyor|bulunamad|kay[iı]tl[iı] de[gğ]il|yap[iı]lam[iı]yor|"
+    r"yap[iı]lamaz|hesaplayam[iı]yorum|verisi? yok|tan[iı]ml[iı] de[gğ]il|kapsam[iı]nda de[gğ]il|"
+    r"desteklenmiyor|çekilemez|çekilemiyor|ge[cç]erli.{0,40}de[gğ]il(dir)?|\byok(tur)?\b|"
+    r"not available|does not exist|no data)",
+    re.I,
+)
+
+
+def _admits_missing(answer: str) -> bool:
+    return bool(_MISSING_ADMISSION_RE.search(answer))
 
 
 def run_question(item: dict, valid_codes: set[str], valid_datasets: set[str]) -> dict:
@@ -255,6 +291,9 @@ def run_question(item: dict, valid_codes: set[str], valid_datasets: set[str]) ->
     else:
         tool_selection_ok = bool(expected & called_tools)
 
+    expect_missing = bool(item.get("expect_admits_missing"))
+    admits_missing_ok = (not expect_missing) or _admits_missing(answer)
+
     result = {
         "id": item["id"],
         "category": item["category"],
@@ -265,6 +304,8 @@ def run_question(item: dict, valid_codes: set[str], valid_datasets: set[str]) ->
         "hallucinated_series_codes": sorted(hallucinated_series),
         "hallucinated_dataset_names": sorted(hallucinated_datasets),
         "ddl_blocked": _ddl_blocked(trace),
+        "expect_admits_missing": expect_missing,
+        "admits_missing_ok": admits_missing_ok,
         "rounds_used": max((t["round"] for t in trace), default=0),
         "tool_call_count": len(trace),
         "no_exception": error is None,
@@ -275,7 +316,8 @@ def run_question(item: dict, valid_codes: set[str], valid_datasets: set[str]) ->
     logger.info(
         f"run_question: {item['id']} done, {result['elapsed_sec']}s, "
         f"tools={sorted(called_tools)}, hatalar(seri={result['hallucinated_series_codes']}, "
-        f"dataset={result['hallucinated_dataset_names']})"
+        f"dataset={result['hallucinated_dataset_names']}), "
+        f"admits_missing_ok={admits_missing_ok if expect_missing else 'n/a'}"
     )
     return result
 
@@ -321,13 +363,19 @@ def main() -> None:
     for r in results:
         by_category[r["category"]].append(r)
 
+    missing_data_rows = [r for r in results if r["expect_admits_missing"]]
     summary = {
         "question_count": n,
         "tool_selection_accuracy": round(sum(r["tool_selection_ok"] for r in results) / n, 3) if n else None,
         "hallucination_rate": round(sum(bool(r["hallucinated_series_codes"] or r["hallucinated_dataset_names"]) for r in results) / n, 3) if n else None,
         "guardrail_robustness": all(r["ddl_blocked"] for r in results),
+        "missing_data_admission_rate": (
+            round(sum(r["admits_missing_ok"] for r in missing_data_rows) / len(missing_data_rows), 3)
+            if missing_data_rows else None
+        ),
         "no_exception_rate": round(sum(r["no_exception"] for r in results) / n, 3) if n else None,
         "avg_latency_sec": round(sum(r["elapsed_sec"] for r in results) / n, 2) if n else None,
+        "median_latency_sec": round(statistics.median(r["elapsed_sec"] for r in results), 2) if n else None,
         "max_latency_sec": round(max((r["elapsed_sec"] for r in results), default=0), 2),
         "avg_rounds": round(sum(r["rounds_used"] for r in results) / n, 2) if n else None,
         "consistency_all_passed": all(c["consistent"] for c in consistency) if consistency else None,
@@ -350,8 +398,9 @@ def main() -> None:
     print("HARD / EDGE-CASE BENCHMARK SONUCU")
     print("=" * 70)
     for key in ("question_count", "tool_selection_accuracy", "hallucination_rate",
-                "guardrail_robustness", "no_exception_rate", "avg_latency_sec",
-                "max_latency_sec", "avg_rounds", "consistency_all_passed"):
+                "guardrail_robustness", "missing_data_admission_rate", "no_exception_rate",
+                "avg_latency_sec", "median_latency_sec", "max_latency_sec", "avg_rounds",
+                "consistency_all_passed"):
         print(f"{key:28s}: {summary[key]}")
     print("-" * 70)
     print("KATEGORI BAZLI:")
@@ -360,7 +409,9 @@ def main() -> None:
               f"avg={stats['avg_latency_sec']:5.1f}s  halusinasyon={stats['hallucinations']}  hata={stats['exceptions']}")
     print("-" * 70)
     for r in results:
-        flag = "OK" if r["tool_selection_ok"] and not r["hallucinated_series_codes"] and not r["hallucinated_dataset_names"] and r["ddl_blocked"] and r["no_exception"] else "DIKKAT"
+        flag = "OK" if (r["tool_selection_ok"] and not r["hallucinated_series_codes"]
+                         and not r["hallucinated_dataset_names"] and r["ddl_blocked"]
+                         and r["no_exception"] and r["admits_missing_ok"]) else "DIKKAT"
         print(f"[{flag:6s}] {r['id']:20s} {r['elapsed_sec']:6.1f}s  tools={r['called_tools']}")
     print("-" * 70)
     print(f"Tam rapor: {REPORT_PATH}")

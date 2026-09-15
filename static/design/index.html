@@ -199,7 +199,7 @@ textarea:focus-visible { outline: none; }
       </button>
       <button onClick="{{ resetChat }}" style="background:none; border:1px solid rgba(var(--accent-rgb),.16); color:var(--muted); border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; transition:all .18s ease;" style-hover="color:var(--ink); border-color:rgba(var(--accent-rgb),.32);">New chat</button>
       <button onClick="{{ toggleTheme }}" aria-label="Koyu/açık temayı değiştir" title="Koyu/açık tema" style="width:34px; height:34px; flex:none; border-radius:8px; background:none; border:1px solid rgba(var(--accent-rgb),.16); color:var(--muted); cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; transition:all .18s ease;" style-hover="color:var(--ink); border-color:rgba(var(--accent-rgb),.32);">{{ themeIcon }}</button>
-      <input ref="{{ fileInputRef }}" type="file" accept=".csv,.xlsx,.xls" onChange="{{ onFileSelected }}" style="display:none;" />
+      <input ref="{{ fileInputRef }}" type="file" accept=".csv,.xlsx,.xls,.pdf" onChange="{{ onFileSelected }}" style="display:none;" />
       <button onClick="{{ triggerUpload }}" disabled="{{ uploading }}" aria-label="CSV veya Excel dosyası yükle" title="CSV veya Excel dosyası yükle" style="width:34px; height:34px; flex:none; border-radius:8px; background:none; border:1px solid rgba(var(--accent-rgb),.16); color:var(--muted); cursor:{{ uploadCursor }}; font-size:15px; display:flex; align-items:center; justify-content:center; transition:all .18s ease;" style-hover="color:var(--ink); border-color:rgba(var(--accent-rgb),.32);">{{ uploadLabel }}</button>
     </div>
   </header>
@@ -833,9 +833,12 @@ function formatUploadSummary(result) {
   const truncNote = result.truncated_to
     ? `\n\n_İlk ${result.truncated_to} satır alındı; dosyanın tamamı değil._`
     : '';
+  const pdfNote = result.note
+    ? `\n\n_${result.note}_`
+    : '';
 
   return `**'${result.dataset_name}' olarak içe aktarıldı** — ${result.row_count} satır, ${result.column_count} sütun.\n\n` +
-    `| Sütun | Tür | Boş | Örnek / Aralık |\n|---|---|---|---|\n${rows}${truncNote}\n\n` +
+    `| Sütun | Tür | Boş | Örnek / Aralık |\n|---|---|---|---|\n${rows}${truncNote}${pdfNote}\n\n` +
     `Bu veri kullanıcı tarafından yüklendi; BDDK/EVDS/TÜİK gibi doğrulanmamıştır. ` +
     `\`'${result.dataset_name}' hakkında ...\` diye sorabilirsin.`;
 }

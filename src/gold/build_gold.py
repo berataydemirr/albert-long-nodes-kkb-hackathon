@@ -41,7 +41,7 @@ import pandas as pd
 
 from config.settings import (
     BDDK_MONTHLY_SILVER_DIR, BDDK_WEEKLY_SILVER_DIR, BDDK_FINTURK_SILVER_DIR,
-    EVDS_SILVER_DIR, TUIK_SILVER_DIR, GOLD_DIR, BDDK_MONTHLY_TABLES,
+    EVDS_SILVER_DIR, TUIK_SILVER_DIR, LAKEHOUSE_DB_PATH, BDDK_MONTHLY_TABLES,
 )
 from src.gold.align import donem_id_to_date, downsample_to_monthly, to_period, upsample_quarterly_to_monthly
 from src.gold.cumulative import decumulate
@@ -50,7 +50,7 @@ from src.common.logging_setup import get_logger
 
 logger = get_logger("build_gold")
 
-GOLD_DB_PATH = GOLD_DIR / "lakehouse.duckdb"
+GOLD_DB_PATH = LAKEHOUSE_DB_PATH
 
 # EVDS series we pull into the long fact table, with human labels for
 # the LLM-facing schema (see docs/gold_schema.md).

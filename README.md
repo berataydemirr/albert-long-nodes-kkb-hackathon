@@ -36,8 +36,9 @@ can combine several:
 - `anomaly_analysis`, `change_detection` — find unusual points and sharp moves in a series
 - `correlation_analysis`, `causality_analysis`, `threshold_filter_compare` — compare two series
 - `compare_regions` — rank provinces across 35 lending, deposit and credit-quality metrics
-- `list_imported_datasets`, `query_imported_dataset` — read a user-uploaded CSV/Excel file
-- `refresh_tuik_series` — re-fetch an already-registered TUIK series live
+- `list_imported_datasets`, `query_imported_dataset` — read a user-uploaded CSV/Excel/PDF table
+- `refresh_tuik_series` — re-fetch an already-registered TUIK series live and store it
+- `fetch_bist_stock` — pull a BIST stock's live price history and store it
 - `web_search`, `web_url_extract` — look up current public information and read a given URL
 
 Analysis tools take a `seri_kod` and read the series from the database
@@ -56,31 +57,54 @@ given any tools.
 
 ## Data import
 
-The upload button in the header (or `POST /api/upload`) accepts a CSV or
-Excel file up to 25 MB, infers each column's type, and loads it into its own
-table in a separate DuckDB file — never into the vetted gold lakehouse. The
-model can then discover and query it through `list_imported_datasets` and
-`query_imported_dataset`, using the same read-only SQL guardrail as the gold
-layer (`src/agent/sql_guard.py`, shared rather than duplicated). Every
-answer built from an uploaded dataset states plainly that the data is
-user-supplied and unverified, unlike BDDK/EVDS/TUIK.
+The upload button in the header (or `POST /api/upload`) accepts a CSV,
+Excel, or PDF file up to 25 MB, detects its schema (column types inferred
+column-by-column, not just pandas' default dtype guess), and loads it
+directly into **lakehouse.duckdb** — the same file the curated `gold_*`
+tables live in, in its own table named after the dataset. This is
+deliberate: a table that lived in a second, isolated database file could
+never be `JOIN`ed against the curated data, which defeats the point of
+importing it in the first place. Two guarantees keep this safe instead:
+a dataset name can never collide with a real `gold_*` table (rejected both
+by a static prefix check and live against the connection's own table
+list), and every imported table is tracked in `_import_registry` so it can
+always be reported as user-supplied and unverified, unlike BDDK/EVDS/TUIK.
+`list_imported_datasets` and `query_imported_dataset` are the direct way to
+reach one; `lakehouse_query` can also reach it and `JOIN` it against a
+`gold_*` table in the same query. All of this goes through the one shared
+guardrail (`src/agent/sql_guard.py`) regardless of which tool is used.
 
-This covers CSV and Excel only. A PDF table extractor was deliberately left
-out: `pypdf` (already a dependency) reads PDF text, not table structure, and
-a real extractor needs a Java/Ghostscript runtime this project does not
-carry — shipping one without a way to verify it against a real source
-document risked silently misaligned columns, which is worse than not having
-the feature.
+PDF import (`src/agent/pdf_import.py`) uses `pdfplumber` — pure Python, no
+Java/Ghostscript runtime required, unlike camelot or tabula. It finds
+tables from actual ruling lines or aligned whitespace on the page; a
+duplicate or blank extracted header column is rejected outright rather
+than guessed at, since that's the most common sign the extraction actually
+failed (usually a merged cell in the source table). Every PDF import is
+returned with an explicit note to spot-check values against the source
+page before relying on them.
 
 `refresh_tuik_series` re-fetches an already-registered TUIK series
-(currently the unemployment rate and life expectancy) directly from TUIK's
-API and returns the fresh values for that answer, without writing into the
-lakehouse. It is deliberately restricted to the existing registry in
-`config/tuik_series.py` rather than accepting an arbitrary series key: TUIK's
-SDMX API addresses a series through a multi-dimension key that has to be
-resolved by hand against that dataflow's own codelists, so a model guessing
-one risks a wrong-but-real series being reported as the one that was asked
-for.
+(currently the unemployment rate and life expectancy) live from TUIK's API
+and writes the fresh values into `gold_fact_long`, tagged `Kaynak='tuik_live'`
+(distinct from the batch-built `'tuik'` rows) so it stays identifiable while
+being immediately queryable like any other series. It is deliberately
+restricted to the existing registry in `config/tuik_series.py` rather than
+accepting an arbitrary series key: TUIK's SDMX API addresses a series
+through a multi-dimension key that has to be resolved by hand against that
+dataflow's own codelists, so a model guessing one risks a wrong-but-real
+series being reported as the one that was asked for.
+
+`fetch_bist_stock` pulls live daily OHLCV price history for any BIST
+(Borsa İstanbul) ticker from Yahoo Finance and writes it into the lakehouse
+as `bist_<ticker>`. Unlike TUIK, this is not restricted to a pre-registered
+list — a plain ticker symbol carries none of the SDMX key-resolution risk,
+so any real BIST symbol works directly.
+
+Two connections briefly wanting the same file — an import landing while a
+`lakehouse_query` is mid-flight — is now possible where it wasn't with a
+second file; DuckDB allows either N concurrent read-only connections or one
+exclusive writer, never a mix, so a losing connection retries for up to
+~2 seconds (`src/agent/db_utils.py`) rather than surfacing as a 500.
 
 ## Web search
 
@@ -167,3 +191,24 @@ also shown in the browser page).
 
 Tool calls and model rounds are written to `logs/`. Secrets, generated logs,
 the virtual environment and the DuckDB file are ignored by Git.
+
+## Edge-case benchmark
+
+```bash
+.venv/bin/python -m benchmarks.hard_benchmark              # full run, ~10 min
+.venv/bin/python -m benchmarks.hard_benchmark --category adversarial
+```
+
+`benchmarks/hard_benchmark.py` runs a curated set of adversarial and
+edge-case questions against the real API (multi-hop chains, extreme and
+invalid parameters, missing-data admission, prompt injection, batch calls,
+BIST/TUIK live fetches, an attempt to overwrite a gold table via SQL) and
+tracks the same four things the team asked to have tracked: tool-selection
+accuracy, consistency (three repeat runs of three questions, compared),
+speed (per-question and aggregate latency), and a hallucinated-series/
+dataset-name rate. Results are written to
+`benchmarks/hard_benchmark_report.json`, per-question and aggregated. It is
+45 questions, not the 150-200 originally asked for — each one targets a
+distinct failure mode rather than padding the count with variations of the
+same question; the harness (`BENCHMARK_QUESTIONS`) takes one dictionary
+entry to extend.

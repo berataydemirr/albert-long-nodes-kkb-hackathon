@@ -37,15 +37,18 @@ BRONZE_DIR = DATA_DIR / "bronze"
 SILVER_DIR = DATA_DIR / "silver"
 GOLD_DIR = DATA_DIR / "gold"
 DEBUG_DIR = DATA_DIR / "debug"
-# User-uploaded CSV/Excel files (see src/agent/data_import.py), and the
-# separate DuckDB file they are imported into. Kept apart from
-# lakehouse.duckdb on purpose: the gold layer is built offline and vetted
-# (see docs/gold_schema.md); anything a user uploads at runtime is
-# unvetted and must never share a file with, let alone write into, data
-# whose reliability the rest of this project goes to real lengths to
-# establish.
+# User-uploaded CSV/Excel/PDF files (see src/agent/data_import.py) land
+# directly in lakehouse.duckdb, in their own table named after the
+# dataset - so a single lakehouse_query call can JOIN a freshly-imported
+# table against the curated gold_* tables, per the team's explicit ask
+# that imported/fetched data be queryable alongside the vetted layer, not
+# walled off in a second file. Each imported table is still tracked in
+# its own registry table (_import_registry) and reported as
+# user-supplied/unverified wherever it's surfaced (see lakehouse_schema),
+# and dataset_name can never collide with a real gold_* table - see
+# data_import.py's own docstring for the full reasoning and history.
 USER_UPLOADS_DIR = DATA_DIR / "uploads"
-USER_DATA_DB_PATH = GOLD_DIR / "user_data.duckdb"
+LAKEHOUSE_DB_PATH = GOLD_DIR / "lakehouse.duckdb"
 LOGS_DIR = PROJECT_ROOT / "logs"
 
 BDDK_MONTHLY_BRONZE_DIR = BRONZE_DIR / "bddk_monthly"

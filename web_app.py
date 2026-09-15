@@ -16,6 +16,7 @@ from src.agent.data_import import (
     import_dataset,
     list_sheets,
 )
+from src.agent.pdf_import import import_pdf_table, list_pdf_tables
 from src.agent.orchestrator import ask
 from src.agent.router import route_question
 from src.agent.charts import derive_charts
@@ -106,23 +107,33 @@ def list_tools() -> dict:
 
 
 _SAFE_STEM_RE = re.compile(r"[^A-Za-z0-9_]")
+_PDF_EXTENSION = ".pdf"
+_ALL_UPLOAD_EXTENSIONS = SUPPORTED_EXTENSIONS + (_PDF_EXTENSION,)
 
 
 @app.post("/api/upload")
 async def upload_dataset(file: UploadFile = File(...), dataset_name: str | None = Form(None),
-                         sheet: str | None = Form(None)) -> dict:
-    """Save an uploaded CSV/Excel file and import it into user_data.duckdb.
+                         sheet: str | None = Form(None), page: int = Form(0),
+                         table_index: int = Form(0)) -> dict:
+    """Save an uploaded CSV/Excel/PDF file and import it into the
+    lakehouse (see data_import.py / pdf_import.py for why it's the same
+    lakehouse.duckdb the curated gold tables live in, not a separate
+    file).
 
     Runs schema detection + import synchronously and returns the result,
     rather than handing back a job id to poll - these are small files
     (25 MB cap) meant to be usable in the same conversation, not a batch
     pipeline. A malformed or oversized file is a 422, not a 500: the
-    server did its job correctly by refusing it.
+    server did its job correctly by refusing it. page/table_index only
+    apply to a PDF (which page, which of possibly several tables on it -
+    both default to the first, like sheet defaults to the first Excel
+    sheet); a caller that gets a poor extraction can inspect
+    list_pdf_tables' output and retry with a different pair.
     """
     suffix = Path(file.filename or "").suffix.lower()
-    if suffix not in SUPPORTED_EXTENSIONS:
+    if suffix not in _ALL_UPLOAD_EXTENSIONS:
         logger.warning(f"upload_dataset: rejected {file.filename!r}, unsupported extension {suffix!r}")
-        raise HTTPException(status_code=422, detail=f"Unsupported file type {suffix!r}. Supported: {SUPPORTED_EXTENSIONS}.")
+        raise HTTPException(status_code=422, detail=f"Unsupported file type {suffix!r}. Supported: {_ALL_UPLOAD_EXTENSIONS}.")
 
     body = await file.read()
     if len(body) > MAX_FILE_BYTES:
@@ -144,14 +155,22 @@ async def upload_dataset(file: UploadFile = File(...), dataset_name: str | None 
     name = dataset_name.strip() if dataset_name and dataset_name.strip() else default_name
 
     try:
-        sheets = list_sheets(saved_path)
-        result = import_dataset(saved_path, name, sheet=sheet, source_label=file.filename)
-        result["sheets"] = sheets
+        if suffix == _PDF_EXTENSION:
+            preview = list_pdf_tables(saved_path)
+            result = import_pdf_table(saved_path, name, page=page, table_index=table_index, source_label=file.filename)
+            result["pdf_tables_found"] = preview["tables"]
+        else:
+            sheets = list_sheets(saved_path)
+            result = import_dataset(saved_path, name, sheet=sheet, source_label=file.filename)
+            result["sheets"] = sheets
         logger.info(f"upload_dataset: imported as {name!r}, {result['row_count']} rows")
         return result
     except ValueError as exc:
         logger.warning(f"upload_dataset: import failed for {file.filename!r}: {exc}")
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        logger.error(f"upload_dataset: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.post("/api/ask")

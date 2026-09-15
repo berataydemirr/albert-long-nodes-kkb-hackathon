@@ -115,7 +115,7 @@ def test_classic_page_also_has_a_dark_theme():
 def test_upload_endpoint_imports_a_real_csv(tmp_path, monkeypatch):
     import src.agent.data_import as di
 
-    monkeypatch.setattr(di, "USER_DATA_DB_PATH", tmp_path / "web_upload_test.duckdb")
+    monkeypatch.setattr(di, "LAKEHOUSE_DB_PATH", tmp_path / "web_upload_test.duckdb")
 
     csv_bytes = b"Il,Deger\nAnkara,1\nIstanbul,2\n"
     response = TestClient(web_app.app).post(
@@ -157,7 +157,7 @@ def test_upload_endpoint_defaults_a_dataset_name_from_the_filename(tmp_path, mon
     file should still get a usable, valid table name back."""
     import src.agent.data_import as di
 
-    monkeypatch.setattr(di, "USER_DATA_DB_PATH", tmp_path / "web_upload_test2.duckdb")
+    monkeypatch.setattr(di, "LAKEHOUSE_DB_PATH", tmp_path / "web_upload_test2.duckdb")
 
     response = TestClient(web_app.app).post(
         "/api/upload",

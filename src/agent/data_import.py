@@ -5,25 +5,37 @@ Every other tool in this project answers questions about data the team
 collected and vetted ahead of time (BDDK, EVDS, TUIK). Team feedback asked
 for the opposite capability: a user hands the system an arbitrary file at
 runtime - possibly from a domain nobody built a collector for - and the
-agent should be able to read and analyse it in the same conversation.
+agent should be able to read, analyse, and JOIN it against the existing
+lakehouse in the same conversation.
 
 WHAT THIS DELIBERATELY IS NOT:
-A PDF table extractor. `pypdf` (already a dependency) reads PDF TEXT, not
-table structure - a real table extractor needs something like camelot or
-tabula, which need a Java/Ghostscript runtime this project does not carry
-and this pass had no way to verify wouldn't silently mis-align columns on
-a real BDDK-style PDF. Shipping a "PDF import" that quietly drops or
-transposes cells would be worse than not having it, so it is out of scope
-here - CSV and Excel only.
+A PDF table extractor. See pdf_import.py for that (pdfplumber-based,
+still CSV/Excel-adjacent but its own module since PDF table structure has
+to be reconstructed from text positions rather than read from a real grid).
 
-DESIGN:
-Uploads land in their own DuckDB file (config.USER_DATA_DB_PATH), never in
-lakehouse.duckdb. The gold layer is built offline and every series in it
-has a documented source and unit (see docs/gold_schema.md); a table a user
-just uploaded has neither, so it must never be reachable through the same
-connection the vetted data lives in, and must never be able to overwrite
-it. Querying an imported dataset goes through the exact same SQL guardrail
-(src/agent/sql_guard.py) as the gold lakehouse.
+DESIGN (revised from an earlier, more isolated version):
+Every import and live refresh now lands directly in lakehouse.duckdb, in
+its own table named after the dataset, so a single lakehouse_query call
+can JOIN it against gold_fact_long and the other curated tables - this is
+the actual point of "genelleştirilebilir olmalı, ilişkilendirilebilir
+olmalı" from the team feedback: an isolated second database file cannot
+be joined against anything.
+
+The earlier design put uploads in a completely separate DuckDB file
+specifically to protect the curated gold layer from unverified data. That
+protection is kept, just moved from "a different file" to two narrower
+guarantees that hold within the one shared file:
+  1. dataset_name can never collide with a real gold_* table or the
+     registry table itself (checked both statically, in
+     _validate_dataset_name, and live against the connection's own
+     SHOW TABLES before every write).
+  2. every imported table is tracked in _import_registry, and anything
+     built from it - lakehouse_schema's own catalog output, an answer
+     that cites it - is expected to say plainly that it is user-supplied
+     and unverified, unlike a gold_* series.
+Two connections briefly wanting the same file (an import landing while a
+lakehouse_query is mid-flight) is now possible where it wasn't before;
+see db_utils.connect_with_retry for how that race is handled.
 
 Column dtypes are inferred defensively: pandas' own type inference is
 good at splitting numbers from text but does not distinguish "actually a
@@ -40,8 +52,9 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
-from config.settings import USER_DATA_DB_PATH
+from config.settings import LAKEHOUSE_DB_PATH
 from config.tuik_series import SERIES as TUIK_REGISTERED_SERIES
+from src.agent.db_utils import connect_with_retry
 from src.agent.sql_guard import run_guarded_select
 from src.common.logging_setup import get_logger
 
@@ -49,6 +62,7 @@ logger = get_logger("data_import")
 
 REGISTRY_TABLE = "_import_registry"
 _NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+_RESERVED_PREFIX = "gold_"
 MAX_ROWS_PER_IMPORT = 200_000
 MAX_FILE_BYTES = 25 * 1024 * 1024  # 25 MB - generous for a demo CSV/XLSX, small enough to import in-process
 SUPPORTED_EXTENSIONS = (".csv", ".xlsx", ".xls")
@@ -61,12 +75,17 @@ _DATE_LIKE_RE = re.compile(r"^\d{4}[-/]\d{1,2}([-/]\d{1,2})?$|^\d{1,2}[-/]\d{1,2
 
 
 def _db(read_only: bool) -> duckdb.DuckDBPyConnection:
-    USER_DATA_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    if read_only and not USER_DATA_DB_PATH.exists():
-        logger.info("_db: user_data.duckdb does not exist yet, no datasets imported so far")
-        raise FileNotFoundError("No datasets have been imported yet.")
-    logger.debug(f"_db: opening {USER_DATA_DB_PATH} (read_only={read_only})")
-    return duckdb.connect(str(USER_DATA_DB_PATH), read_only=read_only)
+    if read_only and not LAKEHOUSE_DB_PATH.exists():
+        # A read against a lakehouse that has never been built (or, in a
+        # test, a fresh tmp_path with nothing imported yet) is a normal
+        # "nothing here yet" state, not an error - list_imported_datasets
+        # relies on this to return an empty list rather than raising.
+        logger.info(f"_db: {LAKEHOUSE_DB_PATH} does not exist yet")
+        raise FileNotFoundError(f"Lakehouse database not found: {LAKEHOUSE_DB_PATH}.")
+    if not read_only:
+        LAKEHOUSE_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    logger.debug(f"_db: opening {LAKEHOUSE_DB_PATH} (read_only={read_only})")
+    return connect_with_retry(LAKEHOUSE_DB_PATH, read_only=read_only)
 
 
 def _validate_dataset_name(name: str) -> str:
@@ -78,7 +97,34 @@ def _validate_dataset_name(name: str) -> str:
         )
     if name == REGISTRY_TABLE:
         raise ValueError(f"dataset_name {name!r} is reserved.")
+    if name.startswith(_RESERVED_PREFIX):
+        raise ValueError(
+            f"dataset_name {name!r} is reserved for the curated gold layer "
+            f"(names starting with {_RESERVED_PREFIX!r} are not allowed for an import)."
+        )
     return name
+
+
+def _reject_curated_collision(con: duckdb.DuckDBPyConnection, dataset_name: str) -> None:
+    """A dataset_name that already names a REAL table - one not tracked in
+    _import_registry, i.e. a curated gold_* table or some other object -
+    must never be silently overwritten by CREATE OR REPLACE TABLE. The
+    static gold_ prefix check in _validate_dataset_name catches the
+    common case; this catches everything else (a table with no reserved
+    prefix, a future table this pass doesn't know about) by checking the
+    connection's own SHOW TABLES rather than a hardcoded list."""
+    tables = {row[0] for row in con.execute("SHOW TABLES").fetchall()}
+    if dataset_name not in tables:
+        return
+    previously_imported: set[str] = set()
+    if REGISTRY_TABLE in tables:
+        previously_imported = {row[0] for row in con.execute(f"SELECT dataset_name FROM {REGISTRY_TABLE}").fetchall()}
+    if dataset_name not in previously_imported:
+        logger.warning(f"_reject_curated_collision: {dataset_name!r} already exists and is not a tracked import")
+        raise ValueError(
+            f"dataset_name {dataset_name!r} already names a table in the lakehouse that was not "
+            f"created by an import - refusing to overwrite it. Choose a different name."
+        )
 
 
 def _read_table(path: Path, sheet: str | int | None) -> pd.DataFrame:
@@ -257,8 +303,20 @@ def import_dataset(path: str | Path, dataset_name: str, sheet: str | int | None 
         # number this project does not ship. A test caught this live.
         schema["row_count"] = len(df)
 
+    imported_at = _write_dataset(dataset_name, display_name, df)
+    return {"dataset_name": dataset_name, "imported_at": imported_at, **schema}
+
+
+def _write_dataset(dataset_name: str, display_name: str, df: pd.DataFrame) -> str:
+    """The actual lakehouse write, shared by import_dataset (CSV/Excel)
+    and pdf_import.py (PDF table extraction) - one write path so the
+    collision check, registry bookkeeping, and retry-safe connection
+    handling are not duplicated between them. Caller has already
+    validated dataset_name and built the final DataFrame; this only
+    writes it and returns the ISO timestamp it was recorded under."""
     con = _db(read_only=False)
     try:
+        _reject_curated_collision(con, dataset_name)
         con.register("_incoming_df", df)
         con.execute(f'CREATE OR REPLACE TABLE "{dataset_name}" AS SELECT * FROM _incoming_df')
         con.unregister("_incoming_df")
@@ -277,11 +335,10 @@ def import_dataset(path: str | Path, dataset_name: str, sheet: str | int | None 
             f"INSERT OR REPLACE INTO {REGISTRY_TABLE} VALUES (?, ?, ?, ?, ?)",
             [dataset_name, display_name, imported_at, len(df), len(df.columns)],
         )
-        logger.info(f"import_dataset: done, {dataset_name!r} <- {len(df)} rows x {len(df.columns)} cols")
+        logger.info(f"_write_dataset: done, {dataset_name!r} <- {len(df)} rows x {len(df.columns)} cols")
+        return imported_at
     finally:
         con.close()
-
-    return {"dataset_name": dataset_name, "imported_at": imported_at, **schema}
 
 
 def list_imported_datasets() -> dict:
@@ -291,8 +348,8 @@ def list_imported_datasets() -> dict:
     datasets" is a normal state for the model to see and report, not a
     failure."""
     logger.info("list_imported_datasets: start")
-    if not USER_DATA_DB_PATH.exists():
-        logger.info("list_imported_datasets: user_data.duckdb does not exist yet")
+    if not LAKEHOUSE_DB_PATH.exists():
+        logger.info("list_imported_datasets: lakehouse.duckdb does not exist yet")
         return {"datasets": []}
 
     con = _db(read_only=True)
@@ -318,14 +375,20 @@ def list_imported_datasets() -> dict:
 
 
 def query_imported_dataset(dataset_name: str, sql: str) -> dict:
-    """Run one read-only SELECT against an imported dataset. Same
-    guardrail as lakehouse_query (src/agent/sql_guard.py), against the
-    separate user_data.duckdb file rather than the gold lakehouse."""
+    """Run one read-only SELECT against an imported dataset, through the
+    same guardrail as lakehouse_query (src/agent/sql_guard.py) and now
+    the same physical file - lakehouse_query can reach this table too and
+    JOIN it against gold_fact_long; this tool exists for the common case
+    of asking about one imported dataset on its own, with 'unknown
+    dataset' framed against _import_registry rather than every table in
+    the lakehouse (a curated gold_* table is not an 'imported dataset',
+    even though it lives in the same file now)."""
     dataset_name = _validate_dataset_name(dataset_name)
     logger.info(f"query_imported_dataset: dataset={dataset_name!r}, sql={sql!r}")
     con = _db(read_only=True)
     try:
-        known = {row[0] for row in con.execute("SHOW TABLES").fetchall()} - {REGISTRY_TABLE}
+        tables = {row[0] for row in con.execute("SHOW TABLES").fetchall()}
+        known = {row[0] for row in con.execute(f"SELECT dataset_name FROM {REGISTRY_TABLE}").fetchall()} if REGISTRY_TABLE in tables else set()
         if dataset_name not in known:
             logger.warning(f"query_imported_dataset: unknown dataset {dataset_name!r}, known={sorted(known)}")
             raise ValueError(f"Unknown dataset {dataset_name!r}. Imported datasets: {sorted(known)}")
@@ -334,9 +397,58 @@ def query_imported_dataset(dataset_name: str, sql: str) -> dict:
         con.close()
 
 
+def _existing_series_meta(con: duckdb.DuckDBPyConnection, seri_kod: str) -> dict:
+    """Reuse whatever Seri_Adi/Birim/Tip a series already has in
+    gold_fact_long (from the last batch build) rather than guessing them
+    again - config/tuik_series.py's registry carries no unit, and a
+    plausible-looking guess is exactly the kind of unconfirmed label this
+    project avoids elsewhere (see build_gold.py's own unit comments)."""
+    tables = {row[0] for row in con.execute("SHOW TABLES").fetchall()}
+    if "gold_fact_long" not in tables:
+        return {"Seri_Adi": None, "Birim": None, "Tip": "stock"}
+    row = con.execute(
+        "SELECT Seri_Adi, Birim, Tip FROM gold_fact_long WHERE Seri_Kod = ? LIMIT 1", [seri_kod]
+    ).fetchone()
+    if row is None:
+        return {"Seri_Adi": None, "Birim": None, "Tip": "stock"}
+    return {"Seri_Adi": row[0], "Birim": row[1], "Tip": row[2]}
+
+
+def _persist_tuik_refresh(con: duckdb.DuckDBPyConnection, seri_kod: str, label: str, periods_values: pd.DataFrame) -> int:
+    """Replace this series' rows in gold_fact_long with the freshly
+    fetched ones, tagged Kaynak='tuik_live' (not 'tuik') so a row that
+    came from an on-demand refresh stays distinguishable from the last
+    offline batch build in the same catalog a query would see. Pulled out
+    of refresh_tuik_series so it can be unit-tested against a fake
+    dataframe without a live TUIK call."""
+    meta = _existing_series_meta(con, seri_kod)
+    frame = pd.DataFrame({
+        "Period": periods_values["Period"].astype(str),
+        "Bolge": "TR",
+        "Kaynak": "tuik_live",
+        "Seri_Kod": seri_kod,
+        "Seri_Adi": meta["Seri_Adi"] or label,
+        "Deger": periods_values["Value"],
+        "Birim": meta["Birim"],
+        "Tip": meta["Tip"] or "stock",
+        "Kaynak_Dosya": f"tuik_live_refresh/{seri_kod}.csv",
+    })
+    con.execute("DELETE FROM gold_fact_long WHERE Seri_Kod = ?", [seri_kod])
+    con.register("_tuik_refresh_df", frame)
+    con.execute(
+        "INSERT INTO gold_fact_long (Period, Bolge, Kaynak, Seri_Kod, Seri_Adi, Deger, Birim, Tip, Kaynak_Dosya) "
+        "SELECT Period, Bolge, Kaynak, Seri_Kod, Seri_Adi, Deger, Birim, Tip, Kaynak_Dosya FROM _tuik_refresh_df"
+    )
+    con.unregister("_tuik_refresh_df")
+    return len(frame)
+
+
 def refresh_tuik_series(seri_kod: str) -> dict:
-    """Re-fetch one ALREADY-REGISTERED TUIK series live and return its
-    fresh values directly, without touching gold_fact_long.
+    """Re-fetch one ALREADY-REGISTERED TUIK series live and write the
+    fresh values into gold_fact_long (Kaynak='tuik_live'), so the same
+    lakehouse_query the model already uses can see and join them
+    immediately - and so does the next question in the same session,
+    without re-fetching.
 
     Deliberately restricted to config/tuik_series.py's registry rather
     than accepting an arbitrary dataflow/key from the model: TUIK's SDMX
@@ -375,13 +487,20 @@ def refresh_tuik_series(seri_kod: str) -> dict:
         raise RuntimeError(f"Fetched '{seri_kod}' but could not parse the response.")
 
     df = pd.read_csv(get_silver_path(seri_kod))
+
+    con = _db(read_only=False)
+    try:
+        written = _persist_tuik_refresh(con, seri_kod, spec["label"], df)
+    finally:
+        con.close()
+
     result = {
         "seri_kod": seri_kod,
         "label": spec["label"],
         "fetched_at": datetime.now(timezone.utc).isoformat(),
         "periods": df["Period"].astype(str).tolist(),
         "values": [None if pd.isna(v) else float(v) for v in df["Value"]],
-        "note": "Fetched live from TUIK for this answer; not written into the gold lakehouse.",
+        "note": f"Fetched live from TUIK and written into gold_fact_long ({written} row(s), Kaynak='tuik_live') - queryable immediately via lakehouse_query.",
     }
     logger.info(f"refresh_tuik_series: done, {len(result['periods'])} point(s), latest={result['periods'][-1] if result['periods'] else None}")
     return result

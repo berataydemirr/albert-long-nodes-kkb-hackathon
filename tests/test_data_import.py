@@ -13,7 +13,7 @@ import pandas as pd
 import pytest
 
 from src.agent.data_import import (
-    USER_DATA_DB_PATH,
+    LAKEHOUSE_DB_PATH,
     detect_schema,
     import_dataset,
     list_imported_datasets,
@@ -24,15 +24,16 @@ from src.agent.data_import import (
 
 
 @pytest.fixture(autouse=True)
-def _fresh_user_data_db(monkeypatch, tmp_path):
-    """Every test gets its own user_data.duckdb, so imports in one test
+def _fresh_lakehouse_db(monkeypatch, tmp_path):
+    """Every test gets its own lakehouse.duckdb, so imports in one test
     can never leak into another - a shared file would make test order
     matter, which is exactly the kind of flakiness a real demo cannot
-    afford."""
+    afford. Starts empty (no gold_* tables) - tests that need a curated
+    table to check collision against build one directly."""
     import src.agent.data_import as di
 
-    db_path = tmp_path / "user_data_test.duckdb"
-    monkeypatch.setattr(di, "USER_DATA_DB_PATH", db_path)
+    db_path = tmp_path / "lakehouse_test.duckdb"
+    monkeypatch.setattr(di, "LAKEHOUSE_DB_PATH", db_path)
     yield db_path
 
 
@@ -173,7 +174,7 @@ def test_import_dataset_respects_the_requested_sheet(xlsx_path):
 
 @pytest.mark.parametrize("bad_name", [
     "x; DROP TABLE anything; --", "1cannot_start_with_digit", "has space",
-    "", None, "a" * 65, "_import_registry",
+    "", None, "a" * 65, "_import_registry", "gold_fact_long", "gold_anything",
 ])
 def test_bad_dataset_names_are_rejected(csv_path, bad_name):
     with pytest.raises(ValueError):
@@ -183,6 +184,22 @@ def test_bad_dataset_names_are_rejected(csv_path, bad_name):
 def test_valid_dataset_names_are_accepted(csv_path):
     result = import_dataset(csv_path, "valid_name_123")
     assert result["dataset_name"] == "valid_name_123"
+
+
+def test_import_cannot_overwrite_a_real_table_not_tracked_as_an_import(csv_path):
+    """gold_-prefixed names are already blocked statically; this is the
+    live SHOW TABLES check that catches everything else - a table that
+    exists in the lakehouse but was never created by an import (built
+    directly here to simulate a curated table with no reserved prefix)."""
+    import duckdb
+    import src.agent.data_import as di
+
+    con = duckdb.connect(str(di.LAKEHOUSE_DB_PATH))
+    con.execute("CREATE TABLE some_curated_table AS SELECT 1 AS x")
+    con.close()
+
+    with pytest.raises(ValueError, match="not created by an import"):
+        import_dataset(csv_path, "some_curated_table")
 
 
 # --- import + query --------------------------------------------------------
@@ -301,6 +318,66 @@ def test_refresh_unregistered_series_lists_the_real_ones():
     message = str(excinfo.value)
     assert "TUIK_UNEMPLOYMENT_RATE" in message
     assert "TUIK_LIFE_EXPECTANCY" in message
+
+
+# --- TUIK refresh persistence into gold_fact_long (network-free: the fetch
+# itself is not exercised here, only what happens to gold_fact_long once a
+# result comes back - see refresh_tuik_series itself for the live-fetch
+# path, verified manually per this project's convention of keeping network
+# calls out of pytest) -----------------------------------------------------
+
+def _seed_gold_fact_long(con, rows):
+    con.execute("""
+        CREATE TABLE gold_fact_long (
+            Period VARCHAR, Bolge VARCHAR, Kaynak VARCHAR, Seri_Kod VARCHAR,
+            Seri_Adi VARCHAR, Deger DOUBLE, Birim VARCHAR, Tip VARCHAR, Kaynak_Dosya VARCHAR
+        )
+    """)
+    for r in rows:
+        con.execute("INSERT INTO gold_fact_long VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", r)
+
+
+def test_persist_tuik_refresh_replaces_old_rows_and_tags_kaynak():
+    import duckdb
+    import src.agent.data_import as di
+
+    con = duckdb.connect(str(di.LAKEHOUSE_DB_PATH))
+    _seed_gold_fact_long(con, [
+        ("2026-01", "TR", "tuik", "TUIK_UNEMPLOYMENT_RATE", "Issizlik Orani (%)", 8.5, "%", "stock", "old.csv"),
+        ("2026-02", "TR", "tuik", "TUIK_UNEMPLOYMENT_RATE", "Issizlik Orani (%)", 8.6, "%", "stock", "old.csv"),
+    ])
+
+    fresh = pd.DataFrame({"Period": ["2026-03", "2026-04"], "Value": [8.7, 8.9]})
+    written = di._persist_tuik_refresh(con, "TUIK_UNEMPLOYMENT_RATE", "Issizlik Orani (%)", fresh)
+
+    rows = con.execute(
+        "SELECT Period, Kaynak, Deger, Birim FROM gold_fact_long WHERE Seri_Kod = 'TUIK_UNEMPLOYMENT_RATE' ORDER BY Period"
+    ).fetchall()
+    con.close()
+
+    assert written == 2
+    # Old rows (Kaynak='tuik') are gone, not just appended alongside the new ones.
+    assert rows == [("2026-03", "tuik_live", 8.7, "%"), ("2026-04", "tuik_live", 8.9, "%")]
+
+
+def test_persist_tuik_refresh_defaults_metadata_when_series_never_existed():
+    """First-ever refresh of a series with nothing in gold_fact_long yet
+    (e.g. before any build_gold run) should not crash - it falls back to
+    the registry's own label and a generic Tip instead of a lookup that
+    finds nothing."""
+    import duckdb
+    import src.agent.data_import as di
+
+    con = duckdb.connect(str(di.LAKEHOUSE_DB_PATH))
+    _seed_gold_fact_long(con, [])  # table exists, but no row for this series
+
+    fresh = pd.DataFrame({"Period": ["2026-01"], "Value": [42.0]})
+    di._persist_tuik_refresh(con, "TUIK_LIFE_EXPECTANCY", "Doguzda Beklenen Yasam Suresi", fresh)
+
+    row = con.execute("SELECT Seri_Adi, Birim, Tip FROM gold_fact_long WHERE Seri_Kod = 'TUIK_LIFE_EXPECTANCY'").fetchone()
+    con.close()
+
+    assert row == ("Doguzda Beklenen Yasam Suresi", None, "stock")
 
 
 def test_source_label_overrides_the_reported_file_name(csv_path):
