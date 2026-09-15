@@ -68,3 +68,30 @@ def test_extract_dataset_names_from_trace_only_looks_at_query_imported_dataset()
         {"name": "lakehouse_query", "arguments": '{"sql": "SELECT 1 AS dataset_name"}'},
     ]
     assert _extract_dataset_names_from_trace(trace) == {"hastane"}
+
+
+def test_extract_series_codes_ignores_a_code_the_guardrail_rejected():
+    """Real bug found live: asking the model to deliberately pass a fake
+    seri_kod ('12345') to correlation_analysis got a clean rejection
+    ('Unknown seri_kod, did you mean...') that the model reported
+    transparently - not a hallucination, the guardrail working exactly as
+    designed. The old extraction counted it anyway because it only read
+    the call arguments and never checked whether the call succeeded."""
+    trace = [{
+        "name": "correlation_analysis", "error": "Unknown seri_kod '12345'. Did you mean one of: [...]",
+        "arguments": '{"x_seri_kod": "12345", "y_seri_kod": "TP.BKR.TRY.18"}',
+    }]
+    assert _extract_series_codes_from_trace(trace) == set()
+
+
+def test_extract_series_codes_still_counts_a_code_from_a_successful_call():
+    trace = [{"name": "correlation_analysis", "error": None, "arguments": '{"x_seri_kod": "MADE_UP_CODE", "y_seri_kod": "TP.BKR.TRY.18"}'}]
+    assert _extract_series_codes_from_trace(trace) == {"MADE_UP_CODE", "TP.BKR.TRY.18"}
+
+
+def test_extract_dataset_names_ignores_a_name_the_guardrail_rejected():
+    trace = [{
+        "name": "query_imported_dataset", "error": "Unknown dataset 'fake_ds'. Imported datasets: [...]",
+        "arguments": '{"dataset_name": "fake_ds", "sql": "SELECT 1"}',
+    }]
+    assert _extract_dataset_names_from_trace(trace) == set()

@@ -57,7 +57,7 @@ given any tools.
 
 ## Data import
 
-The upload button in the header (or `POST /api/upload`) accepts a CSV,
+The upload button next to the message box (or `POST /api/upload`) accepts a CSV,
 Excel, or PDF file up to 25 MB, detects its schema (column types inferred
 column-by-column, not just pandas' default dtype guess), and loads it
 directly into **lakehouse.duckdb** — the same file the curated `gold_*`
@@ -195,20 +195,27 @@ the virtual environment and the DuckDB file are ignored by Git.
 ## Edge-case benchmark
 
 ```bash
-.venv/bin/python -m benchmarks.hard_benchmark              # full run, ~10 min
+.venv/bin/python -m benchmarks.hard_benchmark              # full run, ~20 min
 .venv/bin/python -m benchmarks.hard_benchmark --category adversarial
 ```
 
 `benchmarks/hard_benchmark.py` runs a curated set of adversarial and
-edge-case questions against the real API (multi-hop chains, extreme and
-invalid parameters, missing-data admission, prompt injection, batch calls,
-BIST/TUIK live fetches, an attempt to overwrite a gold table via SQL) and
-tracks the same four things the team asked to have tracked: tool-selection
-accuracy, consistency (three repeat runs of three questions, compared),
-speed (per-question and aggregate latency), and a hallucinated-series/
-dataset-name rate. Results are written to
-`benchmarks/hard_benchmark_report.json`, per-question and aggregated. It is
-45 questions, not the 150-200 originally asked for — each one targets a
-distinct failure mode rather than padding the count with variations of the
-same question; the harness (`BENCHMARK_QUESTIONS`) takes one dictionary
-entry to extend.
+edge-case questions against the real API across 20 categories (multi-hop
+chains, extreme and malformed parameters, missing-data admission, prompt
+injection including unicode/base64-obfuscated variants, batch and
+loop-guard stress, BIST/TUIK live fetches, PDF-import questions against a
+synthetic fixture, SQL guardrail edge cases, province-name typos/case
+variants, unit/scale traps, long rambling and mixed-language phrasing,
+methodology-transparency questions) and tracks the things the team asked
+to have tracked: tool-selection accuracy, consistency (three repeat runs
+of three questions, compared), speed (per-question, average, median and
+max latency), a hallucinated-series/dataset-name rate, missing-data
+admission rate, and guardrail/DDL-attempt-blocked rate. Two small,
+explicitly-synthetic fixtures (`benchmark_synthetic_csv`/`_pdf`) are
+imported automatically before each run so the import-related questions
+have something real and known to query. Results are written to
+`benchmarks/hard_benchmark_report.json`, per-question and aggregated. It
+is 100 questions, not the 150-200 originally asked for — each one targets
+a distinct failure mode rather than padding the count with variations of
+the same question; the harness (`BENCHMARK_QUESTIONS`) takes one
+dictionary entry to extend.
