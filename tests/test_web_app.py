@@ -1,6 +1,21 @@
+import pytest
 from fastapi.testclient import TestClient
 
 import web_app
+
+
+@pytest.fixture(autouse=True)
+def _demo_auth_off_by_default(monkeypatch):
+    """Real bug found live: this machine's .env has actual DEMO_AUTH_USER/
+    PASS set for an active tunnel demo, and since web_app imports them at
+    module level, every test in this file started 401ing (TestClient's
+    default Host is 'testserver', not 127.0.0.1, so the local-bypass in
+    demo_basic_auth doesn't apply to it either) - 13 unrelated tests broke
+    at once. Auth-off is the correct default for a test run regardless of
+    what happens to be in the developer's own .env; the handful of tests
+    that specifically exercise the auth gate override this explicitly."""
+    monkeypatch.setattr(web_app, "DEMO_AUTH_USER", None)
+    monkeypatch.setattr(web_app, "DEMO_AUTH_PASS", None)
 
 
 def test_browser_ui_is_served():
@@ -168,3 +183,76 @@ def test_upload_endpoint_defaults_a_dataset_name_from_the_filename(tmp_path, mon
     name = response.json()["dataset_name"]
     import re
     assert re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name), f"generated name {name!r} is not a valid table name"
+
+
+# --- opt-in demo Basic Auth (config.DEMO_AUTH_USER/PASS) -------------------
+
+def test_no_auth_required_when_demo_auth_unset(monkeypatch):
+    """Default state (normal local dev, nothing in .env): no credentials
+    needed - the middleware must not lock out a plain `uvicorn web_app:app`."""
+    monkeypatch.setattr(web_app, "DEMO_AUTH_USER", None)
+    monkeypatch.setattr(web_app, "DEMO_AUTH_PASS", None)
+
+    response = TestClient(web_app.app).get("/health")
+    assert response.status_code == 200
+
+
+def test_auth_rejects_missing_credentials_when_enabled(monkeypatch):
+    monkeypatch.setattr(web_app, "DEMO_AUTH_USER", "demo")
+    monkeypatch.setattr(web_app, "DEMO_AUTH_PASS", "sekret123")
+
+    response = TestClient(web_app.app).get("/health")
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"].startswith("Basic")
+
+
+def test_auth_skipped_for_direct_localhost_access(monkeypatch):
+    """A developer hitting the server directly (Host: 127.0.0.1:8000, the
+    real case reported live: the auth prompt showed up in their OWN
+    browser too, not just for tunnel visitors) must never see a login
+    prompt - only a request whose Host header is the public tunnel
+    hostname should be gated."""
+    monkeypatch.setattr(web_app, "DEMO_AUTH_USER", "demo")
+    monkeypatch.setattr(web_app, "DEMO_AUTH_PASS", "sekret123")
+
+    response = TestClient(web_app.app, base_url="http://127.0.0.1:8000").get("/health")
+    assert response.status_code == 200
+
+
+def test_auth_still_required_for_a_non_local_host_header(monkeypatch):
+    """cloudflared connects to the origin from 127.0.0.1 too, so the
+    client peer address can't distinguish a tunnel visitor from the
+    developer - only the Host header (forwarded unchanged from the
+    public request) can. A non-local Host must still be gated."""
+    monkeypatch.setattr(web_app, "DEMO_AUTH_USER", "demo")
+    monkeypatch.setattr(web_app, "DEMO_AUTH_PASS", "sekret123")
+
+    response = TestClient(web_app.app, base_url="https://some-tunnel.trycloudflare.com").get("/health")
+    assert response.status_code == 401
+
+
+def test_auth_rejects_wrong_credentials_when_enabled(monkeypatch):
+    monkeypatch.setattr(web_app, "DEMO_AUTH_USER", "demo")
+    monkeypatch.setattr(web_app, "DEMO_AUTH_PASS", "sekret123")
+
+    response = TestClient(web_app.app).get("/health", auth=("demo", "yanlis-sifre"))
+    assert response.status_code == 401
+
+
+def test_auth_accepts_correct_credentials_when_enabled(monkeypatch):
+    monkeypatch.setattr(web_app, "DEMO_AUTH_USER", "demo")
+    monkeypatch.setattr(web_app, "DEMO_AUTH_PASS", "sekret123")
+
+    response = TestClient(web_app.app).get("/health", auth=("demo", "sekret123"))
+    assert response.status_code == 200
+
+
+def test_auth_covers_api_endpoints_too_not_just_health(monkeypatch):
+    """The gate must not be limited to one route - /api/ask (which spends
+    real MIA API quota) is exactly what a stranger with the tunnel URL
+    must not reach without credentials."""
+    monkeypatch.setattr(web_app, "DEMO_AUTH_USER", "demo")
+    monkeypatch.setattr(web_app, "DEMO_AUTH_PASS", "sekret123")
+
+    response = TestClient(web_app.app).post("/api/ask", json={"question": "test"})
+    assert response.status_code == 401

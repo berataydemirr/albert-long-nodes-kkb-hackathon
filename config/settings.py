@@ -49,6 +49,13 @@ DEBUG_DIR = DATA_DIR / "debug"
 # data_import.py's own docstring for the full reasoning and history.
 USER_UPLOADS_DIR = DATA_DIR / "uploads"
 LAKEHOUSE_DB_PATH = GOLD_DIR / "lakehouse.duckdb"
+
+# Opt-in HTTP Basic Auth for web_app.py, gated by both vars being set -
+# normal local dev (nothing set) is unaffected. Used when the server is
+# exposed publicly (e.g. a tunnel for a one-off demo) so a stranger who
+# finds the URL can't burn the MIA API quota or upload files.
+DEMO_AUTH_USER = os.getenv("DEMO_AUTH_USER")
+DEMO_AUTH_PASS = os.getenv("DEMO_AUTH_PASS")
 LOGS_DIR = PROJECT_ROOT / "logs"
 
 BDDK_MONTHLY_BRONZE_DIR = BRONZE_DIR / "bddk_monthly"

@@ -1,15 +1,16 @@
 """Local browser UI for exercising routing and function calling."""
 
 import re
+import secrets
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from config.settings import USER_UPLOADS_DIR
+from config.settings import DEMO_AUTH_PASS, DEMO_AUTH_USER, USER_UPLOADS_DIR
 from src.agent.data_import import (
     MAX_FILE_BYTES,
     SUPPORTED_EXTENSIONS,
@@ -26,6 +27,47 @@ from src.common.logging_setup import get_logger
 logger = get_logger("web_app")
 
 app = FastAPI(title="KKB Agentic Analytics", docs_url=None, redoc_url=None)
+
+
+_LOCAL_HOSTNAMES = ("127.0.0.1", "localhost", "[::1]")
+
+
+@app.middleware("http")
+async def demo_basic_auth(request: Request, call_next):
+    """HTTP Basic Auth gate - only active when DEMO_AUTH_USER/DEMO_AUTH_PASS
+    are both set (e.g. in .env for a public-tunnel demo). Off by default so
+    normal local dev needs no credentials. secrets.compare_digest avoids a
+    timing side-channel on the comparison.
+
+    Skipped for a request whose Host header names 127.0.0.1/localhost - the
+    developer working directly against the local server should never see a
+    login prompt. This can't be done by checking request.client.host
+    instead: cloudflared itself connects to the origin from 127.0.0.1 too
+    (it's a local reverse proxy), so the TCP peer address is identical for
+    "me, in my own browser" and "a visitor coming through the public
+    tunnel" - only the Host header (which cloudflared forwards unchanged
+    from the original public request) tells them apart."""
+    if not (DEMO_AUTH_USER and DEMO_AUTH_PASS):
+        return await call_next(request)
+
+    host_header = request.headers.get("host", "").split(":")[0]
+    if host_header in _LOCAL_HOSTNAMES:
+        return await call_next(request)
+
+    auth = request.headers.get("authorization", "")
+    if auth.startswith("Basic "):
+        import base64
+        try:
+            decoded = base64.b64decode(auth[6:]).decode("utf-8")
+            user, _, pw = decoded.partition(":")
+        except Exception:
+            user, pw = "", ""
+        if secrets.compare_digest(user, DEMO_AUTH_USER) and secrets.compare_digest(pw, DEMO_AUTH_PASS):
+            return await call_next(request)
+
+    logger.warning(f"demo_basic_auth: rejected request from {request.client.host if request.client else '?'} to {request.url.path}")
+    return Response(status_code=401, headers={"WWW-Authenticate": "Basic realm=\"KKB Agent Demo\""})
+
 
 # Design-canvas UI (KKB Agent Lab), wired to the same /api endpoints below.
 # Served from this app (not a separate origin) so its fetch() calls need no CORS.
