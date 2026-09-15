@@ -179,28 +179,53 @@ def test_import_pdf_table_still_handles_turkish_numbers_mixed_with_plain_integer
     assert [r["Deger"] for r in rows] == [42.0, 1234.56]
 
 
-def test_import_pdf_table_flags_a_continuation_page(tmp_path):
-    """A table split across two pages (same header repeated, e.g. via
-    reportlab's repeatRows) must be surfaced as a warning - it is not
-    stitched together automatically, and importing page 0 alone silently
-    drops every row that landed on page 1 otherwise."""
+def test_import_pdf_table_stitches_a_continuation_page_by_default(tmp_path):
+    """6. Sayfalara bölünmüş PDF tabloları: a table split across two pages
+    (same header repeated, e.g. via reportlab's repeatRows, or a real
+    multi-page kâr raporu) must be combined into ONE import by default -
+    not silently truncated to whichever page was requested. Found live
+    before stitching existed: importing page 0 alone silently dropped
+    every row that had landed on page 1."""
     p = tmp_path / "continued_table.pdf"
     header = ["Il", "Deger"]
-    page0_rows = [["Il_%d" % i, str(i)] for i in range(40)]  # enough rows to force a page break
-    _make_pdf(p, [header] + page0_rows, repeat_header=True)
+    all_rows = [["Il_%d" % i, str(i)] for i in range(40)]  # enough rows to force a page break
+    _make_pdf(p, [header] + all_rows, repeat_header=True)
 
     preview = list_pdf_tables(p)
     assert preview["page_count"] >= 2, "test fixture did not actually span multiple pages"
 
     result = import_pdf_table(p, "continued_pdf", page=0)
     assert result["continuation_pages"] == [1]
-    assert "continues" in result["note"]
+    assert result["stitched"] is True
+    assert result["row_count"] == 40  # every row recovered, not just page 0's share
+    assert "stitched into this import" in result["note"]
+
+    from src.agent.data_import import query_imported_dataset
+    rows = query_imported_dataset("continued_pdf", "SELECT COUNT(*) AS n FROM continued_pdf")["rows"]
+    assert rows[0]["n"] == 40
+
+
+def test_import_pdf_table_stitching_can_be_disabled(tmp_path):
+    """A caller that knows two pages sharing a header are actually
+    unrelated tables can opt out and get only the requested page, the
+    pre-stitching behavior."""
+    p = tmp_path / "continued_table2.pdf"
+    header = ["Il", "Deger"]
+    all_rows = [["Il_%d" % i, str(i)] for i in range(40)]
+    _make_pdf(p, [header] + all_rows, repeat_header=True)
+
+    result = import_pdf_table(p, "unstitched_pdf", page=0, stitch_continuation_pages=False)
+    assert result["continuation_pages"] == [1]
+    assert result["stitched"] is False
+    assert result["row_count"] < 40
+    assert "NOT stitched in" in result["note"]
 
 
 def test_import_pdf_table_no_continuation_warning_for_a_single_page_table(simple_pdf):
     result = import_pdf_table(simple_pdf, "single_page_pdf")
     assert result["continuation_pages"] == []
-    assert "continues" not in result["note"]
+    assert result["stitched"] is False
+    assert "stitched" not in result["note"]
 
 
 def test_import_pdf_table_rejects_gold_prefixed_name(simple_pdf):

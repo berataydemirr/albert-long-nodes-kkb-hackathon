@@ -33,6 +33,12 @@ NULL_TOKENS = {
     "", "-", "--", "---", "n/a", "na", "n.a.", "n.a", "null", "none",
     "nan", "yok", "veri yok", "bilinmiyor", "belirsiz", "..", "...",
     "#n/a", "#yok",
+    # Excel formula-error results (scenario 7: a hidden row left over
+    # from a broken formula) - these are not data, they are Excel
+    # reporting that a CELL'S OWN FORMULA failed, and must never be
+    # summed/averaged in as if they were a real zero or missing-but-valid
+    # observation.
+    "#ref!", "#div/0!", "#value!", "#name?", "#null!", "#num!",
 }
 
 

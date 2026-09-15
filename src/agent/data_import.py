@@ -142,9 +142,100 @@ def _read_table(path: Path, sheet: str | int | None) -> pd.DataFrame:
             raise ValueError(f"'{path.name}' is empty or has no columns.") from exc
     if suffix in (".xlsx", ".xls"):
         logger.debug(f"_read_table: reading Excel {path}, sheet={sheet!r}")
-        return pd.read_excel(path, sheet_name=sheet if sheet is not None else 0)
+        df = pd.read_excel(path, sheet_name=sheet if sheet is not None else 0)
+        # Hidden-row/column exclusion runs BEFORE header flattening, on
+        # the raw pandas read, where a data row/column index reliably
+        # lines up with the underlying Excel row/column number - doing it
+        # after flattening (which can drop the first data row entirely,
+        # see _flatten_merged_excel_header) would shift that alignment by
+        # one for no benefit.
+        hidden_rows, hidden_cols = _hidden_excel_rows_and_columns(path, sheet)
+        if hidden_cols:
+            keep = [c for i, c in enumerate(df.columns) if i not in hidden_cols]
+            dropped = len(df.columns) - len(keep)
+            df = df[keep]
+            logger.info(f"_read_table: excluded {dropped} hidden column(s)")
+        if hidden_rows:
+            before = len(df)
+            df = df[~df.index.isin(hidden_rows)].reset_index(drop=True)
+            logger.info(f"_read_table: excluded {before - len(df)} hidden row(s)")
+        return _flatten_merged_excel_header(df)
     logger.warning(f"_read_table: unsupported extension {suffix!r}")
     raise ValueError(f"Unsupported file type {suffix!r}. Supported: {SUPPORTED_EXTENSIONS}.")
+
+
+def _hidden_excel_rows_and_columns(path: Path, sheet: str | int | None) -> tuple[set[int], set[int]]:
+    """7. Gizli satır ve sütun içeren dosyalar: openpyxl's non-streaming
+    worksheet (read_only=False - the streaming reader used elsewhere does
+    not expose row_dimensions/column_dimensions) reports which physical
+    rows/columns are hidden. A real bilanço export often hides a row left
+    over from a broken formula rather than deleting it - pandas' own
+    reader has no concept of 'hidden' at all and would otherwise import
+    it as an ordinary visible observation.
+
+    Returns 0-indexed positions matching how pandas.read_excel(header=0)
+    sees the data: row 0 = the first row AFTER the header (Excel row 2),
+    column 0 = the first column (Excel column A)."""
+    import openpyxl
+
+    wb = openpyxl.load_workbook(path, read_only=False, data_only=True)
+    try:
+        ws = wb[sheet] if isinstance(sheet, str) else wb.worksheets[sheet or 0]
+        hidden_rows = {
+            excel_row_no - 2  # -2: 1-indexed Excel row, minus the header row
+            for excel_row_no, dim in ws.row_dimensions.items()
+            if dim.hidden and excel_row_no >= 2
+        }
+        hidden_cols = {
+            openpyxl.utils.column_index_from_string(col_letter) - 1
+            for col_letter, dim in ws.column_dimensions.items()
+            if dim.hidden
+        }
+        return hidden_rows, hidden_cols
+    finally:
+        wb.close()
+
+
+_UNNAMED_COL_RE = re.compile(r"^Unnamed: \d+$")
+
+
+def _flatten_merged_excel_header(df: pd.DataFrame) -> pd.DataFrame:
+    """4. Birleştirilmiş Excel başlıkları: a merged header cell (e.g. a
+    year spanning several month sub-columns, kredi kartı harcamaları-
+    style) reads back from pandas with the year on the first column and
+    'Unnamed: N' on the rest - the real sub-header (the month names)
+    lands in the first DATA row instead, since Excel only records where
+    a merge starts and pandas has no way to know two header levels were
+    meant. Detected purely by pandas' own 'Unnamed: N' naming convention
+    for a blank header cell (whether from a merge or a genuinely empty
+    one) - if none are present, the DataFrame is returned unchanged, so
+    this never touches an ordinary single-row-header file."""
+    if not any(_UNNAMED_COL_RE.match(str(c)) for c in df.columns):
+        return df
+    if len(df) == 0:
+        return df
+
+    sub_header_row = df.iloc[0]
+    new_columns = []
+    last_real_top = None
+    for col in df.columns:
+        is_unnamed = bool(_UNNAMED_COL_RE.match(str(col)))
+        top = last_real_top if is_unnamed else str(col)
+        if not is_unnamed:
+            last_real_top = top
+        sub_value = sub_header_row[col]
+        sub_str = "" if pd.isna(sub_value) else str(sub_value).strip()
+        if top and sub_str:
+            new_columns.append(f"{top}_{sub_str}")
+        elif sub_str:
+            new_columns.append(sub_str)
+        else:
+            new_columns.append(top or str(col))
+
+    flattened = df.iloc[1:].reset_index(drop=True).copy()
+    flattened.columns = new_columns
+    logger.info(f"_flatten_merged_excel_header: merged header detected, recovered columns {new_columns}")
+    return flattened
 
 
 def _raw_header(path: Path, sheet: str | int | None) -> list[str]:
@@ -164,10 +255,30 @@ def _raw_header(path: Path, sheet: str | int | None) -> list[str]:
         return row
     if suffix in (".xlsx", ".xls"):
         import openpyxl
-        wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+        # read_only=False (not the streaming reader used elsewhere): only
+        # the non-streaming worksheet exposes .merged_cells, needed next.
+        wb = openpyxl.load_workbook(path, read_only=False, data_only=True)
         try:
             ws = wb[sheet] if isinstance(sheet, str) else wb.worksheets[sheet or 0]
-            row = next(ws.iter_rows(max_row=1, values_only=True), ())
+            row = list(next(ws.iter_rows(max_row=1, values_only=True), ()))
+            # A merged header cell (a year spanning several month
+            # sub-columns - see _flatten_merged_excel_header) leaves every
+            # cell but the merge's own anchor as None. Left as-is, those
+            # would read as several separate blank header cells and wrongly
+            # trip the duplicate-column rejection below in detect_schema -
+            # forward-filling the anchor's value instead would ALSO trip it
+            # (now several identical values instead of several blanks), so
+            # neither is right for a check whose job is "did the user
+            # accidentally name two columns the same thing". Each
+            # continuation cell gets a unique synthetic placeholder instead
+            # - never a duplicate of anything - and _flatten_merged_excel_header
+            # (given the real merged-cell ranges directly, not this raw
+            # header) does the actual header reconstruction.
+            for merged_range in ws.merged_cells.ranges:
+                if merged_range.min_row <= 1 <= merged_range.max_row:
+                    for col_idx in range(merged_range.min_col + 1, merged_range.max_col + 1):
+                        if col_idx - 1 < len(row):
+                            row[col_idx - 1] = f"__merge_continuation_{col_idx}__"
             return ["" if v is None else str(v) for v in row]
         finally:
             wb.close()
@@ -194,12 +305,13 @@ def _clean_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     dropped subtotal row or a column recovered from Turkish/abbreviated
     number text is exactly the kind of thing a caller needs to see, the
     same discipline as the pre-existing row-truncation report."""
-    from src.agent.data_cleaning import is_null_token, is_subtotal_label, normalize_numeric_text, repair_mojibake
+    from src.agent.data_cleaning import is_null_token, is_subtotal_label, normalize_numeric_text, parse_flexible_date, repair_mojibake
 
     df = df.copy()
     report = {
         "null_tokens_normalized": 0,
         "numeric_columns_recovered": [],
+        "date_columns_normalized": [],
         "subtotal_rows_excluded": 0,
         "mojibake_repaired_columns": [],
     }
@@ -219,10 +331,18 @@ def _clean_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
         if pd.api.types.is_numeric_dtype(df[col]) or pd.api.types.is_bool_dtype(df[col]) or pd.api.types.is_datetime64_any_dtype(df[col]):
             continue
 
-        repaired = df[col].apply(lambda v: repair_mojibake(v) if isinstance(v, str) else v)
-        if not repaired.equals(df[col]):
+        # Compare only the STRING values that actually went through
+        # repair_mojibake, not the whole series via .equals(): a
+        # non-string value round-tripped through .apply() can come back
+        # as a narrower dtype (float64 instead of object) even though no
+        # value actually changed, and .equals() is sensitive to that
+        # dtype difference - found live, a column of plain floats got
+        # reported as "mojibake repaired" for no real reason.
+        original_strings = [v for v in df[col] if isinstance(v, str)]
+        repaired_strings = [repair_mojibake(v) for v in original_strings]
+        if repaired_strings != original_strings:
             report["mojibake_repaired_columns"].append(str(col))
-            df[col] = repaired
+            df[col] = df[col].apply(lambda v: repair_mojibake(v) if isinstance(v, str) else v)
 
         # "-", "N/A", ".." etc -> real NaN, before anything downstream
         # (numeric conversion, analysis) has to special-case them.
@@ -243,6 +363,19 @@ def _clean_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
         if converted.notna().mean() > 0.9:
             report["numeric_columns_recovered"].append(str(col))
             df[col] = df[col].apply(lambda v: normalize_numeric_text(v) if v is not None and not (isinstance(v, float) and pd.isna(v)) else None)
+            continue
+
+        # 2. Karmaşık tarih formatları: a column mixing 'YYYY-MM-DD',
+        # '2023 1. Çeyrek', or '01-Mart-2023' across sources (or even
+        # within one uploaded file) is normalized to this project's
+        # 'YYYY-MM' Period convention in place, so it can actually be
+        # JOINed against a gold_* series on Period without the caller
+        # having to reconcile formats by hand. Only applied when >90% of
+        # values parse, same discipline as the numeric recovery above.
+        date_converted = non_null.apply(parse_flexible_date)
+        if date_converted.notna().mean() > 0.9:
+            report["date_columns_normalized"].append(str(col))
+            df[col] = df[col].apply(lambda v: parse_flexible_date(v) if v is not None and not (isinstance(v, float) and pd.isna(v)) else None)
 
     # Subtotal-row exclusion, checked against the FIRST column only - the
     # conventional label/category position in a BDDK/TUIK-style table. A
@@ -324,6 +457,14 @@ def detect_schema(path: str | Path, sheet: str | int | None = None) -> dict:
 
     df = _read_table(path, sheet)
     df, cleaning_report = _clean_dataframe(df)
+    if path.suffix.lower() in (".xlsx", ".xls"):
+        # _read_table already excluded these before this point - a second,
+        # cheap (dimensions only, not the data grid) call just for the
+        # count, so it can be reported the same way as every other
+        # cleaning change rather than only ever appearing in the log.
+        hidden_rows, hidden_cols = _hidden_excel_rows_and_columns(path, sheet)
+        cleaning_report["hidden_rows_excluded"] = len(hidden_rows)
+        cleaning_report["hidden_columns_excluded"] = len(hidden_cols)
     logger.info(f"detect_schema: {path.name} -> {len(df)} rows, {len(df.columns)} columns, cleaning={cleaning_report}")
 
     columns = [_infer_column(df[col]) for col in df.columns]
@@ -612,3 +753,30 @@ def search_tuik_dataflows(query: str, limit: int = 10) -> dict:
     }
     logger.info(f"search_tuik_dataflows: query={query!r} -> {len(matches)} match(es)")
     return result
+
+
+def fuzzy_match_category(query: str, candidates: list[str], threshold: float = 0.6) -> dict:
+    """Reconcile a category/sector/label name against a list of
+    candidates when two sources name the same thing differently - the
+    real scenario: BDDK's credit-by-sector table uses a long official
+    label ('Tarım, Avcılık ve Ormancılık') while TUIK's employment-by-
+    sector table uses a short one ('Tarım') for the same sector, with no
+    shared code to JOIN on. Get `candidates` from the OTHER source first
+    (e.g. `SELECT DISTINCT Sektor FROM ...` via lakehouse_query or
+    query_imported_dataset), then call this to find which one `query`
+    actually refers to before writing a JOIN or a WHERE clause - do not
+    guess a spelling variant yourself.
+
+    Returns match=None (not a forced guess) when nothing clears
+    `threshold` - say so plainly rather than picking the least-bad
+    candidate."""
+    from src.agent.data_cleaning import fuzzy_best_match
+
+    if not isinstance(candidates, list) or not candidates:
+        raise ValueError("candidates must be a non-empty list of strings.")
+    result = fuzzy_best_match(query, candidates, threshold=threshold)
+    logger.info(f"fuzzy_match_category: query={query!r}, {len(candidates)} candidate(s) -> {result}")
+    if result is None:
+        return {"query": query, "match": None, "score": None, "note": f"No candidate scored above threshold={threshold}."}
+    name, score = result
+    return {"query": query, "match": name, "score": score}

@@ -474,3 +474,116 @@ def test_import_repairs_mojibake_column_header(tmp_path):
     columns = [c["column"] for c in result["columns"]]
     assert "İşgücü" in columns
     assert "(column headers)" in result["data_quality"]["mojibake_repaired_columns"]
+
+
+def test_import_flattens_merged_excel_header(tmp_path):
+    """4. Birleştirilmiş Excel başlıkları: a year in a merged header cell
+    spanning three month sub-columns (kredi kartı harcamaları-style) must
+    become three real, distinct, queryable columns - not one 'Unnamed'
+    mess with the real sub-header stuck in the first data row."""
+    import openpyxl
+
+    p = tmp_path / "kredi_karti.xlsx"
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws["A1"] = "Il"
+    ws["B1"] = 2023
+    ws.merge_cells("B1:D1")
+    ws["B2"], ws["C2"], ws["D2"] = "Ocak", "Subat", "Mart"
+    ws["A3"], ws["B3"], ws["C3"], ws["D3"] = "Ankara", 100, 110, 120
+    ws["A4"], ws["B4"], ws["C4"], ws["D4"] = "Istanbul", 200, 210, 220
+    wb.save(p)
+
+    result = import_dataset(p, "kredi_karti_test")
+    assert result["row_count"] == 2  # the sub-header row is not counted as data
+    columns = [c["column"] for c in result["columns"]]
+    assert columns == ["Il", "2023_Ocak", "2023_Subat", "2023_Mart"]
+    assert result["data_quality"]["mojibake_repaired_columns"] == []  # no false-positive report
+
+    rows = query_imported_dataset("kredi_karti_test", "SELECT * FROM kredi_karti_test ORDER BY Il")["rows"]
+    assert rows[0] == {"Il": "Ankara", "2023_Ocak": 100.0, "2023_Subat": 110.0, "2023_Mart": 120.0}
+    assert rows[1] == {"Il": "Istanbul", "2023_Ocak": 200.0, "2023_Subat": 210.0, "2023_Mart": 220.0}
+
+
+def test_import_excel_without_merged_header_is_unaffected(csv_path, xlsx_path):
+    """The merged-header flattening must never fire on an ordinary
+    single-row-header file - it is gated purely on pandas' own 'Unnamed:'
+    naming, which a normal header never produces."""
+    result = import_dataset(xlsx_path, "normal_excel_test", sheet="Sayfa1")
+    assert result["columns"][0]["column"] == "Sehir"
+    assert result["columns"][1]["column"] == "Nufus"
+
+
+def test_import_normalizes_mixed_date_formats_to_period(tmp_path):
+    """2. Karmaşık tarih formatları: a real uploaded file can mix ISO
+    dates with quarter notation and Turkish month names across rows in
+    the SAME column - all must normalize to this project's YYYY-MM
+    Period convention so the column can actually be joined against a
+    gold_* series."""
+    p = tmp_path / "karisik_tarih.csv"
+    p.write_text(
+        "Donem,Deger\n2023-01-15,10\n2023 1. Çeyrek,20\n01-Mart-2023,30\nMart 2023,40\n15.06.2023,50\n",
+        encoding="utf-8",
+    )
+
+    result = import_dataset(p, "karisik_tarih_test")
+    assert "Donem" in result["data_quality"]["date_columns_normalized"]
+
+    rows = query_imported_dataset("karisik_tarih_test", "SELECT Donem, Deger FROM karisik_tarih_test ORDER BY Deger")["rows"]
+    assert [r["Donem"] for r in rows] == ["2023-01", "2023-03", "2023-03", "2023-03", "2023-06"]
+
+
+def test_import_excludes_hidden_excel_row_with_formula_error(tmp_path):
+    """7. Gizli satır ve sütun içeren dosyalar: a real bilanço export
+    hides a row left over from a broken formula (here: #REF!) rather
+    than deleting it - it must be excluded from the import entirely, not
+    counted as a real zero or missing-but-valid observation."""
+    import openpyxl
+
+    p = tmp_path / "bilanco.xlsx"
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Il", "Kredi"])
+    ws.append(["Ankara", 100])
+    ws.append(["Formul_Hatali_Satir", "#REF!"])
+    ws.append(["Izmir", 300])
+    ws.row_dimensions[3].hidden = True
+    wb.save(p)
+
+    result = import_dataset(p, "bilanco_test")
+    assert result["data_quality"]["hidden_rows_excluded"] == 1
+    assert result["row_count"] == 2
+
+    rows = query_imported_dataset("bilanco_test", "SELECT Il, Kredi FROM bilanco_test ORDER BY Il")["rows"]
+    assert rows == [{"Il": "Ankara", "Kredi": 100.0}, {"Il": "Izmir", "Kredi": 300.0}]
+
+
+def test_import_excludes_hidden_excel_column(tmp_path):
+    import openpyxl
+
+    p = tmp_path / "gizli_sutun.xlsx"
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Il", "GizliNot", "Kredi"])
+    ws.append(["Ankara", "dahili", 100])
+    ws.append(["Izmir", "dahili", 300])
+    ws.column_dimensions["B"].hidden = True
+    wb.save(p)
+
+    result = import_dataset(p, "gizli_sutun_test")
+    assert result["data_quality"]["hidden_columns_excluded"] == 1
+    columns = [c["column"] for c in result["columns"]]
+    assert columns == ["Il", "Kredi"]
+
+
+def test_import_treats_formula_error_as_null_even_when_visible(tmp_path):
+    """A formula-error cell in a VISIBLE row (not hidden) must still be
+    treated as missing data, not as the literal text '#REF!' or a
+    fabricated zero."""
+    p = tmp_path / "gorunur_hata.csv"
+    p.write_text("Il,Kredi\nAnkara,100\nIstanbul,#REF!\nIzmir,300\n", encoding="utf-8")
+
+    result = import_dataset(p, "gorunur_hata_test")
+    types = {c["column"]: c for c in result["columns"]}
+    assert types["Kredi"]["inferred_type"] == "numeric"
+    assert types["Kredi"]["null_count"] == 1

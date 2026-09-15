@@ -126,15 +126,30 @@ def _table_to_dataframe(table: list[list]) -> tuple[pd.DataFrame, dict]:
 
 
 def import_pdf_table(path: str | Path, dataset_name: str, page: int = 0, table_index: int = 0,
-                     source_label: str | None = None) -> dict:
-    """Extract one table from one page of a PDF and load it into the
-    lakehouse under dataset_name - same naming/collision/registry rules
-    as import_dataset (data_import.py), just with a PDF-specific
-    extraction step in front of the same write path."""
+                     source_label: str | None = None, stitch_continuation_pages: bool = True) -> dict:
+    """Extract one table from a PDF and load it into the lakehouse under
+    dataset_name - same naming/collision/registry rules as import_dataset
+    (data_import.py), just with a PDF-specific extraction step in front
+    of the same write path.
+
+    stitch_continuation_pages (default True): a table split across pages
+    (the same header repeated, e.g. via reportlab's own repeatRows, or a
+    real multi-page BDDK/kâr-raporu-style bulletin) is detected by an
+    IDENTICAL header appearing on another page, and its data rows are
+    concatenated onto the requested page's - found live, a 60-row test
+    table spanning two pages silently imported only the 37 rows that
+    were on the requested page. Only a page whose header matches EXACTLY
+    is stitched in, in page order; a page with a differently-shaped table
+    that happens to sit nearby is never guessed into the same table. Pass
+    False to import only the literal requested page (the old behavior),
+    e.g. when two genuinely different tables happen to share a header."""
     path = Path(path)
     dataset_name = _validate_dataset_name(dataset_name)
     display_name = source_label or path.name
-    logger.info(f"import_pdf_table: start path={path}, page={page}, table_index={table_index}, dataset_name={dataset_name!r}")
+    logger.info(
+        f"import_pdf_table: start path={path}, page={page}, table_index={table_index}, "
+        f"dataset_name={dataset_name!r}, stitch_continuation_pages={stitch_continuation_pages}"
+    )
 
     pdf = _check_pdf_open(path)
     try:
@@ -148,17 +163,11 @@ def import_pdf_table(path: str | Path, dataset_name: str, page: int = 0, table_i
         raw_table = tables[table_index]
         header = [("" if c is None else str(c).strip()) for c in raw_table[0]] if raw_table else []
 
-        # A table that continues onto another page (the same header
-        # repeated, e.g. via reportlab's own repeatRows) is NOT stitched
-        # together - only the requested page/table_index is imported.
-        # Found live: a 60-row test table spanning two pages imported only
-        # the 37 rows that were actually on page 0, silently. Detected
-        # here by an identical header appearing on a different page, and
-        # surfaced as a note rather than fixed automatically - guessing
-        # which other tables belong to the same logical table is a real
-        # risk of its own (page 2 could just as easily be an unrelated
-        # table that happens to share column names).
-        continuation_pages = []
+        # (page_no, data_rows) for every page with a table whose header
+        # matches EXACTLY, requested page included - collected once, in
+        # ascending page order, and reused for both the continuation-page
+        # report and the actual stitch below (no re-extraction).
+        matching_pages: list[tuple[int, list]] = [(page, raw_table[1:])]
         if header:
             for other_page_no, other_page in enumerate(pdf.pages):
                 if other_page_no == page:
@@ -166,8 +175,13 @@ def import_pdf_table(path: str | Path, dataset_name: str, page: int = 0, table_i
                 for other_table in other_page.extract_tables():
                     other_header = [("" if c is None else str(c).strip()) for c in other_table[0]] if other_table else []
                     if other_header == header:
-                        continuation_pages.append(other_page_no)
+                        matching_pages.append((other_page_no, other_table[1:]))
                         break
+        continuation_pages = sorted(p for p, _ in matching_pages if p != page)
+
+        if stitch_continuation_pages and continuation_pages:
+            matching_pages.sort(key=lambda pr: pr[0])
+            raw_table = [raw_table[0]] + [row for _, rows in matching_pages for row in rows]
     finally:
         pdf.close()
 
@@ -180,12 +194,15 @@ def import_pdf_table(path: str | Path, dataset_name: str, page: int = 0, table_i
         "spreadsheet grid - spot-check a few values against the source page before relying on "
         "this; a low-quality scan or an unusual layout can misread a cell without raising an error."
     )
-    if continuation_pages:
+    if continuation_pages and stitch_continuation_pages:
         note += (
-            f" WARNING: page(s) {continuation_pages} have a table with an IDENTICAL header - this "
-            f"table likely continues there, and only page {page} was imported. Import each page "
-            f"separately (same dataset_name replaces, so import into a different name and UNION, "
-            f"or ask for the full picture across all of them) if the complete table is needed."
+            f" Table continued on page(s) {continuation_pages} (identical header) - stitched into "
+            f"this import automatically; row_count below covers all of them."
+        )
+    elif continuation_pages:
+        note += (
+            f" WARNING: page(s) {continuation_pages} have a table with an IDENTICAL header and were "
+            f"NOT stitched in (stitch_continuation_pages=False) - only page {page} was imported."
         )
     result = {
         "dataset_name": dataset_name,
@@ -198,6 +215,7 @@ def import_pdf_table(path: str | Path, dataset_name: str, page: int = 0, table_i
         "columns": columns,
         "data_quality": cleaning_report,
         "continuation_pages": continuation_pages,
+        "stitched": bool(continuation_pages and stitch_continuation_pages),
         "note": note,
     }
     logger.info(f"import_pdf_table: done, {dataset_name!r} <- {len(df)} rows x {len(df.columns)} cols, continuation_pages={continuation_pages}")
