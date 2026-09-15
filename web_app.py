@@ -1,14 +1,28 @@
 """Local browser UI for exercising routing and function calling."""
 
-from fastapi import FastAPI, HTTPException
+import re
+import uuid
+from pathlib import Path
+
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from config.settings import USER_UPLOADS_DIR
+from src.agent.data_import import (
+    MAX_FILE_BYTES,
+    SUPPORTED_EXTENSIONS,
+    import_dataset,
+    list_sheets,
+)
 from src.agent.orchestrator import ask
 from src.agent.router import route_question
 from src.agent.charts import derive_charts
 from src.agent.tools import TOOL_SCHEMAS
+from src.common.logging_setup import get_logger
+
+logger = get_logger("web_app")
 
 app = FastAPI(title="KKB Agentic Analytics", docs_url=None, redoc_url=None)
 
@@ -89,6 +103,55 @@ def list_tools() -> dict:
             for schema in TOOL_SCHEMAS
         ],
     }
+
+
+_SAFE_STEM_RE = re.compile(r"[^A-Za-z0-9_]")
+
+
+@app.post("/api/upload")
+async def upload_dataset(file: UploadFile = File(...), dataset_name: str | None = Form(None),
+                         sheet: str | None = Form(None)) -> dict:
+    """Save an uploaded CSV/Excel file and import it into user_data.duckdb.
+
+    Runs schema detection + import synchronously and returns the result,
+    rather than handing back a job id to poll - these are small files
+    (25 MB cap) meant to be usable in the same conversation, not a batch
+    pipeline. A malformed or oversized file is a 422, not a 500: the
+    server did its job correctly by refusing it.
+    """
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in SUPPORTED_EXTENSIONS:
+        logger.warning(f"upload_dataset: rejected {file.filename!r}, unsupported extension {suffix!r}")
+        raise HTTPException(status_code=422, detail=f"Unsupported file type {suffix!r}. Supported: {SUPPORTED_EXTENSIONS}.")
+
+    body = await file.read()
+    if len(body) > MAX_FILE_BYTES:
+        logger.warning(f"upload_dataset: rejected {file.filename!r}, {len(body)} bytes over the {MAX_FILE_BYTES} cap")
+        raise HTTPException(status_code=422, detail=f"File is {len(body) / 1_048_576:.1f} MB; the limit is {MAX_FILE_BYTES / 1_048_576:.0f} MB.")
+
+    # Saved under a random id, not the original filename: two uploads
+    # named the same thing must not collide on disk, and the original
+    # name is preserved separately (source_file in the registry) for
+    # display.
+    USER_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    saved_path = USER_UPLOADS_DIR / f"{uuid.uuid4().hex}{suffix}"
+    saved_path.write_bytes(body)
+    logger.info(f"upload_dataset: saved {file.filename!r} ({len(body)} bytes) -> {saved_path}")
+
+    default_name = _SAFE_STEM_RE.sub("_", Path(file.filename or "dataset").stem.lower())[:60] or "dataset"
+    if default_name[0].isdigit():
+        default_name = f"d_{default_name}"
+    name = dataset_name.strip() if dataset_name and dataset_name.strip() else default_name
+
+    try:
+        sheets = list_sheets(saved_path)
+        result = import_dataset(saved_path, name, sheet=sheet, source_label=file.filename)
+        result["sheets"] = sheets
+        logger.info(f"upload_dataset: imported as {name!r}, {result['row_count']} rows")
+        return result
+    except ValueError as exc:
+        logger.warning(f"upload_dataset: import failed for {file.filename!r}: {exc}")
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.post("/api/ask")

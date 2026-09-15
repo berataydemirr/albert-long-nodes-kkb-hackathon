@@ -110,3 +110,61 @@ def test_classic_page_also_has_a_dark_theme():
 
     assert 'data-theme="dark"' in response.text
     assert "#5b9bdc" in response.text
+
+
+def test_upload_endpoint_imports_a_real_csv(tmp_path, monkeypatch):
+    import src.agent.data_import as di
+
+    monkeypatch.setattr(di, "USER_DATA_DB_PATH", tmp_path / "web_upload_test.duckdb")
+
+    csv_bytes = b"Il,Deger\nAnkara,1\nIstanbul,2\n"
+    response = TestClient(web_app.app).post(
+        "/api/upload",
+        files={"file": ("test.csv", csv_bytes, "text/csv")},
+        data={"dataset_name": "web_upload_test"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["dataset_name"] == "web_upload_test"
+    assert body["row_count"] == 2
+    assert body["file_name"] == "test.csv"  # the ORIGINAL name, not the server-side random one
+
+
+def test_upload_endpoint_rejects_an_unsupported_extension():
+    response = TestClient(web_app.app).post(
+        "/api/upload",
+        files={"file": ("notes.txt", b"just text", "text/plain")},
+    )
+
+    assert response.status_code == 422
+
+
+def test_upload_endpoint_rejects_an_oversized_file(monkeypatch):
+    import web_app as wa
+
+    monkeypatch.setattr(wa, "MAX_FILE_BYTES", 10)
+    response = TestClient(web_app.app).post(
+        "/api/upload",
+        files={"file": ("big.csv", b"a,b\n1,2\n3,4\n5,6\n", "text/csv")},
+    )
+
+    assert response.status_code == 422
+
+
+def test_upload_endpoint_defaults_a_dataset_name_from_the_filename(tmp_path, monkeypatch):
+    """dataset_name is optional in the form - a caller that only picks a
+    file should still get a usable, valid table name back."""
+    import src.agent.data_import as di
+
+    monkeypatch.setattr(di, "USER_DATA_DB_PATH", tmp_path / "web_upload_test2.duckdb")
+
+    response = TestClient(web_app.app).post(
+        "/api/upload",
+        files={"file": ("İl Hastane Verisi!.csv", b"a,b\n1,2\n", "text/csv")},
+    )
+
+    assert response.status_code == 200
+    name = response.json()["dataset_name"]
+    import re
+    assert re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name), f"generated name {name!r} is not a valid table name"

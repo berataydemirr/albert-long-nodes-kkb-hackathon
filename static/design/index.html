@@ -199,6 +199,8 @@ textarea:focus-visible { outline: none; }
       </button>
       <button onClick="{{ resetChat }}" style="background:none; border:1px solid rgba(var(--accent-rgb),.16); color:var(--muted); border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; transition:all .18s ease;" style-hover="color:var(--ink); border-color:rgba(var(--accent-rgb),.32);">New chat</button>
       <button onClick="{{ toggleTheme }}" aria-label="Koyu/açık temayı değiştir" title="Koyu/açık tema" style="width:34px; height:34px; flex:none; border-radius:8px; background:none; border:1px solid rgba(var(--accent-rgb),.16); color:var(--muted); cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; transition:all .18s ease;" style-hover="color:var(--ink); border-color:rgba(var(--accent-rgb),.32);">{{ themeIcon }}</button>
+      <input ref="{{ fileInputRef }}" type="file" accept=".csv,.xlsx,.xls" onChange="{{ onFileSelected }}" style="display:none;" />
+      <button onClick="{{ triggerUpload }}" disabled="{{ uploading }}" aria-label="CSV veya Excel dosyası yükle" title="CSV veya Excel dosyası yükle" style="width:34px; height:34px; flex:none; border-radius:8px; background:none; border:1px solid rgba(var(--accent-rgb),.16); color:var(--muted); cursor:{{ uploadCursor }}; font-size:15px; display:flex; align-items:center; justify-content:center; transition:all .18s ease;" style-hover="color:var(--ink); border-color:rgba(var(--accent-rgb),.32);">{{ uploadLabel }}</button>
     </div>
   </header>
 
@@ -815,6 +817,29 @@ function chartsToBlocks(charts) {
   return out;
 }
 
+// The upload response rendered as the same markdown the answer text
+// already goes through (mdToBlocks), so it appears as an ordinary chat
+// bubble with no new rendering path to maintain. Explicitly labelled as
+// user-supplied, unverified data - matches the system prompt's own rule
+// for how the model must talk about an imported dataset.
+function formatUploadSummary(result) {
+  const rows = result.columns.map(c => {
+    const extra = c.inferred_type === 'numeric' && c.min != null
+      ? `${c.min} – ${c.max}`
+      : (c.sample_values || []).slice(0, 3).join(', ');
+    return `| ${c.column} | ${c.inferred_type} | ${c.null_count} | ${extra} |`;
+  }).join('\n');
+
+  const truncNote = result.truncated_to
+    ? `\n\n_İlk ${result.truncated_to} satır alındı; dosyanın tamamı değil._`
+    : '';
+
+  return `**'${result.dataset_name}' olarak içe aktarıldı** — ${result.row_count} satır, ${result.column_count} sütun.\n\n` +
+    `| Sütun | Tür | Boş | Örnek / Aralık |\n|---|---|---|---|\n${rows}${truncNote}\n\n` +
+    `Bu veri kullanıcı tarafından yüklendi; BDDK/EVDS/TÜİK gibi doğrulanmamıştır. ` +
+    `\`'${result.dataset_name}' hakkında ...\` diye sorabilirsin.`;
+}
+
 class Component extends DCLogic {
   state = {
     input: '', thinking: false, elapsed: 0,
@@ -825,7 +850,8 @@ class Component extends DCLogic {
     // null = follow the OS; the anti-flash <script> in <head> already
     // applied any saved explicit choice before this component mounted,
     // so this just reads back what is already on the document.
-    themeMode: (document.documentElement.getAttribute('data-theme') || null)
+    themeMode: (document.documentElement.getAttribute('data-theme') || null),
+    uploading: false
   };
 
   isDarkNow = () => {
@@ -887,6 +913,41 @@ class Component extends DCLogic {
   closeDrawer = () => this.setState({ drawer: null });
   resetChat = () => { this.stopClock(); this.setState({ messages: [], thinking: false, drawer: null, input: '', openCalls: {} }); };
   toggleCall = (k) => this.setState(s => ({ openCalls: { ...s.openCalls, [k]: !s.openCalls[k] } }));
+
+  fileInputRef = (el) => { this.fileInputEl = el; };
+  triggerUpload = () => { if (!this.state.uploading && this.fileInputEl) this.fileInputEl.click(); };
+
+  onFileSelected = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ''; // lets the same file be picked again after an error
+    if (!file) return;
+
+    const datasetName = file.name.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 60) || 'dataset';
+    this.setState(s => ({
+      messages: [...s.messages, { id: s.nextId, role: 'user', text: `Dataset yükleniyor: ${file.name}` }],
+      uploading: true, nextId: s.nextId + 1
+    }), this.scrollEnd);
+
+    const form = new FormData();
+    form.append('file', file);
+    form.append('dataset_name', datasetName);
+
+    fetch('/api/upload', { method: 'POST', body: form })
+      .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail || 'Yükleme başarısız oldu.'); return d; })
+      .then(result => {
+        this.pushAssistant({
+          routeName: 'data_import', routeReason: `'${result.file_name}' içe aktarıldı.`,
+          blocks: mdToBlocks(formatUploadSummary(result)), trace: [], timing: null,
+        });
+      })
+      .catch(err => {
+        this.pushAssistant({
+          routeName: 'data_import', routeReason: 'Yükleme başarısız.',
+          blocks: mdToBlocks(`**Yükleme başarısız oldu.**\n\n${err.message}`), trace: [], timing: null,
+        });
+      })
+      .finally(() => this.setState({ uploading: false }));
+  };
 
   pushAssistant(payload) {
     this.stopClock();
@@ -1023,6 +1084,12 @@ class Component extends DCLogic {
       resetChat: this.resetChat,
       toggleTheme: this.toggleTheme,
       themeIcon: this.isDarkNow() ? '☀️' : '🌙',
+      fileInputRef: this.fileInputRef,
+      triggerUpload: this.triggerUpload,
+      onFileSelected: this.onFileSelected,
+      uploading: s.uploading,
+      uploadLabel: s.uploading ? '…' : '+',
+      uploadCursor: s.uploading ? 'default' : 'pointer',
       isEmpty: s.messages.length === 0 && !s.thinking,
       examples: EXAMPLES.map(ex => ({ label: ex.label, tag: ex.tag, use: () => this.send(ex.label) })),
       messages,

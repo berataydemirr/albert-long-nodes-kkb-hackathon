@@ -36,6 +36,8 @@ can combine several:
 - `anomaly_analysis`, `change_detection` — find unusual points and sharp moves in a series
 - `correlation_analysis`, `causality_analysis`, `threshold_filter_compare` — compare two series
 - `compare_regions` — rank provinces across 35 lending, deposit and credit-quality metrics
+- `list_imported_datasets`, `query_imported_dataset` — read a user-uploaded CSV/Excel file
+- `refresh_tuik_series` — re-fetch an already-registered TUIK series live
 - `web_search`, `web_url_extract` — look up current public information and read a given URL
 
 Analysis tools take a `seri_kod` and read the series from the database
@@ -51,6 +53,34 @@ source and has a table view underneath.
 
 Unsafe SQL or prompt-injection attempts are refused before the model is
 given any tools.
+
+## Data import
+
+The upload button in the header (or `POST /api/upload`) accepts a CSV or
+Excel file up to 25 MB, infers each column's type, and loads it into its own
+table in a separate DuckDB file — never into the vetted gold lakehouse. The
+model can then discover and query it through `list_imported_datasets` and
+`query_imported_dataset`, using the same read-only SQL guardrail as the gold
+layer (`src/agent/sql_guard.py`, shared rather than duplicated). Every
+answer built from an uploaded dataset states plainly that the data is
+user-supplied and unverified, unlike BDDK/EVDS/TUIK.
+
+This covers CSV and Excel only. A PDF table extractor was deliberately left
+out: `pypdf` (already a dependency) reads PDF text, not table structure, and
+a real extractor needs a Java/Ghostscript runtime this project does not
+carry — shipping one without a way to verify it against a real source
+document risked silently misaligned columns, which is worse than not having
+the feature.
+
+`refresh_tuik_series` re-fetches an already-registered TUIK series
+(currently the unemployment rate and life expectancy) directly from TUIK's
+API and returns the fresh values for that answer, without writing into the
+lakehouse. It is deliberately restricted to the existing registry in
+`config/tuik_series.py` rather than accepting an arbitrary series key: TUIK's
+SDMX API addresses a series through a multi-dimension key that has to be
+resolved by hand against that dataflow's own codelists, so a model guessing
+one risks a wrong-but-real series being reported as the one that was asked
+for.
 
 ## Web search
 

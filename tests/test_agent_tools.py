@@ -70,6 +70,25 @@ def test_lakehouse_schema_includes_series_catalog():
     assert len(result["gold_fact_long_series_catalog"]) > 0
 
 
+def test_lakehouse_schema_serializes_to_valid_json():
+    """Found live: at least 3 series have no confirmed Birim (NULL in the
+    gold table). catalog.where(catalog.notna(), None) alone is a no-op on
+    a float64 column - pandas coerces the None straight back to np.nan,
+    and json.dumps then emits a bare (invalid) NaN token that a browser's
+    JSON.parse rejects. astype(object) first is what actually fixes it."""
+    import json
+
+    result = lakehouse_schema()
+
+    catalog = result["gold_fact_long_series_catalog"]
+    assert any(row["Birim"] is None for row in catalog), \
+        "expected at least one series with no confirmed unit - if this fails the fixture data changed"
+
+    serialized = json.dumps(result, ensure_ascii=False)
+    assert "NaN" not in serialized
+    assert json.loads(serialized) == result
+
+
 def test_lakehouse_query_runs_a_real_select():
     result = lakehouse_query("SELECT Seri_Kod, Deger FROM gold_fact_long WHERE Seri_Kod = 'TP.BKR.TRY.18' ORDER BY Period LIMIT 3")
     assert result["row_count"] == 3

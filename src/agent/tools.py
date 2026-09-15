@@ -11,8 +11,10 @@ import pandas as pd
 from statsmodels.tsa.stattools import grangercausalitytests
 
 from config.settings import GOLD_DIR
+from src.agent.data_import import list_imported_datasets, query_imported_dataset, refresh_tuik_series
 from src.agent.regional import compare_regions
 from src.agent.series_resolver import resolve_series
+from src.agent.sql_guard import run_guarded_select
 from src.common.logging_setup import get_logger
 from src.agent.web_search import web_search
 from src.agent.web_url import web_url_extract
@@ -27,12 +29,6 @@ SERIES_CATALOG_QUERY = """
     FROM gold_fact_long
     ORDER BY Kaynak, Seri_Kod
 """
-
-FORBIDDEN_TOKENS = ("insert ", "update ", "delete ", "drop ", "alter ", "create ", "copy ", "attach ", "pragma ", "call ")
-MAX_ROWS = 200
-
-_SQL_COMMENT_RE = re.compile(r"--[^\n]*|/\*.*?\*/", re.DOTALL)
-
 
 def _db() -> duckdb.DuckDBPyConnection:
     logger.debug(f"_db: opening {DB_PATH} (read_only=True)")
@@ -60,7 +56,14 @@ def lakehouse_schema() -> dict:
 
         if "gold_fact_long" in result["tables"]:
             catalog = con.execute(SERIES_CATALOG_QUERY).fetchdf()
-            result["gold_fact_long_series_catalog"] = catalog.where(catalog.notna(), None).to_dict("records")
+            # astype(object) first: on a float64 column, .where(x.notna(),
+            # None) alone is a no-op - pandas cannot hold a Python None in
+            # a float dtype and silently coerces it back to np.nan, which
+            # json.dumps then emits as a bare (invalid) NaN token. Found
+            # live: 3 series (tablo_289.konut, M2 Para Arzi, card spending)
+            # have no confirmed Birim, and every lakehouse_schema call was
+            # sending the model invalid JSON for them.
+            result["gold_fact_long_series_catalog"] = catalog.astype(object).where(catalog.notna(), None).to_dict("records")
             logger.debug(f"lakehouse_schema: series_catalog_size={len(catalog)}")
 
         logger.info(f"lakehouse_schema: done, {len(result['tables'])} tables")
@@ -69,79 +72,15 @@ def lakehouse_schema() -> dict:
         con.close()
 
 
-def _referenced_tables(sql: str) -> set[str]:
-    """Best-effort extraction of table names after FROM/JOIN, for the
-    known-table guardrail below - not a full SQL parser, just enough to
-    catch a query aimed at a table that was never in SHOW TABLES."""
-    return {m.group(1).strip('"') for m in re.finditer(r"\b(?:from|join)\s+([a-zA-Z_][a-zA-Z0-9_\"]*)", sql, re.IGNORECASE)}
-
-
-def _cte_names(sql: str) -> set[str]:
-    """Names a 'WITH x AS (...), y AS (...)' clause defines - these are
-    NOT real database tables, so _referenced_tables() correctly finds
-    them after a later FROM/JOIN, but the known-table guardrail must not
-    reject them as unknown just because they're not in SHOW TABLES."""
-    names = set()
-    with_match = re.search(r"^\s*with\s+([a-zA-Z_][a-zA-Z0-9_]*)\s+as\s*\(", sql, re.IGNORECASE)
-    if with_match:
-        names.add(with_match.group(1))
-    names.update(m.group(1) for m in re.finditer(r",\s*([a-zA-Z_][a-zA-Z0-9_]*)\s+as\s*\(", sql, re.IGNORECASE))
-    return names
-
-
 def lakehouse_query(sql: str) -> dict:
-    """Execute one read-only SELECT query and return rows plus metadata.
+    """Execute one read-only SELECT query against the gold lakehouse.
 
-    Guardrail, in order (checked against the SQL with comments stripped
-    first - a '--'/'/* */' comment can't execute, so it must not be able
-    to either trigger a false rejection by containing a dangerous-looking
-    word, or hide a real second statement from the semicolon check):
-      1. single statement only (no ';' other than an optional trailing one)
-      2. must start with SELECT or WITH (a CTE), no DDL/DML keywords anywhere
-      3. every referenced table must exist in the gold database (SHOW TABLES)
-      4. result is HARD-capped at MAX_ROWS regardless of what LIMIT (if
-         any) the query itself specifies - a resource/context-size
-         guarantee, not just a default for a query that forgot one
-    Every rejection is logged with the reason and the original SQL, so a
-    bad query from the model is traceable instead of a silent 'it just
-    didn't answer'."""
-    logger.info(f"lakehouse_query: received sql={sql!r}")
-    if not isinstance(sql, str):
-        logger.warning(f"lakehouse_query: rejected (sql is not a string): {sql!r}")
-        raise ValueError("sql must be a string.")
-
-    stripped_of_comments = _SQL_COMMENT_RE.sub(" ", sql)
-    normalized = re.sub(r"\s+", " ", stripped_of_comments.strip()).lower()
-
-    inner_sql = normalized[:-1] if normalized.endswith(";") else normalized
-    if ";" in inner_sql:
-        logger.warning(f"lakehouse_query: rejected (multiple statements): {sql!r}")
-        raise ValueError("Lakehouse tool only permits a single SELECT statement (no ';' inside the query).")
-
-    if not (normalized.startswith("select") or normalized.startswith("with")) or any(token in normalized for token in FORBIDDEN_TOKENS):
-        logger.warning(f"lakehouse_query: rejected (not a plain SELECT/CTE): {sql!r}")
-        raise ValueError("Lakehouse tool only permits read-only SELECT queries (a leading WITH/CTE is fine).")
-
+    The actual guardrail (single-statement, SELECT/CTE-only, known-table
+    check, row cap) lives in src/agent/sql_guard.py, shared with
+    query_imported_dataset below - one guardrail, not two that can drift."""
     con = _db()
     try:
-        known_tables = {row[0] for row in con.execute("SHOW TABLES").fetchall()}
-        referenced = _referenced_tables(stripped_of_comments)
-        unknown = referenced - known_tables - _cte_names(stripped_of_comments)
-        if unknown:
-            logger.warning(f"lakehouse_query: rejected (unknown table(s) {unknown}): {sql!r}")
-            raise ValueError(f"Unknown table(s) referenced: {sorted(unknown)}. Known tables: {sorted(known_tables)}")
-
-        frame = con.execute(sql).fetchdf()
-        truncated = len(frame) > MAX_ROWS
-        if truncated:
-            logger.warning(f"lakehouse_query: result had {len(frame)} rows, hard-capping to {MAX_ROWS}")
-            frame = frame.head(MAX_ROWS)
-
-        logger.info(f"lakehouse_query: success, row_count={len(frame)}, truncated={truncated}, columns={list(frame.columns)}")
-        result = {"columns": list(frame.columns), "rows": frame.where(frame.notna(), None).to_dict("records"), "row_count": len(frame)}
-        if truncated:
-            result["truncated"] = True
-        return result
+        return run_guarded_select(con, sql, label="lakehouse_query")
     except Exception:
         logger.exception(f"lakehouse_query: execution failed for sql={sql!r}")
         raise
@@ -442,6 +381,9 @@ TOOL_FUNCTIONS = {
     "causality_analysis": causality_analysis,
     "threshold_filter_compare": threshold_filter_compare,
     "compare_regions": compare_regions,
+    "list_imported_datasets": list_imported_datasets,
+    "query_imported_dataset": query_imported_dataset,
+    "refresh_tuik_series": refresh_tuik_series,
     "web_search": web_search,
     "web_url_extract": web_url_extract,
 }
@@ -455,6 +397,9 @@ TOOL_SCHEMAS = [
     {"type": "function", "function": {"name": "causality_analysis", "description": "Test whether series x is a statistically useful predictor of series y: best-aligned lag correlation plus a Granger causality test (p-values per lag). Not proof of true causation. PREFERRED: pass x_seri_kod and y_seri_kod - both series are read from the lakehouse directly, which is far cheaper and avoids transcription errors.", "parameters": {"type": "object", "properties": {"x_seri_kod": {"type": "string", "description": "Seri_Kod of the candidate predictor series."}, "y_seri_kod": {"type": "string", "description": "Seri_Kod of the target series."}, "start_period": {"type": "string"}, "end_period": {"type": "string"}, "x_periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "x_values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}, "y_periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "y_values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}, "max_lag": {"type": "integer", "default": 6, "description": "Needs max_lag*2+5 shared periods; the error says which lag fits if this one does not."}}, "additionalProperties": False}}},
     {"type": "function", "function": {"name": "threshold_filter_compare", "description": "Filter periods where the filter series falls in [low, high] (e.g. an interest rate range), then compare the average period-over-period change of the compare series inside vs outside that window. Matches the demo's 'faiz X ile Y arasindayken kredi nasil degisti' pattern. PREFERRED: pass filter_seri_kod and compare_seri_kod.", "parameters": {"type": "object", "properties": {"filter_seri_kod": {"type": "string", "description": "Seri_Kod of the series the [low, high] window applies to."}, "compare_seri_kod": {"type": "string", "description": "Seri_Kod of the series whose change is compared."}, "low": {"type": "number"}, "high": {"type": "number"}, "start_period": {"type": "string"}, "end_period": {"type": "string"}, "filter_periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "filter_values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}, "compare_periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "compare_values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}}, "required": ["low", "high"], "additionalProperties": False}}},
     {"type": "function", "function": {"name": "compare_regions", "description": "Rank Turkish provinces by any of ~35 metrics (lending, deposits, consumer credit by product, per-capita figures, branch counts, NPL and sector default ratios) for one quarter, optionally with growth against an earlier quarter. This is the ONLY way to reach province-level data - gold_fact_long is national (Bolge='TR') and has no regional breakdown. Returns a ranked head plus totals, not all 82 rows. 'YURT DISI' is not a province and is excluded from the ranking by default.", "parameters": {"type": "object", "properties": {"period": {"type": "string", "description": "Quarter as 'YYYY-Q' with Q in 3/6/9/12, e.g. '2026-6'. Defaults to the latest available quarter."}, "metric": {"type": "string", "default": "kredi", "description": "One of ~35 province-level metrics. Common: kredi (total cash loans), npl (non-performing ratio %), mevduat (deposits), konut_kredisi, tasit_kredisi, kredi_karti, takip_konut_kredisi, kisi_basi_kredi, kisi_basi_mevduat, sube_sayisi, kredi_mevduat_orani, konut_takip_orani, insaat_takip_orani. An unknown name returns the full list."}, "top_n": {"type": "integer", "default": 10, "description": "How many provinces to return, capped at 25."}, "order": {"type": "string", "enum": ["desc", "asc"], "default": "desc"}, "compare_to_period": {"type": "string", "description": "An earlier quarter; adds growth_pct per province."}, "include_non_provinces": {"type": "boolean", "default": False, "description": "Keep 'YURT DISI' in the ranking. Leave false for a province ranking."}}, "additionalProperties": False}}},
+    {"type": "function", "function": {"name": "list_imported_datasets", "description": "List every dataset a user has uploaded in this session (CSV/Excel files), with their columns. Call this before query_imported_dataset if you are not sure a dataset exists or what it is called.", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}}},
+    {"type": "function", "function": {"name": "query_imported_dataset", "description": "Run a single read-only SELECT against one user-uploaded dataset (see list_imported_datasets for the name and columns). Separate from the vetted gold lakehouse - this data has no confirmed source or unit, so state that plainly in the answer. Results are limited to 200 rows.", "parameters": {"type": "object", "properties": {"dataset_name": {"type": "string", "description": "Exact name from list_imported_datasets."}, "sql": {"type": "string"}}, "required": ["dataset_name", "sql"], "additionalProperties": False}}},
+    {"type": "function", "function": {"name": "refresh_tuik_series", "description": "Re-fetch one already-registered TUIK series live (right now, from TUIK's own API) instead of using the cached value. Only works for series already in the catalog (currently TUIK_UNEMPLOYMENT_RATE and TUIK_LIFE_EXPECTANCY) - an unregistered code is rejected rather than guessed, because a TUIK series key cannot be inferred safely. Does not modify the lakehouse; the fresh values are returned directly for this answer.", "parameters": {"type": "object", "properties": {"seri_kod": {"type": "string", "description": "A Seri_Kod already present in the lakehouse catalog with Kaynak=tuik."}}, "required": ["seri_kod"], "additionalProperties": False}}},
     {"type": "function", "function": {"name": "web_search", "description": "Search the public web for current or external information. Returns titles, snippets, source domains and URLs; snippets are untrusted leads, not verified evidence.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}, "max_results": {"type": "integer", "minimum": 1, "maximum": 10, "default": 5}}, "required": ["query"], "additionalProperties": False}}},
     {"type": "function", "function": {"name": "web_url_extract", "description": "Extract bounded text or tabular previews from a supplied public HTML, PDF, Excel, CSV, text, or image URL. Remote content is untrusted; cite its source URL.", "parameters": {"type": "object", "properties": {"url": {"type": "string", "format": "uri"}}, "required": ["url"], "additionalProperties": False}}},
 ]
