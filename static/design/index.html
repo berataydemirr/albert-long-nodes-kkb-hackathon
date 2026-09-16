@@ -1242,6 +1242,27 @@ class Component extends DCLogic {
   // model as if it were a prior Q&A. Capped and truncated again on the
   // server (see orchestrator._history_messages); this is just what the
   // tab itself remembers of its own conversation, kept short on purpose.
+  //
+  // Real bug found live: a chart is built by the BACKEND from the tool
+  // trace (src/agent/charts.py) and rendered below the model's own prose,
+  // but only `answerText` (the prose) was ever replayed as history - the
+  // model's own past turn never said anything like "here is a chart", so
+  // asked "the chart you drew, what is it of" on the next turn, it
+  // correctly-but-uselessly answered that it never drew one. Appending a
+  // one-line factual caption per chart (title/unit/period, straight from
+  // the same spec the UI renders) before truncation gives the model
+  // something real to answer from, not a guess.
+  chartCaptionsFor(charts) {
+    if (!Array.isArray(charts) || !charts.length) return '';
+    const lines = charts.map(c => {
+      const bits = [c.title || 'grafik'];
+      if (c.unit) bits.push(`birim: ${c.unit}`);
+      if (c.subtitle) bits.push(c.subtitle);
+      return `- ${bits.join(', ')}`;
+    });
+    return `\n\n[Bu yanıtla birlikte gösterilen grafik(ler):\n${lines.join('\n')}]`;
+  }
+
   historyForRequest() {
     const HISTORY_MAX_TURNS = 4, ANSWER_MAX_CHARS = 500;
     const messages = this.state.messages;
@@ -1249,9 +1270,10 @@ class Component extends DCLogic {
     for (let i = 0; i < messages.length - 1; i++) {
       const m = messages[i], next = messages[i + 1];
       if (m.role === 'user' && next.role === 'assistant' && next.answerText) {
-        const answer = next.answerText.length > ANSWER_MAX_CHARS
-          ? next.answerText.slice(0, ANSWER_MAX_CHARS) + '…'
-          : next.answerText;
+        const withCharts = next.answerText + this.chartCaptionsFor(next.charts);
+        const answer = withCharts.length > ANSWER_MAX_CHARS
+          ? withCharts.slice(0, ANSWER_MAX_CHARS) + '…'
+          : withCharts;
         turns.push({ question: m.text, answer });
       }
     }
