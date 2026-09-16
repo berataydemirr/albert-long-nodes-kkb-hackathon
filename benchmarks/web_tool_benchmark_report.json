@@ -1,0 +1,32 @@
+{
+  "provider_checks": [
+    {
+      "name": "search_provider_reachable",
+      "ok": true,
+      "provider": "searxng",
+      "result_count": 3,
+      "error": null,
+      "elapsed_sec": 2.3
+    },
+    {
+      "name": "web_search_returns_real_results",
+      "ok": true,
+      "result_count": 5,
+      "has_tcmb_gov_tr_hit": true,
+      "sample_urls": [
+        "https://tr.tradingeconomics.com/turkey/interest-rate",
+        "https://www.tcmb.gov.tr/wps/wcm/connect/TR/TCMB+TR/Main+Menu/Temel+Faaliyetler/Para+Politikasi/PPK/2026",
+        "https://www.tcmb.gov.tr/wps/wcm/connect/50433504-d77c-472a-82d0-6ad1cc25c927/2026_Para_Politikas%C4%B1_Metni.pdf?MOD=AJPERES"
+      ],
+      "elapsed_sec": 1.6
+    },
+    {
+      "name": "web_url_extract_known_url",
+      "ok": true,
+      "extracted_chars": 4437,
+      "kind": "html",
+      "elapsed_sec": 0.3
+    }
+  ],
+  "agent_questions": []
+}
