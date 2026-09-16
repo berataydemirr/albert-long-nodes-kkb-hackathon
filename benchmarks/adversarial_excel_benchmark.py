@@ -725,7 +725,18 @@ _MISSING_DATA_RE = re.compile(
 def _import_file(path: Path) -> str:
     """Returns the dataset_name it was imported under."""
     stem = re.sub(r"[^a-zA-Z0-9_]", "_", path.stem).lower()
-    dataset_name = f"advtest_{stem}"
+    # Real bug found live: _validate_dataset_name caps names at 64 chars
+    # (see src/agent/data_import.py) - a descriptive real filename plus
+    # the 'advtest_' prefix can exceed that (a 78-char TCMB filename did,
+    # crashing the whole run partway through). Truncated to fit, with a
+    # short content hash appended so two different long names that
+    # truncate to the same prefix still get distinct table names.
+    import hashlib
+
+    prefix = "advtest_"
+    max_stem_len = 64 - len(prefix) - 9  # 9 = "_" + 8 hex chars of the hash
+    short_hash = hashlib.sha256(stem.encode("utf-8")).hexdigest()[:8]
+    dataset_name = f"{prefix}{stem[:max_stem_len]}_{short_hash}"
     if path.suffix.lower() == ".pdf":
         result = import_pdf_table(path, dataset_name)
     else:
