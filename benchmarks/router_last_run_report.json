@@ -1,8 +1,8 @@
 {
   "metric": "routing_accuracy",
   "accuracy": 1.0,
-  "correct": 7,
-  "total": 7,
+  "correct": 11,
+  "total": 11,
   "note": "This measures deterministic capability routing, not the MIA model's exact function-call selection.",
   "cases": [
     {
@@ -14,15 +14,15 @@
     },
     {
       "id": "local_trend",
-      "expected_route": "local_analytics",
-      "actual_route": "local_analytics",
+      "expected_route": "analysis",
+      "actual_route": "analysis",
       "available": true,
       "correct": true
     },
     {
       "id": "local_causality",
-      "expected_route": "local_analytics",
-      "actual_route": "local_analytics",
+      "expected_route": "analysis",
+      "actual_route": "analysis",
       "available": true,
       "correct": true
     },
@@ -34,9 +34,37 @@
       "correct": true
     },
     {
+      "id": "injection_only",
+      "expected_route": "local_analytics",
+      "actual_route": "local_analytics",
+      "available": true,
+      "correct": true
+    },
+    {
       "id": "future_local_data",
       "expected_route": "local_analytics",
       "actual_route": "local_analytics",
+      "available": true,
+      "correct": true
+    },
+    {
+      "id": "regional",
+      "expected_route": "regional",
+      "actual_route": "regional",
+      "available": true,
+      "correct": true
+    },
+    {
+      "id": "bist",
+      "expected_route": "live_fetch",
+      "actual_route": "live_fetch",
+      "available": true,
+      "correct": true
+    },
+    {
+      "id": "imports",
+      "expected_route": "imports",
+      "actual_route": "imports",
       "available": true,
       "correct": true
     },

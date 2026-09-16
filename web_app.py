@@ -2,6 +2,8 @@
 
 import re
 import secrets
+import threading
+import time
 import uuid
 from pathlib import Path
 
@@ -18,7 +20,7 @@ from src.agent.data_import import (
     list_sheets,
 )
 from src.agent.pdf_import import import_pdf_table, list_pdf_tables
-from src.agent.orchestrator import ask
+from src.agent.orchestrator import ask, summarize_turn
 from src.agent.router import route_question
 from src.agent.charts import derive_charts
 from src.agent.tools import TOOL_SCHEMAS
@@ -83,6 +85,9 @@ class HistoryTurn(BaseModel):
     budget itself."""
     question: str = Field(min_length=1, max_length=2_000)
     answer: str = Field(min_length=1, max_length=8_000)
+    # The turn_note this server returned with that answer: tools, series
+    # and tables used, so a follow-up question keeps that context.
+    note: str | None = Field(default=None, max_length=400)
 
 
 class AskRequest(BaseModel):
@@ -91,6 +96,45 @@ class AskRequest(BaseModel):
     # an unbounded transcript; orchestrator.ask() only ever looks at the
     # last few entries anyway (see HISTORY_MAX_TURNS).
     history: list[HistoryTurn] = Field(default_factory=list, max_length=12)
+    # Client-generated id; /api/progress/{request_id} streams this run's events.
+    request_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{8,64}$")
+
+
+# request_id -> {"events": [...], "updated": monotonic}. In-memory and
+# per-process: progress is a UI nicety, not state worth persisting.
+_PROGRESS: dict[str, dict] = {}
+_PROGRESS_LOCK = threading.Lock()
+_PROGRESS_TTL_SEC = 600
+_PROGRESS_MAX_EVENTS = 200
+
+
+def _progress_recorder(request_id: str):
+    with _PROGRESS_LOCK:
+        now = time.monotonic()
+        for stale in [k for k, v in _PROGRESS.items() if now - v["updated"] > _PROGRESS_TTL_SEC]:
+            del _PROGRESS[stale]
+        _PROGRESS[request_id] = {"events": [], "updated": now, "done": False}
+
+    def record(event: dict) -> None:
+        with _PROGRESS_LOCK:
+            entry = _PROGRESS.get(request_id)
+            if entry is not None and len(entry["events"]) < _PROGRESS_MAX_EVENTS:
+                entry["events"].append(event)
+                entry["updated"] = time.monotonic()
+
+    return record
+
+
+@app.get("/api/progress/{request_id}")
+def progress(request_id: str, after: int = 0) -> dict:
+    """Events of a running /api/ask since index `after`. Polled by the UI
+    while it waits, so it can say which tool is running right now."""
+    with _PROGRESS_LOCK:
+        entry = _PROGRESS.get(request_id)
+        if entry is None:
+            return {"events": [], "next": after, "done": False}
+        events = entry["events"][max(after, 0):]
+        return {"events": events, "next": max(after, 0) + len(events), "done": entry["done"]}
 
 
 @app.get("/")
@@ -199,10 +243,18 @@ def answer_question(request: AskRequest) -> dict:
     question = request.question.strip()
     if not question:
         raise HTTPException(status_code=422, detail="Soru boş olamaz.")
-    history = [turn.model_dump() for turn in request.history]
+    history = [turn.model_dump(exclude_none=True) for turn in request.history]
     try:
         decision = route_question(question, TOOL_SCHEMAS)
-        answer, trace, timing = ask(question, history=history, return_trace=True, return_timing=True)
+        progress_kwargs = {"on_event": _progress_recorder(request.request_id)} if request.request_id else {}
+        try:
+            answer, trace, timing = ask(question, history=history, return_trace=True, return_timing=True,
+                                        **progress_kwargs)
+        finally:
+            if request.request_id:
+                with _PROGRESS_LOCK:
+                    if request.request_id in _PROGRESS:
+                        _PROGRESS[request.request_id]["done"] = True
 
         charts = derive_charts(trace)
         # output_json carries the full tool result so charts can be built
@@ -225,8 +277,14 @@ def answer_question(request: AskRequest) -> dict:
                 "reason": decision.reason,
                 "available": decision.available,
                 "allowed_tools": list(decision.allowed_tool_names),
+                "tool_groups": list(decision.tool_groups),
+                "injection_suspected": decision.injection_suspected,
+                "reasoning_effort": decision.settings.reasoning_effort if decision.settings else None,
+                "max_rounds": decision.settings.max_rounds if decision.settings else None,
             },
             "trace": lean_trace,
+            # Sent back with this turn's history entry (see HistoryTurn.note).
+            "turn_note": summarize_turn(trace),
         }
     except Exception as exc:
         raise HTTPException(status_code=502, detail="Agent yanıt üretemedi. Sunucu günlüklerini kontrol edin.") from exc

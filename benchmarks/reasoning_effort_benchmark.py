@@ -80,8 +80,10 @@ def run_level(level: str, valid_codes: set[str]) -> dict:
     for item in QUESTIONS:
         t0 = time.monotonic()
         try:
+            # Passed explicitly: otherwise the router's per-route effort
+            # would replace the level under test.
             answer, trace, timing = orchestrator.ask(
-                item["question"], return_trace=True, return_timing=True
+                item["question"], return_trace=True, return_timing=True, reasoning_effort=level
             )
             error = None
         except Exception as exc:
@@ -137,17 +139,10 @@ def main() -> None:
         print("No series catalog available. Run `python -m src.gold.build_gold` first.")
         raise SystemExit(1)
 
-    original = orchestrator.MIA_REASONING_EFFORT
     levels = []
-    try:
-        for level in LEVELS:
-            # Patched on the module the call actually reads, so the override
-            # applies without touching the environment or the settings file.
-            orchestrator.MIA_REASONING_EFFORT = level
-            print(f"running level: {level} ...", flush=True)
-            levels.append(run_level(level, valid_codes))
-    finally:
-        orchestrator.MIA_REASONING_EFFORT = original
+    for level in LEVELS:
+        print(f"running level: {level} ...", flush=True)
+        levels.append(run_level(level, valid_codes))
 
     REPORT_PATH.write_text(json.dumps(levels, ensure_ascii=False, indent=2), encoding="utf-8")
 

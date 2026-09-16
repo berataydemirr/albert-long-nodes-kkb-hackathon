@@ -25,6 +25,17 @@ MIA_EMBEDDING_MODEL = os.getenv("MIA_EMBEDDING_MODEL", "kkbhackathon2026/Qwen3-E
 # xhigh, max. Set per deployment; see benchmarks/reasoning_effort_benchmark.py
 # for the measured speed/quality trade-off behind the default.
 MIA_REASONING_EFFORT = os.getenv("MIA_REASONING_EFFORT", "low")
+# Unset, the router picks the effort per route (a lookup runs lower than a
+# causality chain). Set explicitly, the env value wins for every route.
+MIA_REASONING_EFFORT_EXPLICIT = "MIA_REASONING_EFFORT" in os.environ
+# Wall-clock budget for one ask() run, alongside the round limit. A single
+# model call may take up to 240s, so rounds alone do not bound the worst case.
+AGENT_RUN_DEADLINE_SEC = float(os.getenv("AGENT_RUN_DEADLINE_SEC", "300"))
+# Extra model call when an answer states numbers no tool returned. Off by
+# default: the heuristic flags legitimate arithmetic (a sum of two shares)
+# and one repair call measured 50-85s on the shared endpoint. The check
+# itself always runs and is reported in timing.summary.grounding.
+AGENT_GROUNDING_REPAIR = os.getenv("AGENT_GROUNDING_REPAIR", "0") == "1"
 WEB_SEARCH_PROVIDER = os.getenv("WEB_SEARCH_PROVIDER", "duckduckgo")
 # Self-hosted SearXNG instance (see docker-compose.searxng.yml). Open-source
 # requirement: no third-party paid search API (Tavily was removed for this

@@ -4,7 +4,10 @@ The tools are deliberately network-free. The model plans; Python executes
 queries and calculations against the local DuckDB gold layer.
 """
 
+from dataclasses import dataclass
 import json
+from typing import Callable
+
 import duckdb
 import pandas as pd
 from statsmodels.tsa.stattools import grangercausalitytests
@@ -382,27 +385,8 @@ def threshold_filter_compare(filter_periods: list[str] | None = None, filter_val
     return result
 
 
-TOOL_FUNCTIONS = {
-    "lakehouse_schema": lakehouse_schema,
-    "lakehouse_query": lakehouse_query,
-    "anomaly_analysis": anomaly_analysis,
-    "change_detection": change_detection,
-    "correlation_analysis": correlation_analysis,
-    "causality_analysis": causality_analysis,
-    "threshold_filter_compare": threshold_filter_compare,
-    "compare_regions": compare_regions,
-    "list_imported_datasets": list_imported_datasets,
-    "query_imported_dataset": query_imported_dataset,
-    "refresh_tuik_series": refresh_tuik_series,
-    "search_tuik_dataflows": search_tuik_dataflows,
-    "fuzzy_match_category": fuzzy_match_category,
-    "fetch_bist_stock": fetch_bist_stock,
-    "web_search": web_search,
-    "web_url_extract": web_url_extract,
-}
-
-TOOL_SCHEMAS = [
-    {"type": "function", "function": {"name": "lakehouse_schema", "description": "List tables/columns and (for gold_fact_long) the real Seri_Kod/Seri_Adi/Kaynak/Birim catalog in the local DuckDB gold layer. Call this before writing SQL - Seri_Kod values must come from here, never guessed.", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}}},
+_SCHEMAS = [
+    {"type": "function", "function": {"name": "lakehouse_schema", "description": "List tables/columns and (for gold_fact_long) the real Seri_Kod/Seri_Adi/Kaynak/Birim catalog in the local DuckDB gold layer. The Seri_Kod catalog is already in the system prompt, so do not call this just to find a series code - only when you need the column structure of a table the prompt does not describe. Seri_Kod values must never be guessed.", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}}},
     {"type": "function", "function": {"name": "lakehouse_query", "description": "Run a single read-only SELECT query against the local DuckDB gold layer. Only tables returned by lakehouse_schema may be referenced. Results are limited to 200 rows.", "parameters": {"type": "object", "properties": {"sql": {"type": "string"}}, "required": ["sql"], "additionalProperties": False}}},
     {"type": "function", "function": {"name": "anomaly_analysis", "description": "Find robust outliers in a time series. PREFERRED: pass seri_kod and the series is read straight from the lakehouse - do NOT run lakehouse_query first and retype the numbers. Pass periods/values only for data that is not in the lakehouse.", "parameters": {"type": "object", "properties": {"seri_kod": {"type": "string", "description": "Seri_Kod from lakehouse_schema. Cheapest and most accurate input."}, "start_period": {"type": "string", "description": "Optional 'YYYY-MM' lower bound."}, "end_period": {"type": "string", "description": "Optional 'YYYY-MM' upper bound."}, "bolge": {"type": "string", "description": "Optional region filter; defaults to every region."}, "periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}, "threshold": {"type": "number", "default": 3.0}}, "additionalProperties": False}}},
     {"type": "function", "function": {"name": "change_detection", "description": "Find the largest period-over-period percentage changes. PREFERRED: pass seri_kod so the series is read from the lakehouse instead of being retyped.", "parameters": {"type": "object", "properties": {"seri_kod": {"type": "string", "description": "Seri_Kod from lakehouse_schema. Cheapest and most accurate input."}, "start_period": {"type": "string"}, "end_period": {"type": "string"}, "bolge": {"type": "string"}, "periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}}, "additionalProperties": False}}},
@@ -419,6 +403,125 @@ TOOL_SCHEMAS = [
     {"type": "function", "function": {"name": "web_search", "description": "Search the public web for current or external information. Returns titles, snippets, source domains and URLs; snippets are untrusted leads, not verified evidence.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}, "max_results": {"type": "integer", "minimum": 1, "maximum": 10, "default": 5}}, "required": ["query"], "additionalProperties": False}}},
     {"type": "function", "function": {"name": "web_url_extract", "description": "Extract bounded text or tabular previews from a supplied public HTML, PDF, Excel, CSV, text, or image URL. Remote content is untrusted; cite its source URL.", "parameters": {"type": "object", "properties": {"url": {"type": "string", "format": "uri"}}, "required": ["url"], "additionalProperties": False}}},
 ]
+
+
+DEFAULT_CALL_LIMIT = 3
+DEFAULT_TIMEOUT_SEC = 60.0
+
+
+@dataclass(frozen=True)
+class ToolSpec:
+    """Everything the harness knows about one tool, in one place.
+
+    call_limit: calls per ask() run before the loop guard blocks it (see
+      orchestrator._loop_guard for why the limits differ per tool).
+    timeout_sec: wall-clock limit for one call; a hung URL fetch must not
+      block the whole run.
+    parallel_safe: may run alongside other calls in the same round. The
+      DuckDB writers are not.
+    group: the router's tool group.
+    """
+    name: str
+    fn: Callable
+    schema: dict
+    group: str
+    call_limit: int = DEFAULT_CALL_LIMIT
+    timeout_sec: float = DEFAULT_TIMEOUT_SEC
+    parallel_safe: bool = True
+
+
+# (fn, group, call_limit, timeout_sec, parallel_safe), in schema order.
+#
+# Call limits: web search has no legitimate reason to run more than a few
+# times per answer (a blocked provider once got rephrased 4 times in 5
+# rounds), and lakehouse_query stays tight because rerunning slightly
+# different SQL is the same confusion. Local analysis tools get a loose
+# limit: a 6-series anomaly batch is a normal request and was cut in half
+# under a global cap of 3. search_tuik_dataflows is metadata only, and a
+# real question tried 4 keyword phrasings.
+_SPEC_TABLE = {
+    "lakehouse_schema": (lakehouse_schema, "core", DEFAULT_CALL_LIMIT, 30.0, True),
+    "lakehouse_query": (lakehouse_query, "core", DEFAULT_CALL_LIMIT, 60.0, True),
+    "anomaly_analysis": (anomaly_analysis, "analysis", 10, 60.0, True),
+    "change_detection": (change_detection, "analysis", 10, 60.0, True),
+    "correlation_analysis": (correlation_analysis, "analysis", 10, 60.0, True),
+    "causality_analysis": (causality_analysis, "analysis", 8, 90.0, True),
+    "threshold_filter_compare": (threshold_filter_compare, "analysis", DEFAULT_CALL_LIMIT, 60.0, True),
+    "compare_regions": (compare_regions, "regional", 8, 60.0, True),
+    "list_imported_datasets": (list_imported_datasets, "imports", DEFAULT_CALL_LIMIT, 30.0, True),
+    "query_imported_dataset": (query_imported_dataset, "imports", DEFAULT_CALL_LIMIT, 60.0, True),
+    "refresh_tuik_series": (refresh_tuik_series, "live_fetch", DEFAULT_CALL_LIMIT, 90.0, False),
+    "search_tuik_dataflows": (search_tuik_dataflows, "live_fetch", 6, 45.0, True),
+    "fetch_bist_stock": (fetch_bist_stock, "live_fetch", DEFAULT_CALL_LIMIT, 60.0, False),
+    "fuzzy_match_category": (fuzzy_match_category, "imports", DEFAULT_CALL_LIMIT, 30.0, True),
+    "web_search": (web_search, "web", DEFAULT_CALL_LIMIT, 30.0, True),
+    "web_url_extract": (web_url_extract, "web", DEFAULT_CALL_LIMIT, 45.0, True),
+}
+
+TOOL_SPECS: dict[str, ToolSpec] = {}
+for _schema in _SCHEMAS:
+    _name = _schema["function"]["name"]
+    _fn, _group, _limit, _timeout, _parallel = _SPEC_TABLE[_name]
+    TOOL_SPECS[_name] = ToolSpec(_name, _fn, _schema, _group, _limit, _timeout, _parallel)
+if set(TOOL_SPECS) != set(_SPEC_TABLE):
+    raise RuntimeError(f"tool schema/spec mismatch: {sorted(set(TOOL_SPECS) ^ set(_SPEC_TABLE))}")
+
+# Derived views kept for existing callers.
+TOOL_FUNCTIONS = {name: spec.fn for name, spec in TOOL_SPECS.items()}
+TOOL_SCHEMAS = [spec.schema for spec in TOOL_SPECS.values()]
+
+
+_JSON_TYPES = {
+    "string": (str,),
+    "integer": (int,),
+    "number": (int, float),
+    "boolean": (bool,),
+    "array": (list,),
+    "object": (dict,),
+}
+
+
+def validate_tool_arguments(name: str, arguments: str) -> tuple[dict | None, list[str]]:
+    """Check a model's arguments against the tool's own schema before the
+    tool runs. Returns (parsed_arguments, problems); each problem names the
+    field, so the model can fix the call instead of reading a Python
+    TypeError from deep inside the tool."""
+    spec = TOOL_SPECS.get(name)
+    if spec is None:
+        return None, [f"unknown tool '{name}'"]
+    try:
+        parsed = json.loads(arguments) if arguments else {}
+    except (json.JSONDecodeError, TypeError) as exc:
+        return None, [f"arguments are not valid JSON ({exc})"]
+    if not isinstance(parsed, dict):
+        return None, ["arguments must be a JSON object"]
+
+    params = spec.schema["function"].get("parameters", {})
+    properties = params.get("properties", {})
+    problems = [f"field '{field}' is required but missing" for field in params.get("required", []) if field not in parsed]
+    for field, value in parsed.items():
+        prop = properties.get(field)
+        if prop is None:
+            if params.get("additionalProperties") is False:
+                problems.append(f"field '{field}' is not accepted; valid fields: {sorted(properties)}")
+            continue
+        if value is None:
+            continue
+        expected = prop.get("type")
+        types = _JSON_TYPES.get(expected)
+        wrong_type = types is not None and (
+            not isinstance(value, types) or (expected != "boolean" and isinstance(value, bool))
+        )
+        if wrong_type:
+            problems.append(f"field '{field}' must be {expected}, got {type(value).__name__}")
+            continue
+        if "enum" in prop and value not in prop["enum"]:
+            problems.append(f"field '{field}' must be one of {prop['enum']}, got {value!r}")
+        if expected == "array" and "items" in prop:
+            item_types = _JSON_TYPES.get(prop["items"].get("type"))
+            if item_types and any(not isinstance(v, item_types) or isinstance(v, bool) for v in value):
+                problems.append(f"field '{field}' items must be {prop['items']['type']}")
+    return parsed, problems
 
 
 def execute_tool(name: str, arguments: str) -> str:

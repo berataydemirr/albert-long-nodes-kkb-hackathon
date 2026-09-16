@@ -1,0 +1,2798 @@
+{
+  "source_report": "hard_benchmark_report.json",
+  "questions": 153,
+  "refused": 6,
+  "route_agreement": 0.828,
+  "tool_coverage": 0.983,
+  "runs_missing_a_tool": [
+    {
+      "id": "chain_04",
+      "missing": [
+        "compare_regions"
+      ],
+      "groups": [
+        "core",
+        "analysis"
+      ]
+    },
+    {
+      "id": "missing_04",
+      "missing": [
+        "list_imported_datasets"
+      ],
+      "groups": [
+        "core",
+        "analysis"
+      ]
+    }
+  ],
+  "runs_over_round_budget": [],
+  "avg_schemas_sent": 5.0,
+  "total_schemas": 16,
+  "confusion_matrix": [
+    {
+      "predicted": "analysis",
+      "observed": "analysis",
+      "count": 25
+    },
+    {
+      "predicted": "analysis",
+      "observed": "imports",
+      "count": 1
+    },
+    {
+      "predicted": "analysis",
+      "observed": "local_analytics",
+      "count": 6
+    },
+    {
+      "predicted": "analysis",
+      "observed": "regional",
+      "count": 1
+    },
+    {
+      "predicted": "imports",
+      "observed": "imports",
+      "count": 5
+    },
+    {
+      "predicted": "imports",
+      "observed": "local_analytics",
+      "count": 1
+    },
+    {
+      "predicted": "live_fetch",
+      "observed": "analysis",
+      "count": 1
+    },
+    {
+      "predicted": "live_fetch",
+      "observed": "imports",
+      "count": 1
+    },
+    {
+      "predicted": "live_fetch",
+      "observed": "live_fetch",
+      "count": 14
+    },
+    {
+      "predicted": "live_fetch",
+      "observed": "local_analytics",
+      "count": 8
+    },
+    {
+      "predicted": "local_analytics",
+      "observed": "local_analytics",
+      "count": 23
+    },
+    {
+      "predicted": "regional",
+      "observed": "local_analytics",
+      "count": 1
+    },
+    {
+      "predicted": "regional",
+      "observed": "regional",
+      "count": 26
+    },
+    {
+      "predicted": "web_search",
+      "observed": "web_search",
+      "count": 3
+    }
+  ],
+  "cases": [
+    {
+      "id": "chain_01",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional",
+        "web",
+        "analysis"
+      ],
+      "called_tools": [
+        "compare_regions",
+        "correlation_analysis",
+        "lakehouse_query",
+        "web_search"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 2,
+      "max_rounds": 10,
+      "schemas_sent": 10
+    },
+    {
+      "id": "chain_02",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "anomaly_analysis",
+        "correlation_analysis",
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 2,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "chain_03",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional"
+      ],
+      "called_tools": [
+        "compare_regions"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 3
+    },
+    {
+      "id": "chain_04",
+      "predicted_route": "analysis",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "anomaly_analysis",
+        "change_detection",
+        "compare_regions",
+        "correlation_analysis",
+        "lakehouse_query"
+      ],
+      "missing_tools": [
+        "compare_regions"
+      ],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 4,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "extreme_01",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "causality_analysis"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 2,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "extreme_02",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional"
+      ],
+      "called_tools": [
+        "compare_regions"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 3
+    },
+    {
+      "id": "extreme_03",
+      "predicted_route": "local_analytics",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "extreme_04",
+      "predicted_route": "regional",
+      "observed_route": null,
+      "tool_groups": [
+        "core",
+        "regional"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 5,
+      "schemas_sent": 3
+    },
+    {
+      "id": "missing_01",
+      "predicted_route": "local_analytics",
+      "observed_route": null,
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "missing_02",
+      "predicted_route": "analysis",
+      "observed_route": null,
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "missing_03",
+      "predicted_route": "local_analytics",
+      "observed_route": null,
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "missing_04",
+      "predicted_route": "analysis",
+      "observed_route": "imports",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "list_imported_datasets"
+      ],
+      "missing_tools": [
+        "list_imported_datasets"
+      ],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "adversarial_01",
+      "predicted_route": "refuse",
+      "observed_route": null,
+      "tool_groups": [],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": true,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 0,
+      "schemas_sent": 0
+    },
+    {
+      "id": "adversarial_02",
+      "predicted_route": "local_analytics",
+      "observed_route": null,
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": true,
+      "rounds_used": 0,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "adversarial_03",
+      "predicted_route": "refuse",
+      "observed_route": null,
+      "tool_groups": [],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": true,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 0,
+      "schemas_sent": 0
+    },
+    {
+      "id": "adversarial_04",
+      "predicted_route": "refuse",
+      "observed_route": null,
+      "tool_groups": [],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": true,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 0,
+      "schemas_sent": 0
+    },
+    {
+      "id": "adversarial_05",
+      "predicted_route": "local_analytics",
+      "observed_route": null,
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": true,
+      "rounds_used": 0,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "regional_01",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional"
+      ],
+      "called_tools": [
+        "compare_regions"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 3
+    },
+    {
+      "id": "regional_02",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional"
+      ],
+      "called_tools": [
+        "compare_regions"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 3
+    },
+    {
+      "id": "regional_03",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional"
+      ],
+      "called_tools": [
+        "compare_regions"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 3
+    },
+    {
+      "id": "regional_04",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional"
+      ],
+      "called_tools": [
+        "compare_regions"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 2,
+      "max_rounds": 5,
+      "schemas_sent": 3
+    },
+    {
+      "id": "batch_01",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "anomaly_analysis"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "batch_02",
+      "predicted_route": "web_search",
+      "observed_route": "web_search",
+      "tool_groups": [
+        "core",
+        "web"
+      ],
+      "called_tools": [
+        "lakehouse_query",
+        "web_search"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 2,
+      "max_rounds": 5,
+      "schemas_sent": 4
+    },
+    {
+      "id": "batch_03",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "change_detection"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "import_01",
+      "predicted_route": "imports",
+      "observed_route": "imports",
+      "tool_groups": [
+        "core",
+        "imports"
+      ],
+      "called_tools": [
+        "list_imported_datasets"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 5
+    },
+    {
+      "id": "import_02",
+      "predicted_route": "imports",
+      "observed_route": "imports",
+      "tool_groups": [
+        "core",
+        "imports"
+      ],
+      "called_tools": [
+        "list_imported_datasets"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 5
+    },
+    {
+      "id": "import_03",
+      "predicted_route": "refuse",
+      "observed_route": null,
+      "tool_groups": [],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": true,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 0,
+      "schemas_sent": 0
+    },
+    {
+      "id": "tuik_01",
+      "predicted_route": "live_fetch",
+      "observed_route": "live_fetch",
+      "tool_groups": [
+        "core",
+        "live_fetch",
+        "web"
+      ],
+      "called_tools": [
+        "search_tuik_dataflows"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 2,
+      "max_rounds": 6,
+      "schemas_sent": 7
+    },
+    {
+      "id": "tuik_02",
+      "predicted_route": "live_fetch",
+      "observed_route": "live_fetch",
+      "tool_groups": [
+        "core",
+        "live_fetch",
+        "web"
+      ],
+      "called_tools": [
+        "refresh_tuik_series"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 6,
+      "schemas_sent": 7
+    },
+    {
+      "id": "informal_01",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "change_detection",
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "informal_02",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "correlation_analysis"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "informal_03",
+      "predicted_route": "analysis",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 2,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "terse_01",
+      "predicted_route": "local_analytics",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 2,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "terse_02",
+      "predicted_route": "local_analytics",
+      "observed_route": null,
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "terse_03",
+      "predicted_route": "local_analytics",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "contradictory_01",
+      "predicted_route": "analysis",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "contradictory_02",
+      "predicted_route": "local_analytics",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "trap_01",
+      "predicted_route": "local_analytics",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "trap_02",
+      "predicted_route": "analysis",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 2,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "trap_03",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional"
+      ],
+      "called_tools": [
+        "compare_regions"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 3
+    },
+    {
+      "id": "bist_01",
+      "predicted_route": "live_fetch",
+      "observed_route": "live_fetch",
+      "tool_groups": [
+        "core",
+        "live_fetch"
+      ],
+      "called_tools": [
+        "fetch_bist_stock",
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 2,
+      "max_rounds": 5,
+      "schemas_sent": 5
+    },
+    {
+      "id": "bist_02",
+      "predicted_route": "live_fetch",
+      "observed_route": null,
+      "tool_groups": [
+        "core",
+        "live_fetch"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 5,
+      "schemas_sent": 5
+    },
+    {
+      "id": "bist_03",
+      "predicted_route": "live_fetch",
+      "observed_route": null,
+      "tool_groups": [
+        "core",
+        "live_fetch"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 5,
+      "schemas_sent": 5
+    },
+    {
+      "id": "merge_01",
+      "predicted_route": "imports",
+      "observed_route": "imports",
+      "tool_groups": [
+        "core",
+        "imports"
+      ],
+      "called_tools": [
+        "lakehouse_query",
+        "list_imported_datasets"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 5,
+      "max_rounds": 5,
+      "schemas_sent": 5
+    },
+    {
+      "id": "merge_02",
+      "predicted_route": "refuse",
+      "observed_route": null,
+      "tool_groups": [],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": true,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 0,
+      "schemas_sent": 0
+    },
+    {
+      "id": "pdf_01",
+      "predicted_route": "imports",
+      "observed_route": null,
+      "tool_groups": [
+        "core",
+        "imports"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 5,
+      "schemas_sent": 5
+    },
+    {
+      "id": "pdf_02",
+      "predicted_route": "imports",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core",
+        "imports"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 3,
+      "max_rounds": 5,
+      "schemas_sent": 5
+    },
+    {
+      "id": "pdf_03",
+      "predicted_route": "imports",
+      "observed_route": "imports",
+      "tool_groups": [
+        "core",
+        "imports"
+      ],
+      "called_tools": [
+        "list_imported_datasets"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 5
+    },
+    {
+      "id": "pdf_04",
+      "predicted_route": "imports",
+      "observed_route": null,
+      "tool_groups": [
+        "core",
+        "imports"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 5,
+      "schemas_sent": 5
+    },
+    {
+      "id": "sql_01",
+      "predicted_route": "local_analytics",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "sql_02",
+      "predicted_route": "local_analytics",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "sql_03",
+      "predicted_route": "local_analytics",
+      "observed_route": null,
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "sql_04",
+      "predicted_route": "local_analytics",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "sql_05",
+      "predicted_route": "local_analytics",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "unit_01",
+      "predicted_route": "local_analytics",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "unit_02",
+      "predicted_route": "local_analytics",
+      "observed_route": null,
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "unit_03",
+      "predicted_route": "local_analytics",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "unit_04",
+      "predicted_route": "analysis",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 2,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "province_01",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional"
+      ],
+      "called_tools": [
+        "compare_regions"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 3
+    },
+    {
+      "id": "province_02",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional"
+      ],
+      "called_tools": [
+        "compare_regions"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 3
+    },
+    {
+      "id": "province_03",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional"
+      ],
+      "called_tools": [
+        "compare_regions",
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 5,
+      "max_rounds": 5,
+      "schemas_sent": 3
+    },
+    {
+      "id": "province_04",
+      "predicted_route": "regional",
+      "observed_route": null,
+      "tool_groups": [
+        "core",
+        "regional"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 5,
+      "schemas_sent": 3
+    },
+    {
+      "id": "numeric_01",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "causality_analysis"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "numeric_02",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "causality_analysis"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "numeric_03",
+      "predicted_route": "analysis",
+      "observed_route": null,
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "numeric_04",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "threshold_filter_compare"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 2,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "numeric_05",
+      "predicted_route": "analysis",
+      "observed_route": null,
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "sec2_01",
+      "predicted_route": "local_analytics",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "sec2_02",
+      "predicted_route": "local_analytics",
+      "observed_route": null,
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "sec2_03",
+      "predicted_route": "refuse",
+      "observed_route": null,
+      "tool_groups": [],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": true,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 0,
+      "schemas_sent": 0
+    },
+    {
+      "id": "sec2_04",
+      "predicted_route": "local_analytics",
+      "observed_route": null,
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "sec2_05",
+      "predicted_route": "local_analytics",
+      "observed_route": null,
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": true,
+      "rounds_used": 0,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "ramble_01",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "correlation_analysis"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "ramble_02",
+      "predicted_route": "analysis",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "ramble_03",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "change_detection",
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "loopstress_01",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "correlation_analysis",
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 3,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "loopstress_02",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "anomaly_analysis"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "loopstress_03",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional",
+        "web",
+        "analysis"
+      ],
+      "called_tools": [
+        "anomaly_analysis",
+        "causality_analysis",
+        "compare_regions",
+        "correlation_analysis",
+        "lakehouse_query",
+        "web_search"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 3,
+      "max_rounds": 10,
+      "schemas_sent": 10
+    },
+    {
+      "id": "trap2_01",
+      "predicted_route": "local_analytics",
+      "observed_route": null,
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "trap2_02",
+      "predicted_route": "local_analytics",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "trap2_03",
+      "predicted_route": "local_analytics",
+      "observed_route": null,
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "trap2_04",
+      "predicted_route": "local_analytics",
+      "observed_route": null,
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "joinlive_01",
+      "predicted_route": "live_fetch",
+      "observed_route": "live_fetch",
+      "tool_groups": [
+        "core",
+        "live_fetch",
+        "analysis"
+      ],
+      "called_tools": [
+        "fetch_bist_stock",
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 2,
+      "max_rounds": 9,
+      "schemas_sent": 10
+    },
+    {
+      "id": "joinlive_02",
+      "predicted_route": "live_fetch",
+      "observed_route": "live_fetch",
+      "tool_groups": [
+        "core",
+        "live_fetch",
+        "web",
+        "analysis"
+      ],
+      "called_tools": [
+        "correlation_analysis",
+        "refresh_tuik_series"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 2,
+      "max_rounds": 10,
+      "schemas_sent": 12
+    },
+    {
+      "id": "joinlive_03",
+      "predicted_route": "live_fetch",
+      "observed_route": "imports",
+      "tool_groups": [
+        "core",
+        "live_fetch",
+        "imports",
+        "analysis"
+      ],
+      "called_tools": [
+        "lakehouse_query",
+        "list_imported_datasets"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 10,
+      "schemas_sent": 13
+    },
+    {
+      "id": "mixlang_01",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional",
+        "analysis"
+      ],
+      "called_tools": [
+        "compare_regions"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 2,
+      "max_rounds": 9,
+      "schemas_sent": 8
+    },
+    {
+      "id": "mixlang_02",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "change_detection",
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "mixlang_03",
+      "predicted_route": "local_analytics",
+      "observed_route": null,
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "empty_01",
+      "predicted_route": "local_analytics",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "empty_02",
+      "predicted_route": "live_fetch",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "live_fetch",
+        "analysis"
+      ],
+      "called_tools": [
+        "correlation_analysis",
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 2,
+      "max_rounds": 9,
+      "schemas_sent": 10
+    },
+    {
+      "id": "empty_03",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "threshold_filter_compare"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "misuse_01",
+      "predicted_route": "regional",
+      "observed_route": null,
+      "tool_groups": [
+        "core",
+        "regional"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 5,
+      "schemas_sent": 3
+    },
+    {
+      "id": "misuse_02",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "correlation_analysis"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "misuse_03",
+      "predicted_route": "live_fetch",
+      "observed_route": null,
+      "tool_groups": [
+        "core",
+        "live_fetch"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 5,
+      "schemas_sent": 5
+    },
+    {
+      "id": "datefmt_01",
+      "predicted_route": "local_analytics",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "datefmt_02",
+      "predicted_route": "local_analytics",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "datefmt_03",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "change_detection",
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "method_01",
+      "predicted_route": "analysis",
+      "observed_route": null,
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "method_02",
+      "predicted_route": "analysis",
+      "observed_route": null,
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "method_03",
+      "predicted_route": "regional",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core",
+        "regional"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 4,
+      "max_rounds": 5,
+      "schemas_sent": 3
+    },
+    {
+      "id": "numground_01",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "correlation_analysis"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "numground_02",
+      "predicted_route": "local_analytics",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "numground_03",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "anomaly_analysis"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 2,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "numground_04",
+      "predicted_route": "live_fetch",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core",
+        "live_fetch"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 2,
+      "max_rounds": 5,
+      "schemas_sent": 5
+    },
+    {
+      "id": "numground_05",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional"
+      ],
+      "called_tools": [
+        "compare_regions"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 3
+    },
+    {
+      "id": "numground_06",
+      "predicted_route": "live_fetch",
+      "observed_route": "live_fetch",
+      "tool_groups": [
+        "core",
+        "live_fetch",
+        "web"
+      ],
+      "called_tools": [
+        "refresh_tuik_series"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 6,
+      "schemas_sent": 7
+    },
+    {
+      "id": "deepregional_01",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional"
+      ],
+      "called_tools": [
+        "compare_regions"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 3
+    },
+    {
+      "id": "deepregional_02",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional"
+      ],
+      "called_tools": [
+        "compare_regions"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 3
+    },
+    {
+      "id": "deepregional_03",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional"
+      ],
+      "called_tools": [
+        "compare_regions"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 2,
+      "max_rounds": 5,
+      "schemas_sent": 3
+    },
+    {
+      "id": "deepregional_04",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional"
+      ],
+      "called_tools": [
+        "compare_regions"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 3
+    },
+    {
+      "id": "deepregional_05",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional",
+        "analysis"
+      ],
+      "called_tools": [
+        "compare_regions",
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 4,
+      "max_rounds": 9,
+      "schemas_sent": 8
+    },
+    {
+      "id": "timeseries_01",
+      "predicted_route": "live_fetch",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core",
+        "live_fetch"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 5
+    },
+    {
+      "id": "timeseries_02",
+      "predicted_route": "local_analytics",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 4,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "timeseries_03",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "anomaly_analysis"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "timeseries_04",
+      "predicted_route": "live_fetch",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core",
+        "live_fetch",
+        "analysis"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 9,
+      "schemas_sent": 10
+    },
+    {
+      "id": "timeseries_05",
+      "predicted_route": "local_analytics",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "timeseries_06",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "causality_analysis"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "crosssource_01",
+      "predicted_route": "web_search",
+      "observed_route": "web_search",
+      "tool_groups": [
+        "core",
+        "web"
+      ],
+      "called_tools": [
+        "lakehouse_query",
+        "web_search"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 4
+    },
+    {
+      "id": "crosssource_02",
+      "predicted_route": "web_search",
+      "observed_route": "web_search",
+      "tool_groups": [
+        "core",
+        "web"
+      ],
+      "called_tools": [
+        "lakehouse_query",
+        "web_search"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 4
+    },
+    {
+      "id": "crosssource_03",
+      "predicted_route": "live_fetch",
+      "observed_route": "live_fetch",
+      "tool_groups": [
+        "core",
+        "live_fetch",
+        "web"
+      ],
+      "called_tools": [
+        "fetch_bist_stock",
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 2,
+      "max_rounds": 6,
+      "schemas_sent": 7
+    },
+    {
+      "id": "crosssource_04",
+      "predicted_route": "live_fetch",
+      "observed_route": "live_fetch",
+      "tool_groups": [
+        "core",
+        "live_fetch"
+      ],
+      "called_tools": [
+        "lakehouse_query",
+        "refresh_tuik_series"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 2,
+      "max_rounds": 5,
+      "schemas_sent": 5
+    },
+    {
+      "id": "growthedge_01",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional",
+        "analysis"
+      ],
+      "called_tools": [
+        "compare_regions"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 9,
+      "schemas_sent": 8
+    },
+    {
+      "id": "growthedge_02",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional"
+      ],
+      "called_tools": [
+        "compare_regions",
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 3
+    },
+    {
+      "id": "growthedge_03",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional"
+      ],
+      "called_tools": [
+        "compare_regions"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 2,
+      "max_rounds": 5,
+      "schemas_sent": 3
+    },
+    {
+      "id": "growthedge_04",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional"
+      ],
+      "called_tools": [
+        "compare_regions"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 3
+    },
+    {
+      "id": "multilevel_01",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "anomaly_analysis",
+        "change_detection",
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 3,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "multilevel_02",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional",
+        "analysis"
+      ],
+      "called_tools": [
+        "compare_regions",
+        "lakehouse_query",
+        "lakehouse_schema"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 5,
+      "max_rounds": 9,
+      "schemas_sent": 8
+    },
+    {
+      "id": "multilevel_03",
+      "predicted_route": "live_fetch",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core",
+        "live_fetch"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 5
+    },
+    {
+      "id": "multilevel_04",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "change_detection"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "multilevel_05",
+      "predicted_route": "analysis",
+      "observed_route": null,
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "format_01",
+      "predicted_route": "local_analytics",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "format_02",
+      "predicted_route": "local_analytics",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "format_03",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "correlation_analysis"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "format_04",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional"
+      ],
+      "called_tools": [
+        "compare_regions"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 3
+    },
+    {
+      "id": "format_05",
+      "predicted_route": "local_analytics",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "confidence_01",
+      "predicted_route": "analysis",
+      "observed_route": "analysis",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "correlation_analysis"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "confidence_02",
+      "predicted_route": "analysis",
+      "observed_route": null,
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "confidence_03",
+      "predicted_route": "analysis",
+      "observed_route": null,
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "confidence_04",
+      "predicted_route": "live_fetch",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core",
+        "live_fetch",
+        "web"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 6,
+      "schemas_sent": 7
+    },
+    {
+      "id": "internal_01",
+      "predicted_route": "local_analytics",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 4,
+      "schemas_sent": 2
+    },
+    {
+      "id": "internal_02",
+      "predicted_route": "analysis",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "internal_03",
+      "predicted_route": "live_fetch",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core",
+        "live_fetch"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 5
+    },
+    {
+      "id": "internal_04",
+      "predicted_route": "analysis",
+      "observed_route": null,
+      "tool_groups": [
+        "core",
+        "analysis"
+      ],
+      "called_tools": [],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 0,
+      "max_rounds": 8,
+      "schemas_sent": 7
+    },
+    {
+      "id": "internal_05",
+      "predicted_route": "regional",
+      "observed_route": "regional",
+      "tool_groups": [
+        "core",
+        "regional"
+      ],
+      "called_tools": [
+        "compare_regions"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 3
+    },
+    {
+      "id": "livegrounding_01",
+      "predicted_route": "live_fetch",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core",
+        "live_fetch"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 5
+    },
+    {
+      "id": "livegrounding_02",
+      "predicted_route": "live_fetch",
+      "observed_route": "local_analytics",
+      "tool_groups": [
+        "core",
+        "live_fetch"
+      ],
+      "called_tools": [
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 2,
+      "max_rounds": 5,
+      "schemas_sent": 5
+    },
+    {
+      "id": "livegrounding_03",
+      "predicted_route": "live_fetch",
+      "observed_route": "live_fetch",
+      "tool_groups": [
+        "core",
+        "live_fetch",
+        "web"
+      ],
+      "called_tools": [
+        "lakehouse_query",
+        "refresh_tuik_series"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 3,
+      "max_rounds": 6,
+      "schemas_sent": 7
+    },
+    {
+      "id": "livegrounding_04",
+      "predicted_route": "live_fetch",
+      "observed_route": "live_fetch",
+      "tool_groups": [
+        "core",
+        "live_fetch",
+        "web"
+      ],
+      "called_tools": [
+        "refresh_tuik_series"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 6,
+      "schemas_sent": 7
+    },
+    {
+      "id": "livegrounding_05",
+      "predicted_route": "live_fetch",
+      "observed_route": "live_fetch",
+      "tool_groups": [
+        "core",
+        "live_fetch",
+        "analysis"
+      ],
+      "called_tools": [
+        "fetch_bist_stock",
+        "lakehouse_query"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 2,
+      "max_rounds": 9,
+      "schemas_sent": 10
+    },
+    {
+      "id": "livegrounding_06",
+      "predicted_route": "imports",
+      "observed_route": "imports",
+      "tool_groups": [
+        "core",
+        "imports"
+      ],
+      "called_tools": [
+        "query_imported_dataset"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 5
+    },
+    {
+      "id": "tuikdiscovery_01",
+      "predicted_route": "live_fetch",
+      "observed_route": "live_fetch",
+      "tool_groups": [
+        "core",
+        "live_fetch",
+        "imports"
+      ],
+      "called_tools": [
+        "search_tuik_dataflows"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 6,
+      "schemas_sent": 8
+    },
+    {
+      "id": "tuikdiscovery_02",
+      "predicted_route": "live_fetch",
+      "observed_route": "live_fetch",
+      "tool_groups": [
+        "core",
+        "live_fetch"
+      ],
+      "called_tools": [
+        "search_tuik_dataflows"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 3,
+      "max_rounds": 5,
+      "schemas_sent": 5
+    },
+    {
+      "id": "tuikdiscovery_03",
+      "predicted_route": "live_fetch",
+      "observed_route": "live_fetch",
+      "tool_groups": [
+        "core",
+        "live_fetch"
+      ],
+      "called_tools": [
+        "search_tuik_dataflows"
+      ],
+      "missing_tools": [],
+      "refused": false,
+      "injection_suspected": false,
+      "rounds_used": 1,
+      "max_rounds": 5,
+      "schemas_sent": 5
+    }
+  ]
+}
