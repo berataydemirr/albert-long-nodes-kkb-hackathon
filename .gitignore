@@ -20,10 +20,13 @@ data/uploads/
 CONTRIBUTING.md
 archive/
 
-# Private real-world test Excel/PDF files the user drops in for adversarial
-# benchmarking - never committed, never named in README or commit messages.
-# The report is ignored too - it quotes real numbers/answers derived from
-# those private files, so it is exactly as sensitive as the files themselves.
-test_excels/
+# test_excels/ used to be private-by-default here; the 5 real public TCMB
+# EVDS files it now holds (see test_excels/README.md) are deliberately
+# tracked and no longer ignored - they are real, public TCMB statistical
+# exports, not personal/proprietary data. A NEW file dropped in here that
+# should stay private (an actual personal/unverified upload) needs its own
+# explicit ignore line below, same as EVDS_16-09-2026.xlsx did.
 EVDS_16-09-2026.xlsx
-benchmarks/adversarial_excel_benchmark_report.json
+
+# Local-only mentor notes - copy/paste reference, never committed/pushed/shared
+MENTOR_NOTLARI_teknik_mimari_ozet.md
