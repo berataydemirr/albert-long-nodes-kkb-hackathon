@@ -406,7 +406,44 @@ def _timing_summary(timeline: list[dict], total_ms: float, compaction_log: list[
     }
 
 
-def ask(question: str, max_rounds: int = 8, return_trace: bool = False, return_timing: bool = False):
+# Cross-turn memory is deliberately tiny. Full-fidelity multi-turn history
+# would re-pay every past tool result on every new question - the exact
+# quadratic-growth problem context_compactor.py exists to fight, except
+# starting a step earlier. So only the (question, final answer) pair of
+# each past turn survives, never its tool trace, and only the last few
+# turns at that - old enough turns are worth losing more than they're
+# worth paying to keep. This is "recent-topic memory", not a transcript.
+HISTORY_MAX_TURNS = 4
+HISTORY_QUESTION_MAX_CHARS = 300
+HISTORY_ANSWER_MAX_CHARS = 500
+
+
+def _history_messages(history: list[dict] | None) -> list[dict]:
+    """Turn compacted prior turns into user/assistant messages placed
+    ahead of the current question. Truncates defensively even though the
+    API layer already caps sizes - this function must stay safe to call
+    with any list of dicts, not just ones that went through that layer."""
+    if not history:
+        return []
+    messages: list[dict] = []
+    for turn in history[-HISTORY_MAX_TURNS:]:
+        question = str(turn.get("question") or "").strip()
+        answer = str(turn.get("answer") or "").strip()
+        if not question or not answer:
+            continue
+        if len(question) > HISTORY_QUESTION_MAX_CHARS:
+            question = question[:HISTORY_QUESTION_MAX_CHARS] + "…"
+        if len(answer) > HISTORY_ANSWER_MAX_CHARS:
+            answer = answer[:HISTORY_ANSWER_MAX_CHARS] + "… [önceki yanıt kısaltıldı]"
+        messages.append({"role": "user", "content": question})
+        messages.append({"role": "assistant", "content": answer})
+    if messages:
+        logger.info(f"_history_messages: carried {len(messages) // 2} prior turn(s) into context")
+    return messages
+
+
+def ask(question: str, history: list[dict] | None = None, max_rounds: int = 8,
+        return_trace: bool = False, return_timing: bool = False):
     """return_trace=True also returns the round-by-round tool-call trace
     (name + arguments + whether it raised) - used by benchmarks/
     agent_benchmark.py to score tool-selection accuracy and hallucinated
@@ -418,7 +455,15 @@ def ask(question: str, max_rounds: int = 8, return_trace: bool = False, return_t
     ask() began) and a duration, so the UI can draw a real gantt-style
     timeline instead of guessing where the wall time went. Durations use
     time.monotonic() so a clock adjustment mid-run cannot produce negative
-    spans."""
+    spans.
+
+    history=[{"question": ..., "answer": ...}, ...] is prior turns of the
+    SAME chat session, oldest first - the caller (web_app's /api/ask) is
+    stateless per request, so the browser tab resends its own transcript
+    each time rather than the server holding session state. Turned into
+    plain user/assistant messages ahead of the current question via
+    _history_messages(), which is where the actual truncation/cap lives -
+    see that function for why this has to stay small on purpose."""
     logger.info(f"ask: question={question!r}, max_rounds={max_rounds}")
     run_t0 = time.monotonic()
     timeline: list[dict] = []
@@ -464,7 +509,9 @@ def ask(question: str, max_rounds: int = 8, return_trace: bool = False, return_t
         if schema["function"]["name"] in allowed_names
     ]
     client = get_client()
-    messages = [{"role": "system", "content": _system_prompt()}, {"role": "user", "content": question}]
+    messages = [{"role": "system", "content": _system_prompt()}]
+    messages.extend(_history_messages(history))
+    messages.append({"role": "user", "content": question})
 
     for round_no in range(1, max_rounds + 1):
         # Compaction runs BEFORE the call, so an oversized history is shrunk

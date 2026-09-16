@@ -1015,9 +1015,32 @@ class Component extends DCLogic {
     }), this.scrollEnd);
   }
 
+  // Only (question, final answer) pairs from real /api/ask turns count as
+  // memory - a dataset-upload notice or a failed/demo-preview turn has no
+  // `answerText` and is skipped, so it can never get replayed back to the
+  // model as if it were a prior Q&A. Capped and truncated again on the
+  // server (see orchestrator._history_messages); this is just what the
+  // tab itself remembers of its own conversation, kept short on purpose.
+  historyForRequest() {
+    const HISTORY_MAX_TURNS = 4, ANSWER_MAX_CHARS = 500;
+    const messages = this.state.messages;
+    const turns = [];
+    for (let i = 0; i < messages.length - 1; i++) {
+      const m = messages[i], next = messages[i + 1];
+      if (m.role === 'user' && next.role === 'assistant' && next.answerText) {
+        const answer = next.answerText.length > ANSWER_MAX_CHARS
+          ? next.answerText.slice(0, ANSWER_MAX_CHARS) + '…'
+          : next.answerText;
+        turns.push({ question: m.text, answer });
+      }
+    }
+    return turns.slice(-HISTORY_MAX_TURNS);
+  }
+
   send = (override) => {
     const text = (override !== undefined ? override : this.state.input).trim();
     if (!text || this.state.thinking) return;
+    const history = this.historyForRequest();
     this.setState(s => ({
       messages: [...s.messages, { id: s.nextId, role: 'user', text }],
       input: '', thinking: true, elapsed: 0, nextId: s.nextId + 1
@@ -1026,7 +1049,7 @@ class Component extends DCLogic {
 
     fetch('/api/ask', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question: text })
+      body: JSON.stringify({ question: text, history })
     })
       .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail || 'İstek başarısız oldu.'); return d; })
       .then(data => {
@@ -1036,6 +1059,10 @@ class Component extends DCLogic {
           // Charts sit after the prose, inside the same answer block - the
           // reader gets the conclusion in words first, then the shape.
           blocks: [...mdToBlocks(data.answer), ...chartsToBlocks(data.charts)],
+          // Raw markdown, kept alongside the rendered blocks so the NEXT
+          // request's historyForRequest() has actual prose to resend -
+          // blocks are React-ish render nodes, not text.
+          answerText: data.answer || '',
           trace: (data.trace || []).map(tc => ({
             name: tc.name, round: tc.round, durationMs: tc.duration_ms || 0,
             args: prettyJson(tc.arguments),
