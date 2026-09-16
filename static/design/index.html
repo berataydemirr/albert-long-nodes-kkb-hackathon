@@ -175,14 +175,63 @@ textarea:focus-visible { outline: none; }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
-@keyframes orb-breathe { 0%,100% { transform: scale(.86); opacity: .85 } 50% { transform: scale(1.12); opacity: 1 } }
-@keyframes orb-ring { 0% { transform: scale(.6); opacity: .5 } 100% { transform: scale(2.4); opacity: 0 } }
 @keyframes shimmer { 0% { background-position: 120% 0 } 100% { background-position: -40% 0 } }
 @keyframes stage-in { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
 @keyframes msg-in { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
 @keyframes caret { 0%,100% { opacity: 1 } 50% { opacity: .15 } }
 @keyframes sweep { 0% { transform: translateX(-100%) } 100% { transform: translateX(220%) } }
-@keyframes spin { to { transform: rotate(360deg) } }
+/* Premium dots marker: 8 dots placed around a circle with `translate`
+   (kept separate from `scale` - two independent CSS transform properties -
+   so positioning and pulsing never fight over one `transform`). Each dot
+   scales up/opaques and back down on its own clock, offset by a negative
+   delay per dot, so the pulse visibly travels around the ring rather than
+   every dot breathing in unison. No rotation anywhere. --orb-size drives
+   every measurement so one component serves the 20px per-message marker,
+   the 20px thinking mark and the larger hero use. */
+@keyframes dot-pulse { 0%, 100% { scale: .45; opacity: .3 } 50% { scale: 1; opacity: 1 } }
+@keyframes dots-glow-breathe { 0%,100% { opacity: .3; scale: .94 } 50% { opacity: .6; scale: 1.06 } }
+.premium-dots { --orb-size: 20px; position: relative; width: var(--orb-size); height: var(--orb-size); flex: none; }
+.premium-dots .dots-glow {
+  position: absolute; inset: calc(var(--orb-size) * -0.55); border-radius: 50%;
+  background: radial-gradient(circle, rgba(var(--accent2-rgb),.4), rgba(var(--accent-rgb),.14) 50%, transparent 74%);
+  filter: blur(calc(var(--orb-size) * .28)); opacity: .3; pointer-events: none;
+}
+.premium-dots.is-live .dots-glow { animation: dots-glow-breathe 2.4s ease-in-out infinite; }
+.premium-dots .dot {
+  position: absolute; top: 50%; left: 50%;
+  width: calc(var(--orb-size) * .17); height: calc(var(--orb-size) * .17);
+  margin: calc(var(--orb-size) * -.085) 0 0 calc(var(--orb-size) * -.085);
+  border-radius: 50%; background: var(--accent); scale: .8; opacity: .55;
+  box-shadow: 0 0 calc(var(--orb-size) * .18) rgba(var(--accent-rgb),.6);
+}
+.premium-dots.is-live .dot { animation: dot-pulse 1.3s ease-in-out infinite; }
+.premium-dots .dot:nth-child(2) { translate: calc(var(--orb-size) * .36) 0; }
+.premium-dots .dot:nth-child(3) { translate: calc(var(--orb-size) * .255) calc(var(--orb-size) * .255); background: var(--accent-2); }
+.premium-dots .dot:nth-child(4) { translate: 0 calc(var(--orb-size) * .36); }
+.premium-dots .dot:nth-child(5) { translate: calc(var(--orb-size) * -.255) calc(var(--orb-size) * .255); }
+.premium-dots .dot:nth-child(6) { translate: calc(var(--orb-size) * -.36) 0; background: var(--accent-2); }
+.premium-dots .dot:nth-child(7) { translate: calc(var(--orb-size) * -.255) calc(var(--orb-size) * -.255); }
+.premium-dots .dot:nth-child(8) { translate: 0 calc(var(--orb-size) * -.36); }
+.premium-dots .dot:nth-child(9) { translate: calc(var(--orb-size) * .255) calc(var(--orb-size) * -.255); background: var(--accent-2); }
+.premium-dots.is-live .dot:nth-child(2) { animation-delay: -1.1375s; }
+.premium-dots.is-live .dot:nth-child(3) { animation-delay: -.975s; }
+.premium-dots.is-live .dot:nth-child(4) { animation-delay: -.8125s; }
+.premium-dots.is-live .dot:nth-child(5) { animation-delay: -.65s; }
+.premium-dots.is-live .dot:nth-child(6) { animation-delay: -.4875s; }
+.premium-dots.is-live .dot:nth-child(7) { animation-delay: -.325s; }
+.premium-dots.is-live .dot:nth-child(8) { animation-delay: -.1625s; }
+.premium-dots.is-live .dot:nth-child(9) { animation-delay: 0s; }
+/* Premium stage spinner: a two-tone conic ring (instead of a flat border
+   spinner) so an active tool call reads as "charged" rather than a plain
+   loading circle. */
+.premium-spinner {
+  width: 14px; height: 14px; flex: none; border-radius: 50%;
+  background: conic-gradient(from 0deg, var(--accent) 0%, var(--accent-2) 35%, transparent 70%, transparent 100%);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+  animation: spinner-spin .85s linear infinite;
+  filter: drop-shadow(0 0 4px rgba(var(--accent-rgb),.55));
+}
 </style>
 </helmet>
 <div style="min-height:100vh; display:flex; flex-direction:column; background:radial-gradient(1100px 520px at 50% -220px, var(--bg-grad), var(--bg) 70%); color:var(--ink); font-family:'Sora',system-ui,sans-serif; font-weight:400; letter-spacing:-.005em;">
@@ -208,6 +257,7 @@ textarea:focus-visible { outline: none; }
 
       <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ true }}">
         <div style="margin:auto 0; padding:40px 0 24px; animation:msg-in .5s ease both;">
+          <span class="premium-dots is-live" style="--orb-size:56px; display:block; margin-bottom:22px;"><i class="dots-glow"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i></span>
           <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); margin-bottom:12px;">BDDK · EVDS · TUIK</div>
           <h1 style="margin:0 0 10px; font-size:34px; font-weight:500; letter-spacing:-.035em; line-height:1.12; color:var(--ink);">Lakehouse'a ne sormak istersin?</h1>
           <p style="margin:0 0 26px; font-size:15px; line-height:1.6; color:var(--muted); max-width:52ch;">Model planı kurar, araçları Python çalıştırır. Her yanıtın altında çağrılan aracı, süresini ve dönen veriyi açabilirsin.</p>
@@ -230,7 +280,7 @@ textarea:focus-visible { outline: none; }
         <sc-if value="{{ m.isAssistant }}" hint-placeholder-val="{{ false }}">
           <div style="align-self:stretch; animation:msg-in .45s cubic-bezier(.22,1,.36,1) both;">
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
-              <span style="width:20px; height:20px; border-radius:50%; background:radial-gradient(circle at 34% 30%, var(--accent-2), var(--accent) 58%, var(--accent-deep));"></span>
+              <span class="premium-dots" style="--orb-size:20px;"><i class="dots-glow"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i></span>
               <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted);">{{ m.routeName }}</span>
               <span style="width:3px; height:3px; border-radius:50%; background:var(--separator);"></span>
               <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--dim);">{{ m.totalLabel }}</span>
@@ -257,9 +307,7 @@ textarea:focus-visible { outline: none; }
       <sc-if value="{{ thinking }}" hint-placeholder-val="{{ false }}">
         <div style="align-self:stretch; animation:msg-in .4s ease both;">
           <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-            <span style="position:relative; width:20px; height:20px; flex:none; border-radius:50%; background:radial-gradient(circle at 34% 30%, var(--accent-2), var(--accent) 58%, var(--accent-deep)); animation:orb-breathe 1.9s ease-in-out infinite;">
-              <i style="position:absolute; inset:-5px; border-radius:50%; border:1px solid rgba(var(--accent-rgb),.55); animation:orb-ring 1.9s ease-out infinite;"></i>
-            </span>
+            <span class="premium-dots is-live" style="--orb-size:20px;"><i class="dots-glow"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i></span>
             <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--dim);">{{ elapsedLabel }}</span>
           </div>
           <div style="padding-left:30px; display:flex; flex-direction:column; gap:9px;">
@@ -273,7 +321,7 @@ textarea:focus-visible { outline: none; }
                   <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:var(--faintest);">{{ st.time }}</span>
                 </sc-if>
                 <sc-if value="{{ st.active }}" hint-placeholder-val="{{ false }}">
-                  <span style="width:14px; height:14px; flex:none; border-radius:50%; border:1.5px solid rgba(var(--accent2-rgb),.38); border-top-color:var(--accent); animation:spin .9s linear infinite;"></span>
+                  <span class="premium-spinner"></span>
                   <span style="font-size:14px; font-weight:400; background:linear-gradient(100deg, var(--muted) 20%, var(--accent-2) 38%, var(--accent) 50%, var(--muted) 68%); background-size:250% 100%; -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; animation:shimmer 2.1s linear infinite;">{{ st.label }}</span>
                 </sc-if>
               </div>
@@ -288,7 +336,14 @@ textarea:focus-visible { outline: none; }
     <div style="padding:10px 0 26px; position:sticky; bottom:0; background:linear-gradient(to top, var(--bg) 42%, transparent); flex:none;">
       <div style="display:flex; align-items:flex-end; gap:10px; background:var(--surface); border:1px solid {{ composerBorder }}; border-radius:16px; padding:10px 10px 10px 10px; transition:border-color .25s ease, box-shadow .25s ease; box-shadow:{{ composerShadow }};">
         <input ref="{{ fileInputRef }}" type="file" accept=".csv,.xlsx,.xls,.pdf" onChange="{{ onFileSelected }}" style="display:none;" />
-        <button onClick="{{ triggerUpload }}" disabled="{{ uploading }}" aria-label="CSV, Excel veya PDF dosyası yükle" title="CSV, Excel veya PDF dosyası yükle" style="flex:none; width:38px; height:38px; border-radius:11px; background:none; border:1px solid rgba(var(--accent-rgb),.16); color:var(--muted); cursor:{{ uploadCursor }}; font-size:17px; display:flex; align-items:center; justify-content:center; transition:all .18s ease;" style-hover="color:var(--ink); border-color:rgba(var(--accent-rgb),.32);">{{ uploadLabel }}</button>
+        <button onClick="{{ triggerUpload }}" disabled="{{ uploading }}" aria-label="CSV, Excel veya PDF dosyası yükle" title="CSV, Excel veya PDF dosyası yükle" style="flex:none; width:38px; height:38px; border-radius:11px; background:none; border:1px solid rgba(var(--accent-rgb),.16); color:var(--muted); cursor:{{ uploadCursor }}; font-size:17px; display:flex; align-items:center; justify-content:center; transition:all .18s ease;" style-hover="color:var(--ink); border-color:rgba(var(--accent-rgb),.32);">
+          <sc-if value="{{ uploading }}" hint-placeholder-val="{{ false }}">
+            <span class="premium-spinner"></span>
+          </sc-if>
+          <sc-if value="{{ uploadIdle }}" hint-placeholder-val="{{ true }}">
+            <span>{{ uploadLabel }}</span>
+          </sc-if>
+        </button>
         <textarea rows="1" placeholder="Seriler, anomaliler veya güncel oranlar hakkında sor…" value="{{ input }}" onChange="{{ setInput }}" onKeyDown="{{ handleKeyDown }}" onFocus="{{ onFocus }}" onBlur="{{ onBlur }}" style="flex:1; background:none; border:0; outline:none; resize:none; color:var(--ink); font-size:15px; font-weight:400; line-height:1.6; min-height:26px; max-height:180px; padding:6px 6px;"></textarea>
         <button onClick="{{ send }}" disabled="{{ sendDisabled }}" style="flex:none; width:38px; height:38px; border-radius:11px; border:0; background:{{ sendBg }}; color:var(--on-accent); font-size:16px; cursor:{{ sendCursor }}; display:flex; align-items:center; justify-content:center; transition:all .2s ease;" style-hover="filter:brightness(1.08);">↑</button>
       </div>
@@ -1091,7 +1146,8 @@ class Component extends DCLogic {
       triggerUpload: this.triggerUpload,
       onFileSelected: this.onFileSelected,
       uploading: s.uploading,
-      uploadLabel: s.uploading ? '…' : '+',
+      uploadIdle: !s.uploading,
+      uploadLabel: '+',
       uploadCursor: s.uploading ? 'default' : 'pointer',
       isEmpty: s.messages.length === 0 && !s.thinking,
       examples: EXAMPLES.map(ex => ({ label: ex.label, tag: ex.tag, use: () => this.send(ex.label) })),
