@@ -52,7 +52,7 @@ def test_tool_registry_endpoint_includes_c4_and_c6():
 
 
 def test_ask_endpoint_returns_agent_answer(monkeypatch):
-    monkeypatch.setattr(web_app, "ask", lambda question, return_trace, return_timing: (
+    monkeypatch.setattr(web_app, "ask", lambda question, history, return_trace, return_timing: (
         f"yanıt: {question}",
         [{"round": 1, "name": "web_search", "arguments": '{"query":"faiz"}', "error": None,
           "output_preview": "{}", "start_ms": 12.0, "duration_ms": 340.0}],
@@ -78,6 +78,30 @@ def test_ask_endpoint_returns_agent_answer(monkeypatch):
     assert body["trace"][0]["duration_ms"] == 340.0
     assert body["timing"]["summary"]["total_ms"] == 360.0
     assert [e["kind"] for e in body["timing"]["timeline"]] == ["llm", "tool"]
+
+
+def test_ask_endpoint_forwards_history_to_the_orchestrator(monkeypatch):
+    """The browser tab resends its own (question, answer) transcript on
+    every call - the server itself holds no session state - so /api/ask
+    must pass whatever `history` it was given straight through to ask()."""
+    received = {}
+
+    def fake_ask(question, history, return_trace, return_timing):
+        received["history"] = history
+        return "ok", [], {"timeline": [], "summary": {
+            "total_ms": 0.0, "llm_ms": 0.0, "tool_ms": 0.0, "overhead_ms": 0.0,
+            "llm_calls": 0, "tool_calls": 0, "rounds": 0, "per_tool": [],
+        }}
+
+    monkeypatch.setattr(web_app, "ask", fake_ask)
+
+    response = TestClient(web_app.app).post("/api/ask", json={
+        "question": "peki ya geçen çeyrek?",
+        "history": [{"question": "konut kredisi faizi nedir?", "answer": "%42.5"}],
+    })
+
+    assert response.status_code == 200
+    assert received["history"] == [{"question": "konut kredisi faizi nedir?", "answer": "%42.5"}]
 
 
 def test_ask_endpoint_rejects_blank_questions():

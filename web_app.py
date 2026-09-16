@@ -74,8 +74,23 @@ async def demo_basic_auth(request: Request, call_next):
 app.mount("/lab", StaticFiles(directory="static/design", html=True), name="lab")
 
 
+class HistoryTurn(BaseModel):
+    """One prior (question, answer) pair from the SAME browser tab's chat.
+    The server holds no session state between requests - the client
+    resends its own transcript, and orchestrator.ask()/_history_messages
+    further truncates and caps it before it ever reaches the model. The
+    field-level max_length here is a request-size guard, not the memory
+    budget itself."""
+    question: str = Field(min_length=1, max_length=2_000)
+    answer: str = Field(min_length=1, max_length=8_000)
+
+
 class AskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2_000)
+    # Oldest first. Capped at list level too so a request can't smuggle in
+    # an unbounded transcript; orchestrator.ask() only ever looks at the
+    # last few entries anyway (see HISTORY_MAX_TURNS).
+    history: list[HistoryTurn] = Field(default_factory=list, max_length=12)
 
 
 @app.get("/")
@@ -220,9 +235,10 @@ def answer_question(request: AskRequest) -> dict:
     question = request.question.strip()
     if not question:
         raise HTTPException(status_code=422, detail="Soru boş olamaz.")
+    history = [turn.model_dump() for turn in request.history]
     try:
         decision = route_question(question, TOOL_SCHEMAS)
-        answer, trace, timing = ask(question, return_trace=True, return_timing=True)
+        answer, trace, timing = ask(question, history=history, return_trace=True, return_timing=True)
 
         charts = derive_charts(trace)
         # output_json carries the full tool result so charts can be built
