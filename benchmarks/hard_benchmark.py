@@ -35,6 +35,7 @@ rakaminda degil.
 """
 import argparse
 import json
+import math
 import re
 import statistics
 import sys
@@ -834,7 +835,17 @@ def _flatten_numbers(obj) -> set[float]:
         for v in obj:
             found |= _flatten_numbers(v)
     elif isinstance(obj, (int, float)) and not isinstance(obj, bool):
-        found.add(round(float(obj), 2))
+        # A crash found live: a tool result can legitimately contain a
+        # NaN (fetch_bist_stock, before its own fix - Yahoo Finance
+        # publishing a day's Volume before its price data settles) -
+        # round(nan) with no ndigits raises ValueError (float.__round__
+        # can't return an int for NaN), taking down the whole benchmark
+        # run partway through. A NaN is not a real returned number
+        # either way, so it is simply excluded here rather than crashing
+        # or being treated as grounding evidence for anything.
+        value = float(obj)
+        if not math.isnan(value) and not math.isinf(value):
+            found.add(round(value, 2))
     return found
 
 

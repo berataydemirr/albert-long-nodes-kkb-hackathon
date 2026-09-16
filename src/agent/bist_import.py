@@ -64,6 +64,22 @@ def fetch_bist_stock(ticker: str, period: str = "6mo") -> dict:
     for col in ("Open", "High", "Low", "Close"):
         df[col] = df[col].round(4)
 
+    # Found live: the most recent row can have a real Volume but NaN
+    # Open/High/Low/Close - Yahoo Finance publishing a trading day's
+    # volume before its price data has settled (a feed-lag artifact, not
+    # a real "zero price" day). Reported as last_close, this produced a
+    # bare NaN in the tool's JSON result - invalid JSON a browser's
+    # JSON.parse rejects, the same class of bug this project has fixed
+    # at the DB-serialization layer before, here one step upstream of
+    # it. A day with no real close is not a data point; dropped rather
+    # than kept with a fabricated or null price.
+    incomplete = df["Close"].isna()
+    if incomplete.any():
+        logger.warning(f"fetch_bist_stock: dropping {int(incomplete.sum())} row(s) with no Close yet (feed lag) for {yf_symbol!r}")
+        df = df[~incomplete].reset_index(drop=True)
+        if df.empty:
+            raise ValueError(f"No usable price data for '{bare}' yet - every row in this period is incomplete (feed lag). Try again shortly.")
+
     dataset_name = f"bist_{bare.lower()}"
     display_name = f"{yf_symbol} (Yahoo Finance, BIST)"
     imported_at = _write_dataset(dataset_name, display_name, df)

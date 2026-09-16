@@ -163,6 +163,30 @@ def test_flatten_numbers_ignores_booleans():
     assert _flatten_numbers({"guardrail_robustness": True, "hallucinations": False}) == set()
 
 
+def test_flatten_numbers_excludes_nan_without_crashing():
+    """Real crash found live: fetch_bist_stock (before its own fix) could
+    return a NaN last_close - round(nan) with no ndigits raises
+    ValueError deep in _numeric_grounding's derived-arithmetic loop,
+    taking down an entire benchmark run partway through. A NaN is not a
+    usable grounding value either way, so it is simply excluded."""
+    import math
+
+    flat = _flatten_numbers({"last_close": float("nan"), "row_count": 21})
+    assert not any(math.isnan(x) for x in flat)
+    assert 21.0 in flat
+
+
+def test_flatten_numbers_excludes_infinity():
+    flat = _flatten_numbers({"ratio": float("inf"), "value": 5.0})
+    assert flat == {5.0}
+
+
+def test_numeric_grounding_does_not_crash_on_a_nan_tool_result():
+    trace = [{"error": None, "output_json": {"last_close": float("nan"), "row_count": 21}}]
+    result = _numeric_grounding("21 satır bulundu.", trace)
+    assert result["checked"] == 0  # '21' has no decimal point, not checked at all - but must not crash
+
+
 def test_numeric_grounding_matches_a_real_reported_number():
     trace = [{"error": None, "output_json": {"pearson_correlation": 0.9682171866235223, "shared_periods": 66}}]
     result = _numeric_grounding("Korelasyon r = 0.97 olarak bulundu.", trace)
