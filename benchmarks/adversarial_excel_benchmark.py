@@ -18,15 +18,19 @@ ground truth. Each question below states its trap and its ground truth
 explicitly, both verified by hand against the real file before being
 written down here (see the commit that added this file for how).
 
-Question sets are keyed by filename stem, since each real file has its
-own quirks that only make sense against that file's actual schema - a
-file with no matching question set is still imported and schema-checked
-(so nothing in test_excels/ is silently skipped), just without the
-hand-crafted traps.
+Question sets are keyed by a signature of the file's own column names
+(see _column_signature), NOT by filename - a real file's name (and this
+matters: it can itself be private, e.g. carry a date or an internal
+label) never appears anywhere in this committed script, only the shape
+of its columns does. This also means a question set survives the same
+file being re-sent under a different filename later, which a filename
+key would not. A file whose columns match no known signature is still
+imported and schema-checked (so nothing in test_excels/ is silently
+skipped), just without the hand-crafted traps.
 
 Run with:
     python -m benchmarks.adversarial_excel_benchmark
-    python -m benchmarks.adversarial_excel_benchmark --file EVDS_16-09-2026
+    python -m benchmarks.adversarial_excel_benchmark --file <stem>
 """
 import argparse
 import json
@@ -59,7 +63,7 @@ REPORT_PATH = Path(__file__).parent / "adversarial_excel_benchmark_report.json"
 #                 "review" is a legitimate, expected outcome, not a bug in
 #                 the check).
 
-EVDS_16_09_2026_QUESTIONS = [
+_TCMB_REGIONAL_HOUSING_INDEX_QUESTIONS = [
     {
         "id": "ibbs_region_name_trap",
         "trap": (
@@ -159,8 +163,23 @@ EVDS_16_09_2026_QUESTIONS = [
     },
 ]
 
+def _column_signature(columns: list[str]) -> str:
+    """A stable, content-derived key for a file's schema - sorted,
+    lowercased column names, hashed. Two files with the same real columns
+    get the same signature regardless of filename; the same file sent
+    again under a different name still matches."""
+    import hashlib
+
+    normalized = ",".join(sorted(str(c).strip().lower() for c in columns))
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
+
+# Signature computed once, by hand, from the real header of the regional
+# TCMB housing-index export this question set targets (Tarih +
+# TP_ALTINPIYASA_KAP02 + TP_KFE_TR + 19 TP_KFE_TRxx regional columns, 22
+# total) - recompute with _column_signature(list(df.columns)) against any
+# new file to add its own entry here.
 QUESTION_SETS = {
-    "EVDS_16-09-2026": EVDS_16_09_2026_QUESTIONS,
+    "3992b775aab80df5": _TCMB_REGIONAL_HOUSING_INDEX_QUESTIONS,
 }
 
 _MISSING_DATA_RE = re.compile(
@@ -208,9 +227,14 @@ def run_file(path: Path) -> dict:
     schema = detect_schema(path)
     dataset_name = _import_file(path)
 
-    questions = QUESTION_SETS.get(path.stem, [])
+    signature = _column_signature([c["column"] for c in schema["columns"]])
+    questions = QUESTION_SETS.get(signature, [])
     if not questions:
-        logger.warning(f"run_file: no hand-crafted question set for '{path.stem}' - imported and schema-checked only.")
+        logger.warning(
+            f"run_file: no hand-crafted question set for column-signature {signature!r} "
+            f"(file: {path.name}) - imported and schema-checked only. Add an entry to "
+            f"QUESTION_SETS keyed by this signature to give it its own trap questions."
+        )
 
     results = []
     for item in questions:
@@ -236,7 +260,7 @@ def run_file(path: Path) -> dict:
 
 def main():
     parser = argparse.ArgumentParser(description="Adversarial benchmark against private real Excel/CSV/PDF files in test_excels/")
-    parser.add_argument("--file", help="Only run this file's stem (e.g. 'EVDS_16-09-2026')")
+    parser.add_argument("--file", help="Only run the file in test_excels/ with this stem (filename without extension)")
     args = parser.parse_args()
 
     if not TEST_EXCELS_DIR.exists():
