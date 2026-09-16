@@ -284,7 +284,17 @@ textarea:focus-visible { outline: none; }
       </aside>
     </sc-if>
 
-    <div style="flex:1; display:flex; flex-direction:column; width:100%; max-width:840px; margin:0 auto; padding:0 20px; min-height:0;">
+    <div onDragEnter="{{ onDragEnter }}" onDragOver="{{ onDragOver }}" onDragLeave="{{ onDragLeave }}" onDrop="{{ onDropFile }}" style="position:relative; flex:1; display:flex; flex-direction:column; width:100%; max-width:840px; margin:0 auto; padding:0 20px; min-height:0;">
+
+      <sc-if value="{{ isDragOver }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute; inset:6px; z-index:5; display:flex; align-items:center; justify-content:center; background:rgba(var(--accent-rgb),.06); border:2px dashed rgba(var(--accent-rgb),.45); border-radius:16px; pointer-events:none; animation:msg-in .2s ease both;">
+          <div style="text-align:center;">
+            <div style="font-size:28px; margin-bottom:8px;">⭳</div>
+            <div style="font-size:14px; font-weight:500; color:var(--ink);">Dosyayı buraya bırak</div>
+            <div style="font-size:11.5px; color:var(--muted); margin-top:4px;">CSV, Excel (.xlsx/.xls) veya PDF</div>
+          </div>
+        </div>
+      </sc-if>
 
     <div style="flex:1; overflow-y:auto; padding:34px 0 8px; display:flex; flex-direction:column; gap:26px; min-height:0;">
 
@@ -293,12 +303,12 @@ textarea:focus-visible { outline: none; }
           <span class="premium-dots is-live" style="--orb-size:56px; display:block; margin:0 0 22px 32px;"><i class="dots-glow"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i></span>
           <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); margin-bottom:12px;">BDDK · EVDS · TUIK</div>
           <h1 style="margin:0 0 10px; font-size:34px; font-weight:500; letter-spacing:-.035em; line-height:1.12; color:var(--ink);">Lakehouse'a ne sormak istersin?</h1>
-          <p style="margin:0 0 26px; font-size:15px; line-height:1.6; color:var(--muted); max-width:52ch;">Plan kurar, gerçek araçları çalıştırır — uydurma değil, sorgulanmış gerçek veri. Her yanıtın altında hangi aracın çağrıldığını, ne kadar sürdüğünü ve neyi döndürdüğünü görebilirsin.</p>
+          <p style="margin:0 0 26px; font-size:15px; line-height:1.6; color:var(--muted); max-width:52ch;">Planlayıp gerçek araçları çalıştırır, her adımını sana açık şekilde gösterir.</p>
 
           <div style="display:flex; flex-wrap:wrap; gap:8px;">
             <sc-for list="{{ examples }}" as="ex" hint-placeholder-count="12">
               <button onClick="{{ ex.use }}" style="display:flex; align-items:center; gap:10px; text-align:left; background:var(--surface); border:1px solid rgba(var(--accent-rgb),.15); color:var(--text-2); border-radius:10px; padding:10px 14px 10px 11px; font-size:13px; line-height:1.4; max-width:100%; cursor:pointer; box-shadow:0 1px 2px rgba(var(--shadow-rgb),.05); transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease, color .2s ease;" style-hover="border-color:rgba(var(--accent-rgb),.34); color:var(--ink); transform:translateY(-1px); box-shadow:0 4px 12px rgba(var(--shadow-rgb),.09);">
-                <span style="font-family:'Space Mono',monospace; font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); background:var(--bg-grad); border-radius:4px; padding:3px 6px; flex:none;">{{ ex.tag }}</span>
+                <span style="font-family:'Space Mono',monospace; font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:{{ ex.tagFg }}; background:{{ ex.tagBg }}; border-radius:4px; padding:3px 6px; flex:none;">{{ ex.tag }}</span>
                 <span>{{ ex.label }}</span>
               </button>
             </sc-for>
@@ -462,6 +472,7 @@ textarea:focus-visible { outline: none; }
                 </div>
                 <sc-if value="{{ tc.open }}" hint-placeholder-val="{{ false }}">
                   <div style="padding:14px 15px 15px; border-top:1px solid rgba(var(--accent-rgb),.11); display:flex; flex-direction:column; gap:12px; animation:stage-in .3s ease both;">
+                    {{ tc.sqlSection }}
                     <div>
                       <div style="font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); margin-bottom:6px;">arguments</div>
                       <pre style="margin:0; font-family:'Space Mono',monospace; font-size:11.5px; line-height:1.6; color:var(--text-2); background:var(--surface-3); border:1px solid rgba(var(--accent-rgb),.11); border-radius:9px; padding:11px; max-height:200px; overflow:auto; white-space:pre-wrap; word-break:break-word;">{{ tc.args }}</pre>
@@ -583,23 +594,31 @@ const TAG_BY_NAME = {
 
 // The tag names match TAG_BY_NAME above, so the label on a suggestion and
 // the label on the tool it ends up calling read as the same vocabulary.
-// One example per tool family (Data/Analysis x5/Regional/Market/TUIK/Web
-// x2/chain) so the chip row itself demonstrates the full tool registry,
-// not just the two or three tools that happen to demo well.
+// One example per tool family (Data/Analysis/Regional/Market/TUIK/Web) -
+// kept to exactly one each so the starter row stays scannable rather than
+// a long wall of near-duplicate questions.
 const EXAMPLES = [
-  { tag: 'Data',     label: "Lakehouse'daki tabloları ve mevcut serileri listele." },
-  { tag: 'Analysis', label: 'Konut kredisi faiz oranı serisindeki aykırı dönemleri bul ve açıkla.' },
-  { tag: 'Analysis', label: 'Konut kredisi faiz oranındaki en büyük değişimleri bul ve yorumla.' },
-  { tag: 'Analysis', label: 'Konut kredisi faiz oranı ile konut kredisi hacmi arasında nedensellik var mı?' },
-  { tag: 'Analysis', label: 'TÜFE ile M2 para arzı arasındaki korelasyonu hesapla.' },
-  { tag: 'Analysis', label: 'Faiz %40-50 arasındayken kredi hacmi nasıl değişiyor, dışındaki dönemlerle kıyasla.' },
+  { tag: 'Data',     label: "Lakehouse'daki tabloları ve serileri listele." },
+  { tag: 'Analysis', label: 'Konut kredisi faizindeki aykırı dönemleri bul.' },
   { tag: 'Regional', label: 'Kredi hacmine göre en yüksek 10 ili sırala.' },
-  { tag: 'Regional', label: 'Takipteki konut kredisi oranı en yüksek illeri geçen çeyreğe göre kıyasla.' },
-  { tag: 'Market',   label: "AKBNK hissesinin son 6 aylık fiyat geçmişini getir." },
-  { tag: 'TUIK',     label: "TUIK'in enflasyonla ilgili veri setlerini ara." },
-  { tag: 'Web',      label: "TCMB'nin güncel politika faizini web'de ara." },
-  { tag: 'Web',      label: "Güncel politika faizini web'de bul ve yerel konut kredisi serisiyle kıyasla." }
+  { tag: 'Market',   label: "AKBNK hissesinin son 6 aylık fiyatını getir." },
+  { tag: 'TUIK',     label: "TUIK'in enflasyon veri setlerini ara." },
+  { tag: 'Web',      label: "TCMB'nin güncel politika faizini web'de ara." }
 ];
+
+// Fixed categorical hue per tag - never cycled, never reused between tags -
+// so a chip's colour is an identity cue, not decoration. Kept as literal
+// hex (not theme tokens): six distinguishable hues don't exist in this
+// app's blue-monochrome token set, and a flat ~12% wash reads fine on both
+// a near-white and a near-black surface without a separate dark variant.
+const TAG_COLOR = {
+  Data:     { fg: '#1e4a8b', bg: 'rgba(30,74,139,.12)' },
+  Analysis: { fg: '#2f6d3c', bg: 'rgba(47,109,60,.12)' },
+  Regional: { fg: '#8a5a1f', bg: 'rgba(138,90,31,.12)' },
+  Market:   { fg: '#6a3d8f', bg: 'rgba(106,61,143,.12)' },
+  TUIK:     { fg: '#1f7a7a', bg: 'rgba(31,122,122,.12)' },
+  Web:      { fg: '#a13a2e', bg: 'rgba(161,58,46,.12)' }
+};
 
 // Progress narration. Each stage holds until the next one's `at` (ms) passes;
 // the last stage stays active until the response lands.
@@ -682,6 +701,34 @@ function prettyJson(raw) {
   if (raw == null) return '';
   if (typeof raw !== 'string') { try { return JSON.stringify(raw, null, 2); } catch { return String(raw); } }
   try { return JSON.stringify(JSON.parse(raw), null, 2); } catch { return raw; }
+}
+
+// The trace already shows every call's raw JSON arguments, but for
+// lakehouse_query that JSON is 90% one long SQL string - pulling it out
+// into its own highlighted block is what actually proves "this ran a real
+// query" at a glance, instead of the reader having to parse JSON escaping.
+function extractSql(name, rawArgs) {
+  if (name !== 'lakehouse_query' || !rawArgs) return null;
+  try {
+    const parsed = typeof rawArgs === 'string' ? JSON.parse(rawArgs) : rawArgs;
+    return typeof parsed.sql === 'string' && parsed.sql.trim() ? parsed.sql.trim() : null;
+  } catch (e) { return null; }
+}
+
+const SQL_KEYWORD_RE = /\b(SELECT|FROM|WHERE|GROUP BY|ORDER BY|LIMIT|OFFSET|JOIN|LEFT|RIGHT|INNER|OUTER|ON|AS|AND|OR|NOT|IN|BETWEEN|LIKE|IS|NULL|DESC|ASC|WITH|UNION|ALL|DISTINCT|HAVING|CASE|WHEN|THEN|ELSE|END|OVER|PARTITION BY)\b/gi;
+
+function highlightSql(sql) {
+  const el = React.createElement;
+  const parts = [];
+  let last = 0, m, key = 0;
+  SQL_KEYWORD_RE.lastIndex = 0;
+  while ((m = SQL_KEYWORD_RE.exec(sql)) !== null) {
+    if (m.index > last) parts.push(sql.slice(last, m.index));
+    parts.push(el('span', { key: key++, style: { color: 'var(--accent-hover)', fontWeight: 600 } }, m[0]));
+    last = m.index + m[0].length;
+  }
+  if (last < sql.length) parts.push(sql.slice(last));
+  return parts;
 }
 
 function inlineToNodes(text) {
@@ -813,7 +860,142 @@ const fmtNum = (v) => {
   return n.toLocaleString('tr-TR', { maximumFractionDigits: 2 });
 };
 
-function chartFrame(title, subtitle, unit, sourceNote, body, tableRows) {
+// Resolves a CSS custom property to the value the page currently has it
+// set to (so dark mode / the light-dark toggle "just work" for canvas
+// exports, which can't read var(--x) themselves).
+function themeColor(name) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || '#000';
+}
+
+function slugifyForFilename(s) {
+  return (String(s || 'grafik').toLowerCase()
+    .replace(/ç/g, 'c').replace(/ğ/g, 'g').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ş/g, 's').replace(/ü/g, 'u')
+    .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+    .slice(0, 60)) || 'grafik';
+}
+
+function triggerPngDownload(canvas, filename) {
+  const a = document.createElement('a');
+  a.href = canvas.toDataURL('image/png');
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+// Charts are exported by redrawing the same data on an offscreen canvas
+// (at 2x for crispness) rather than snapshotting the on-screen SVG/DOM -
+// that keeps the exporter self-contained (no library, no cross-origin
+// canvas taint) and lets the bar chart - which is plain HTML, not SVG -
+// export the same way as the line chart.
+function downloadLineChartPng(spec) {
+  const pts = spec.points || [];
+  if (pts.length < 2) return;
+  const scale = 2, W = 640, H = 240, PAD_L = 56, PAD_R = 20, PAD_T = 46, PAD_B = 34;
+  const canvas = document.createElement('canvas');
+  canvas.width = W * scale; canvas.height = H * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+
+  const bg = themeColor('--surface'), ink = themeColor('--ink'), muted = themeColor('--muted'),
+        accent = themeColor('--accent'), faint = themeColor('--faint'),
+        grid = `rgba(${themeColor('--accent-rgb')},.16)`;
+
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = ink; ctx.font = "600 13px Inter, system-ui, sans-serif";
+  ctx.fillText(spec.title || '', 16, 20);
+  const sub = [spec.subtitle, spec.unit ? `birim: ${spec.unit}` : null].filter(Boolean).join(' · ');
+  if (sub) { ctx.fillStyle = muted; ctx.font = "11px Inter, system-ui, sans-serif"; ctx.fillText(sub, 16, 36); }
+
+  const values = pts.map(p => Number(p.value));
+  let min = Math.min(...values), max = Math.max(...values);
+  if (min === max) { min -= 1; max += 1; }
+  const span = max - min; min -= span * 0.08; max += span * 0.08;
+  const x = i => PAD_L + (i / (pts.length - 1)) * (W - PAD_L - PAD_R);
+  const y = v => PAD_T + (1 - (v - min) / (max - min)) * (H - PAD_T - PAD_B);
+
+  ctx.strokeStyle = grid; ctx.lineWidth = 1; ctx.font = "10px Inter, system-ui, sans-serif";
+  niceTicks(min, max, 4).forEach(t => {
+    const ty = y(t);
+    ctx.beginPath(); ctx.moveTo(PAD_L, ty); ctx.lineTo(W - PAD_R, ty); ctx.stroke();
+    ctx.fillStyle = muted; ctx.textAlign = 'right'; ctx.fillText(fmtNum(t), PAD_L - 8, ty + 3.5);
+  });
+
+  ctx.beginPath();
+  pts.forEach((p, i) => { const px = x(i), py = y(p.value); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
+  ctx.strokeStyle = accent; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke();
+
+  const last = pts[pts.length - 1];
+  ctx.fillStyle = accent;
+  ctx.beginPath(); ctx.arc(x(pts.length - 1), y(last.value), 3.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = ink; ctx.font = "600 11px Inter, system-ui, sans-serif"; ctx.textAlign = 'right';
+  ctx.fillText(fmtNum(last.value), Math.min(x(pts.length - 1) + 6, W - PAD_R), y(last.value) - 8);
+
+  const step = Math.max(1, Math.floor(pts.length / 5));
+  ctx.font = "10px Inter, system-ui, sans-serif"; ctx.fillStyle = muted;
+  pts.forEach((p, i) => {
+    if (i % step !== 0 && i !== pts.length - 1) return;
+    ctx.textAlign = i === 0 ? 'left' : (i === pts.length - 1 ? 'right' : 'center');
+    ctx.fillText(p.label, x(i), H - PAD_B + 16);
+  });
+
+  if (spec.source_note) {
+    ctx.fillStyle = faint; ctx.font = "10px Inter, system-ui, sans-serif"; ctx.textAlign = 'left';
+    ctx.fillText(`Kaynak: ${spec.source_note}`, 16, H - 8);
+  }
+
+  triggerPngDownload(canvas, `${slugifyForFilename(spec.title)}.png`);
+}
+
+function downloadBarChartPng(spec) {
+  const bars = spec.bars || [];
+  if (!bars.length) return;
+  const scale = 2, rowH = 26, PAD_T = 46, PAD_B = 30, PAD_X = 16, LABEL_W = 130, VALUE_W = 100;
+  const W = 640, H = PAD_T + bars.length * rowH + PAD_B;
+  const canvas = document.createElement('canvas');
+  canvas.width = W * scale; canvas.height = H * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+
+  const bg = themeColor('--surface'), ink = themeColor('--ink'), muted = themeColor('--muted'),
+        accent = themeColor('--accent'), faint = themeColor('--faint'),
+        track = `rgba(${themeColor('--accent-rgb')},.08)`;
+
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = ink; ctx.font = "600 13px Inter, system-ui, sans-serif";
+  ctx.fillText(spec.title || '', 16, 20);
+  const sub = [spec.subtitle, spec.unit ? `birim: ${spec.unit}` : null].filter(Boolean).join(' · ');
+  if (sub) { ctx.fillStyle = muted; ctx.font = "11px Inter, system-ui, sans-serif"; ctx.fillText(sub, 16, 36); }
+
+  const max = Math.max(...bars.map(b => Math.abs(Number(b.value))), 1);
+  const barX = PAD_X + LABEL_W, barW = W - PAD_X - LABEL_W - VALUE_W - PAD_X;
+
+  bars.forEach((b, i) => {
+    const rowY = PAD_T + i * rowH;
+    ctx.fillStyle = muted; ctx.font = "11px Inter, system-ui, sans-serif"; ctx.textAlign = 'left';
+    const label = String(b.label).length > 20 ? String(b.label).slice(0, 19) + '…' : String(b.label);
+    ctx.fillText(label, PAD_X, rowY + rowH / 2 + 4);
+
+    ctx.fillStyle = track; ctx.fillRect(barX, rowY + 7, barW, 12);
+    const w = Math.max((Math.abs(Number(b.value)) / max) * barW, 3);
+    ctx.fillStyle = accent; ctx.fillRect(barX, rowY + 7, w, 12);
+
+    ctx.fillStyle = ink; ctx.font = "11px Inter, system-ui, sans-serif"; ctx.textAlign = 'left';
+    ctx.fillText(fmtNum(b.value) + (b.note ? ` · ${b.note}` : ''), barX + barW + 8, rowY + rowH / 2 + 4);
+  });
+
+  if (spec.source_note) {
+    ctx.fillStyle = faint; ctx.font = "10px Inter, system-ui, sans-serif"; ctx.textAlign = 'left';
+    ctx.fillText(`Kaynak: ${spec.source_note}`, 16, H - 8);
+  }
+
+  triggerPngDownload(canvas, `${slugifyForFilename(spec.title)}.png`);
+}
+
+function chartFrame(title, subtitle, unit, sourceNote, body, tableRows, onDownloadPng) {
   const el = React.createElement;
   return el('figure', {
     style: {
@@ -852,7 +1034,30 @@ function chartFrame(title, subtitle, unit, sourceNote, body, tableRows) {
         ),
       ),
     ),
-    el('div', { style: { marginTop: '9px', fontSize: '10.5px', color: 'var(--faint)' } }, `Kaynak: ${sourceNote}`),
+    el('div', { style: { marginTop: '9px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' } },
+      el('button', {
+        onClick: (e) => {
+          const btn = e.currentTarget, original = btn.textContent;
+          (navigator.clipboard ? navigator.clipboard.writeText(sourceNote || '') : Promise.reject())
+            .then(() => { btn.textContent = 'Kopyalandı ✓'; setTimeout(() => { btn.textContent = original; }, 1400); })
+            .catch(() => {});
+        },
+        title: 'Kaynağı kopyala',
+        style: {
+          background: 'none', border: 0, padding: 0, font: 'inherit', fontSize: '10.5px',
+          color: 'var(--faint)', cursor: 'pointer', textAlign: 'left',
+        },
+      }, `Kaynak: ${sourceNote}`),
+      onDownloadPng ? el('button', {
+        onClick: onDownloadPng,
+        title: 'Grafiği PNG olarak indir',
+        style: {
+          display: 'flex', alignItems: 'center', gap: '5px', background: 'none',
+          border: '1px solid rgba(var(--accent-rgb),.16)', borderRadius: '7px', padding: '4px 9px',
+          fontSize: '10.5px', color: 'var(--text-2)', cursor: 'pointer', flex: 'none',
+        },
+      }, '⭳ PNG indir') : null,
+    ),
   );
 }
 
@@ -920,6 +1125,7 @@ function lineChart(spec, key) {
       ),
     ),
     pts.map(p => [p.label + (p.highlight ? ' ★' : ''), fmtNum(p.value)]),
+    () => downloadLineChartPng(spec),
   );
 }
 
@@ -961,6 +1167,7 @@ function barChart(spec, key) {
       )),
     ),
     bars.map(b => [b.label, fmtNum(b.value) + (b.note ? ` (${b.note})` : '')]),
+    () => downloadBarChartPng(spec),
   );
 }
 
@@ -1017,6 +1224,7 @@ class Component extends DCLogic {
     // so this just reads back what is already on the document.
     themeMode: (document.documentElement.getAttribute('data-theme') || null),
     uploading: false,
+    isDragOver: false,
     activeSessionId: newSessionId(),
     sessions: [],              // past chat sessions, sidebar list (persisted, see syncActiveSession)
     sidebarOpen: true,
@@ -1165,7 +1373,45 @@ class Component extends DCLogic {
     const file = e.target.files && e.target.files[0];
     e.target.value = ''; // lets the same file be picked again after an error
     if (!file) return;
+    this.uploadFile(file);
+  };
 
+  // dragCounter (not state) tracks nested enter/leave pairs, since a
+  // dragleave fires for every child element the pointer crosses, not just
+  // the outer dropzone - a plain boolean would flicker the overlay off
+  // mid-drag every time it passed over a message bubble.
+  dragCounter = 0;
+
+  onDragEnter = (e) => {
+    e.preventDefault();
+    if (!(e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files'))) return;
+    this.dragCounter += 1;
+    if (!this.state.isDragOver) this.setState({ isDragOver: true });
+  };
+  onDragOver = (e) => { e.preventDefault(); };
+  onDragLeave = (e) => {
+    e.preventDefault();
+    this.dragCounter = Math.max(0, this.dragCounter - 1);
+    if (this.dragCounter === 0) this.setState({ isDragOver: false });
+  };
+  onDropFile = (e) => {
+    e.preventDefault();
+    this.dragCounter = 0;
+    this.setState({ isDragOver: false });
+    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!file || this.state.uploading) return;
+    if (!/\.(csv|xlsx|xls|pdf)$/i.test(file.name)) {
+      this.pushAssistantTo(this.state.activeSessionId, {
+        routeName: 'data_import', routeReason: 'Desteklenmeyen dosya türü.',
+        md: `**Yükleme başarısız oldu.**\n\nSadece CSV, Excel (.xlsx/.xls) veya PDF dosyaları kabul ediliyor.`,
+        trace: [], timing: null,
+      });
+      return;
+    }
+    this.uploadFile(file);
+  };
+
+  uploadFile = (file) => {
     const datasetName = file.name.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 60) || 'dataset';
     const sessionId = this.state.activeSessionId;
     this.setState(s => ({
@@ -1314,6 +1560,7 @@ class Component extends DCLogic {
           trace: (data.trace || []).map(tc => ({
             name: tc.name, round: tc.round, durationMs: tc.duration_ms || 0,
             args: prettyJson(tc.arguments),
+            sql: extractSql(tc.name, tc.arguments),
             result: tc.error ? `hata: ${tc.error}` : prettyJson(tc.output_preview),
             error: !!tc.error
           })),
@@ -1330,7 +1577,8 @@ class Component extends DCLogic {
           md: DEMO_ANSWER,
           trace: DEMO_TRACE.map(tc => ({
             name: tc.name, round: tc.round, durationMs: tc.duration_ms,
-            args: prettyJson(tc.arguments), result: prettyJson(tc.output_preview), error: false
+            args: prettyJson(tc.arguments), sql: extractSql(tc.name, tc.arguments),
+            result: prettyJson(tc.output_preview), error: false
           })),
           timing: DEMO_TIMING
         }), wait);
@@ -1392,6 +1640,31 @@ class Component extends DCLogic {
       const open = s.openCalls[k] !== undefined
         ? !!s.openCalls[k]
         : (i === 0 && !!(this.props.expandFirstCall ?? false));
+      const el = React.createElement;
+      const sqlSection = tc.sql ? el('div', null,
+        el('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' } },
+          el('span', {
+            style: { fontFamily: "'Space Mono',monospace", fontSize: '9.5px', letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--dim)' },
+          }, 'sql'),
+          el('button', {
+            onClick: (e) => {
+              const btn = e.currentTarget, original = btn.textContent;
+              (navigator.clipboard ? navigator.clipboard.writeText(tc.sql) : Promise.reject())
+                .then(() => { btn.textContent = 'Kopyalandı ✓'; setTimeout(() => { btn.textContent = original; }, 1400); })
+                .catch(() => {});
+            },
+            style: { background: 'none', border: 0, fontFamily: "'Space Mono',monospace", fontSize: '10px', color: 'var(--accent-hover)', cursor: 'pointer', padding: 0 },
+          }, 'Kopyala'),
+        ),
+        el('pre', {
+          style: {
+            margin: 0, fontFamily: "'Space Mono',monospace", fontSize: '11.5px', lineHeight: 1.65,
+            color: 'var(--text-2)', background: 'var(--surface-3)', border: '1px solid rgba(var(--accent-rgb),.16)',
+            borderRadius: '9px', padding: '11px', maxHeight: '220px', overflow: 'auto',
+            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+          },
+        }, highlightSql(tc.sql)),
+      ) : null;
       return {
         index: String(i + 1).padStart(2, '0'),
         name: tc.name,
@@ -1400,7 +1673,7 @@ class Component extends DCLogic {
         durationLabel: fmtMs(tc.durationMs),
         sharePct: `${Math.max(2, (tc.durationMs / maxCall) * 100)}%`,
         border: tc.error ? 'rgba(var(--error-rgb),.30)' : 'rgba(var(--accent-rgb),.13)',
-        args: tc.args, result: tc.result,
+        args: tc.args, result: tc.result, sqlSection,
         resultColor: tc.error ? ERR : 'var(--text-2)',
         open, caret: open ? 'rotate(180deg)' : 'none',
         toggle: () => this.toggleCall(k)
@@ -1452,12 +1725,22 @@ class Component extends DCLogic {
       fileInputRef: this.fileInputRef,
       triggerUpload: this.triggerUpload,
       onFileSelected: this.onFileSelected,
+      isDragOver: !!s.isDragOver,
+      onDragEnter: this.onDragEnter,
+      onDragOver: this.onDragOver,
+      onDragLeave: this.onDragLeave,
+      onDropFile: this.onDropFile,
       uploading: s.uploading,
       uploadIdle: !s.uploading,
       uploadLabel: '+',
       uploadCursor: s.uploading ? 'default' : 'pointer',
       isEmpty: s.messages.length === 0 && !thinking,
-      examples: EXAMPLES.map(ex => ({ label: ex.label, tag: ex.tag, use: () => this.send(ex.label) })),
+      examples: EXAMPLES.map(ex => ({
+        label: ex.label, tag: ex.tag,
+        tagFg: (TAG_COLOR[ex.tag] || {}).fg || 'var(--accent)',
+        tagBg: (TAG_COLOR[ex.tag] || {}).bg || 'var(--bg-grad)',
+        use: () => this.send(ex.label)
+      })),
       messages,
       thinking,
       stages,
