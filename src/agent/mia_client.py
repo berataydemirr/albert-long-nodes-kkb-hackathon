@@ -14,7 +14,15 @@ _client = None
 # No response in this time = something is stuck (network, an overloaded
 # shared model host) - fail fast and let orchestrator.py's retry loop
 # handle it instead of hanging the whole agent silently.
-REQUEST_TIMEOUT_SEC = 60
+#
+# Raised from 60 to 240: found live that a real question needing heavy
+# reasoning PLUS a real web_search round-trip (now that SearXNG is
+# actually running, instead of failing instantly) can legitimately take
+# longer than 60s for a single model completion - a real user decision:
+# correctness over speed, explicitly fine with a query taking up to ~10
+# minutes end to end rather than cutting a real tool call short and
+# risking a rushed or unsupported answer.
+REQUEST_TIMEOUT_SEC = 240
 # The OpenAI SDK's own retry only fires on connection-level failures; MIA
 # is a shared hackathon endpoint that can also return 429/5xx under load,
 # so orchestrator.py adds its own retry on top - keep the SDK's low so a
