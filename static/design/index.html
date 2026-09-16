@@ -1567,14 +1567,32 @@ class Component extends DCLogic {
           timing: data.timing || null
         });
       })
-      .catch(() => {
-        // No backend reachable (design preview): show the shape of a real run.
+      .catch((err) => {
+        // A real backend failure (bad request, agent crash, timeout) must
+        // never be hidden behind a fabricated-looking answer - for a
+        // financial-data tool, a confidently wrong reply is worse than a
+        // visible error. The synthetic "demo" reply below is ONLY for the
+        // case this file is opened with literally no backend behind it at
+        // all (a design-only preview) - the one case where fetch() itself
+        // throws a plain network TypeError before any response is ever
+        // received. Every other failure (a non-OK status, a malformed
+        // response, an agent-side error) surfaces as a real, visible error
+        // instead.
+        const backendUnreachable = err instanceof TypeError;
+        if (!backendUnreachable) {
+          this.pushAssistantTo(sessionId, {
+            routeName: 'error', routeReason: 'İstek başarısız oldu.',
+            md: `**Bir hata oluştu, cevap üretilemedi.**\n\n${err && err.message ? err.message : 'Sunucudan geçerli bir yanıt alınamadı.'}\n\nLütfen tekrar dener misin?`,
+            trace: [], timing: null,
+          });
+          return;
+        }
         const startedAt = (this.state.pending[sessionId] || {}).startedAt || Date.now();
         const wait = Math.max(0, 13800 - (Date.now() - startedAt));
         setTimeout(() => this.pushAssistantTo(sessionId, {
           routeName: 'analytics_web',
-          routeReason: 'Soru hem güncel web bilgisi hem yerel seri analizi gerektiriyor; tüm araçlar açıldı.',
-          md: DEMO_ANSWER,
+          routeReason: '[ÖNİZLEME] Backend bu ortamda çalışmıyor - bu gerçek bir analiz değil, arayüz önizlemesi için örnek bir yanıttır.',
+          md: `_Not: backend'e ulaşılamadı. Aşağıdaki içerik gerçek bir analiz değil, sadece arayüzün nasıl göründüğünü gösteren bir örnektir._\n\n${DEMO_ANSWER}`,
           trace: DEMO_TRACE.map(tc => ({
             name: tc.name, round: tc.round, durationMs: tc.duration_ms,
             args: prettyJson(tc.arguments), sql: extractSql(tc.name, tc.arguments),
