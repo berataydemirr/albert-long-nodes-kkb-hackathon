@@ -227,42 +227,18 @@ the virtual environment and the DuckDB file are ignored by Git.
 .venv/bin/python -m benchmarks.hard_benchmark --category adversarial
 ```
 
-`benchmarks/hard_benchmark.py` runs a curated set of adversarial and
-edge-case questions against the real API across 24 categories (multi-hop
-chains, extreme and malformed parameters, missing-data admission, prompt
-injection including unicode/base64-obfuscated variants, batch and
-loop-guard stress, BIST/TUIK live fetches, TUIK dataflow discovery,
-PDF-import questions against a synthetic fixture, SQL guardrail edge
-cases, province-name typos/case variants, unit/scale traps, long
-rambling and mixed-language phrasing, numeric-grounding stress, deep
-regional comparisons, internal-consistency and methodology-transparency
-questions) and tracks the things the team asked to have tracked:
-tool-selection accuracy, numeric grounding (does a number the model
-wrote trace back to a number a tool actually returned - see below),
-consistency (three repeat runs of three questions, compared), speed
-(per-question, average, median and max latency), a hallucinated-series/
-dataset-name rate, missing-data admission rate, and guardrail/DDL-
-attempt-blocked rate. Two small, explicitly-synthetic fixtures
-(`benchmark_synthetic_csv`/`_pdf`) are imported automatically before each
-run so the import-related questions have something real and known to
-query. Results are written to `benchmarks/hard_benchmark_report.json`,
-per-question and aggregated. It is 153 questions, not the 150-200
-originally asked for — each one targets a distinct failure mode rather
-than padding the count with variations of the same question; the harness
-(`BENCHMARK_QUESTIONS`) takes one dictionary entry to extend.
+`benchmarks/hard_benchmark.py` runs 153 adversarial and edge-case
+questions against the real API, across 24 categories - multi-hop
+chains, malformed parameters, prompt injection, live BIST/TUIK fetches,
+SQL guardrails, unit traps, and more. It tracks tool-selection accuracy,
+numeric grounding (see below), consistency across repeat runs, speed,
+hallucination rate, missing-data admission, and guardrail robustness.
+Results are written to `benchmarks/hard_benchmark_report.json`.
 
-**Numeric grounding.** Tool-selection accuracy alone does not prove an
-answer's own numbers are real - the right tool can be called, return a
-correct result, and the model can still misreport it in prose. Every
-decimal number in an answer is checked against what the tool calls in
-that answer's trace actually returned, including simple derived
-arithmetic (percent/decimal conversion, squaring for r², a ratio for a
-currency conversion, a Bin/Milyon/Milyar TL scale change, rounding to
-fewer decimal places). It is a heuristic, not a hard gate - genuinely
-ambiguous Turkish number notation (`9.268` could be the thousands-grouped
-integer 9268 or the decimal 9.268; both readings are offered and either
-counts as grounded) - so every "ungrounded" number is kept in the report
-for manual review rather than silently failing the question. Every case
-found this way during development turned out to be a gap in the checker
-itself, not a real fabrication - each was manually confirmed and folded
-back into the derived-arithmetic rules above.
+**Numeric grounding.** Calling the right tool doesn't guarantee the
+model reports its result correctly in prose. This check compares every
+number in an answer against what the tools actually returned, allowing
+for simple derived math (percentages, unit conversions, rounding). It's
+a heuristic, not a hard gate: genuinely ambiguous numbers are logged for
+manual review rather than auto-failed. Every case reviewed so far turned
+out to be a gap in the checker, not a real hallucination.
