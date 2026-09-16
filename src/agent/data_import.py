@@ -229,12 +229,14 @@ def _flatten_merged_excel_header(df: pd.DataFrame) -> pd.DataFrame:
 
     sub_header_row = df.iloc[0]
     new_columns = []
+    tops_used: list[str] = []
     last_real_top = None
     for col in df.columns:
         is_unnamed = bool(_UNNAMED_COL_RE.match(str(col)))
         top = last_real_top if is_unnamed else str(col)
         if not is_unnamed:
             last_real_top = top
+        tops_used.append(top or "")
         sub_value = sub_header_row[col]
         sub_str = "" if pd.isna(sub_value) else str(sub_value).strip()
         if top and sub_str:
@@ -248,15 +250,32 @@ def _flatten_merged_excel_header(df: pd.DataFrame) -> pd.DataFrame:
     # per column, so new_columns comes out unique in that case. Real bug
     # found live against a TBB .xls export: when the "merge" is actually
     # a single full-width title row over two UNRELATED side-by-side
-    # tables (not this function's target shape at all), several columns
-    # share the same top with no sub_str to distinguish them, and
+    # tables (not this function's target shape at all - see issue #19),
+    # every column shares the SAME top (one merge anchored at column 0
+    # spans the entire header) with no sub_str to distinguish them, and
     # new_columns collides - `df[col]` for a duplicated name returns a
     # DataFrame slice instead of a Series and crashes every downstream
-    # caller with a cryptic TypeError. Deduplicating here (pandas' own
-    # ".1"/".2" suffix convention) trades a confusing-but-honest column
-    # name for a crash - it does not make this file's actual multi-table
-    # layout any more correctly parsed, which is a known limitation, not
-    # something this function is meant to solve.
+    # caller with a cryptic TypeError.
+    #
+    # A real "year over months" merge never hits this: it always keeps at
+    # least one OTHER real top-level label distinct from the merged one
+    # (e.g. a plain "Il" column before the year starts), so len(set(tops))
+    # is always >= 2 there. A single top value used for literally every
+    # column, combined with an actual name collision, is a much stronger
+    # and more specific signal than the collision alone - reject outright
+    # with an actionable message rather than silently deduplicate into
+    # confusing "Title", "Title.1", "Title.2" columns that still don't
+    # reflect the file's real two-tables-on-one-sheet layout.
+    has_collision = len(new_columns) != len(set(new_columns))
+    if has_collision and len(set(tops_used)) == 1:
+        raise ValueError(
+            "This sheet looks like it has more than one table side by side under a single "
+            "full-width header cell, not one table with a merged 'year over sub-columns' "
+            "header - every column resolved to the same header text "
+            f"({tops_used[0]!r}), which cannot be a real column list. Re-export each table "
+            "as its own sheet, or select just one table's cell range before uploading."
+        )
+
     seen: dict[str, int] = {}
     deduped = []
     for name in new_columns:

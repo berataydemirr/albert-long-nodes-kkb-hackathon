@@ -30,3 +30,7 @@ EVDS_16-09-2026.xlsx
 
 # Local-only mentor notes - copy/paste reference, never committed/pushed/shared
 MENTOR_NOTLARI_teknik_mimari_ozet.md
+
+# Tesseract OCR language data (~8MB of binary model files) - see
+# src/agent/pdf_import.py's own comment for how to populate this locally.
+tessdata/

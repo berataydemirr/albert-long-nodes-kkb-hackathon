@@ -535,17 +535,20 @@ def test_import_reads_a_legacy_xls_file(tmp_path):
     assert result["data_quality"]["hidden_columns_excluded"] == 0
 
 
-def test_flatten_merged_excel_header_dedupes_a_real_collision(tmp_path):
-    """Real crash found live against a real TBB .xls export: a single
-    full-width title spanning every column (not this function's target
-    'year over months' shape at all) leaves every column with the same
-    'top' and no sub_str to distinguish them, so new_columns collided and
-    df[col] for the duplicated name returned a DataFrame slice instead of
-    a Series - _infer_column crashed with a cryptic
-    'int() argument must be ... not Series' TypeError. This does not
-    correctly parse that file's actual multi-table layout (a known,
-    documented limitation) - it only proves the collision no longer
-    crashes the import."""
+def test_flatten_merged_excel_header_rejects_a_full_width_merge_collision(tmp_path):
+    """Real crash found live against a real TBB .xls export (issue #19): a
+    single full-width title spanning every column (not this function's
+    target 'year over months' shape at all - that always keeps at least
+    one other real top-level label, e.g. a leading 'Il' column) leaves
+    every column with the same 'top' and no sub_str to distinguish them,
+    so new_columns collided and df[col] for the duplicated name returned
+    a DataFrame slice instead of a Series - _infer_column crashed with a
+    cryptic 'int() argument must be ... not Series' TypeError.
+
+    First fixed by silently deduplicating ('Title', 'Title.1', 'Title.2'),
+    which stopped the crash but still mis-parsed the file's real
+    two-tables-on-one-sheet layout into one confusing table. Now rejected
+    outright instead, with a message pointing at the real problem."""
     import openpyxl
 
     p = tmp_path / "coklu_baslik.xlsx"
@@ -558,14 +561,32 @@ def test_flatten_merged_excel_header_dedupes_a_real_collision(tmp_path):
     ws["A3"], ws["B3"], ws["C3"] = "Ankara", 100, 200
     wb.save(p)
 
-    result = import_dataset(p, "coklu_baslik_test")
+    with pytest.raises(ValueError, match="more than one table side by side"):
+        import_dataset(p, "coklu_baslik_test")
+
+
+def test_flatten_merged_excel_header_still_accepts_a_real_year_over_months_merge(tmp_path):
+    """Guard against the new full-width-collision rejection above being
+    too broad: a genuine 'year over months' merge (the shape this
+    function actually exists for) must keep working exactly as before -
+    it always has a real leading column ('Il') distinct from the merged
+    'year' top-level label, so len(set(tops_used)) is 2, not 1, and no
+    rejection should fire."""
+    import openpyxl
+
+    p = tmp_path / "yil_ay.xlsx"
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws["A1"] = "Il"
+    ws["B1"] = 2023
+    ws.merge_cells("B1:D1")
+    ws["B2"], ws["C2"], ws["D2"] = "Ocak", "Subat", "Mart"
+    ws["A3"], ws["B3"], ws["C3"], ws["D3"] = "Ankara", 100, 110, 120
+    wb.save(p)
+
+    result = import_dataset(p, "yil_ay_test")
     columns = [c["column"] for c in result["columns"]]
-    assert columns == [
-        "Ayni Baslik Her Sutunda",
-        "Ayni Baslik Her Sutunda.1",
-        "Ayni Baslik Her Sutunda.2",
-    ]
-    assert len(columns) == len(set(columns))
+    assert columns == ["Il", "2023_Ocak", "2023_Subat", "2023_Mart"]
 
 
 def test_import_excel_without_merged_header_is_unaffected(csv_path, xlsx_path):

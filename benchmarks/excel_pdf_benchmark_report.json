@@ -5,39 +5,8 @@
     "tests": [
       {
         "step": "detect_schema",
-        "ok": true,
-        "row_count": 41,
-        "column_count": 9,
-        "data_quality": {
-          "null_tokens_normalized": 0,
-          "numeric_columns_recovered": [
-            "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları.2",
-            "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları.3",
-            "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları.7",
-            "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları.8"
-          ],
-          "date_columns_normalized": [],
-          "subtotal_rows_excluded": 0,
-          "mojibake_repaired_columns": [],
-          "hidden_rows_excluded": 0,
-          "hidden_columns_excluded": 0
-        }
-      },
-      {
-        "step": "import_dataset",
-        "ok": true,
-        "row_count": 41,
-        "columns": [
-          "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları",
-          "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları.1",
-          "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları.2",
-          "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları.3",
-          "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları.4",
-          "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları.5",
-          "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları.6",
-          "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları.7",
-          "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları.8"
-        ]
+        "ok": false,
+        "error": "ValueError: This sheet looks like it has more than one table side by side under a single full-width header cell, not one table with a merged 'year over sub-columns' header - every column resolved to the same header text ('Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları'), which cannot be a real column list. Re-export each table as its own sheet, or select just one table's cell range before uploading."
       }
     ],
     "source": "Turkiye Bankalar Birligi - Banka ve Gruplar Bazinda Sube ve Calisan Sayilari (legacy .xls)"

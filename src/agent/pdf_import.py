@@ -16,12 +16,14 @@ Shares its write path with data_import.py (_write_dataset) rather than
 a second copy of the collision-check/registry/retry logic: only the
 PDF -> DataFrame step here is genuinely PDF-specific.
 """
+import shutil
 from collections import Counter
 from pathlib import Path
 
 import pandas as pd
 import pdfplumber
 
+from config.settings import PROJECT_ROOT
 from src.agent.data_cleaning import is_null_token, is_subtotal_label, normalize_numeric_text, repair_mojibake
 from src.agent.data_import import MAX_FILE_BYTES, _infer_column, _validate_dataset_name, _write_dataset
 from src.common.logging_setup import get_logger
@@ -34,6 +36,77 @@ MAX_PDF_PAGES = 60  # a runaway multi-hundred-page PDF should not be extracted w
 # rejected outright at 30 - a routine, real government report, not an
 # adversarial input. 60 keeps a real ceiling against a runaway file while
 # covering this and similar multi-page annual/quarterly reports.
+
+# OCR fallback for a page pdfplumber finds NO table structure on at all -
+# a scanned page or, the real case this was built against, a chart/graph
+# image export (verified live: a real TCMB "seyahat gelirleri" chart PDF
+# has 0 chars/lines/rects and 1 image on its only page). The chart's own
+# DATA (the line's actual values) is a picture, not text, and OCR cannot
+# recover it - but the surrounding text very often can be read: title,
+# the real Seri_Kod values and their descriptions, source/metadata links.
+# Confirmed live against that exact file: OCR correctly recovered
+# 'TP.SGEGI.K1-8', its description, and 'Veri Kaynagi: TURKIYE ISTATISTIK
+# KURUMU' - genuinely useful context an agent can act on, even though no
+# row/column table can be built from a chart. This NEVER fabricates a
+# table: import_pdf_table still raises when there is no real table, OCR
+# only enriches that error message with whatever text it could read.
+#
+# Language data is NOT bundled in the repo (tessdata/ is gitignored, ~8MB
+# of binary model files) - a teammate without it set up gets the exact
+# same plain rejection as before OCR existed, never a crash. To set it up:
+# install Tesseract (winget install UB-Mannheim.TesseractOCR on Windows,
+# or `apt install tesseract-ocr` / `brew install tesseract`), then copy
+# eng.traineddata from its install and download tur.traineddata from
+# https://github.com/tesseract-ocr/tessdata_fast into this project's
+# tessdata/ folder.
+_TESSDATA_DIR = PROJECT_ROOT / "tessdata"
+_TESSDATA_DIR_REAL = _TESSDATA_DIR  # stable reference tests restore after monkeypatching _TESSDATA_DIR off
+_WINDOWS_TESSERACT_FALLBACK = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+_OCR_TEXT_MAX_CHARS = 1500
+
+
+def _ocr_page_text(page) -> str | None:
+    """Best-effort only - returns None (never raises) whenever Tesseract or
+    its language data is not available, so OCR being unset up never breaks
+    the plain-rejection behavior it is layered on top of."""
+    if not _TESSDATA_DIR.exists():
+        return None
+    try:
+        import pytesseract
+    except ImportError:
+        logger.info("_ocr_page_text: pytesseract not installed, skipping OCR fallback")
+        return None
+
+    config = f"--tessdata-dir {_TESSDATA_DIR}"
+
+    def _run() -> str:
+        image = page.to_image(resolution=200).original
+        return pytesseract.image_to_string(image, lang="tur+eng", config=config)
+
+    try:
+        text = _run()
+    except pytesseract.TesseractNotFoundError:
+        # 'tesseract' not on PATH yet (a fresh install can need a shell/
+        # session restart before PATH updates take effect) - try the
+        # standard Windows install location once before giving up.
+        if shutil.which("tesseract") or not Path(_WINDOWS_TESSERACT_FALLBACK).exists():
+            logger.info("_ocr_page_text: tesseract binary not found, skipping OCR fallback")
+            return None
+        try:
+            pytesseract.pytesseract.tesseract_cmd = _WINDOWS_TESSERACT_FALLBACK
+            text = _run()
+        except Exception as e:
+            logger.warning(f"_ocr_page_text: OCR failed via Windows fallback path: {e}")
+            return None
+    except Exception as e:
+        logger.warning(f"_ocr_page_text: OCR failed unexpectedly: {e}")
+        return None
+
+    text = text.strip()
+    if not text:
+        return None
+    logger.info(f"_ocr_page_text: recovered {len(text)} char(s) of OCR text")
+    return text[:_OCR_TEXT_MAX_CHARS]
 
 
 def _check_pdf_open(path: Path):
@@ -208,6 +281,15 @@ def import_pdf_table(path: str | Path, dataset_name: str, page: int = 0, table_i
             raise ValueError(f"page={page} out of range; this PDF has {len(pdf.pages)} page(s) (0-indexed).")
         tables = pdf.pages[page].extract_tables()
         if not tables:
+            ocr_text = _ocr_page_text(pdf.pages[page])
+            if ocr_text:
+                raise ValueError(
+                    f"No table found on page {page} - pdfplumber sees no ruling-line or "
+                    f"whitespace-aligned grid, likely a chart/scanned image rather than a real "
+                    f"table (its own data points, if any, cannot be recovered this way). OCR did "
+                    f"read text on the page though, which may identify what it actually shows:\n\n"
+                    f"{ocr_text}"
+                )
             raise ValueError(f"No table found on page {page}. Call list_pdf_tables first to see what pdfplumber can find.")
         if table_index < 0 or table_index >= len(tables):
             raise ValueError(f"table_index={table_index} out of range; page {page} has {len(tables)} table(s).")

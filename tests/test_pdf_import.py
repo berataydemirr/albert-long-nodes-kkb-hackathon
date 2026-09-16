@@ -17,8 +17,14 @@ from src.agent.pdf_import import import_pdf_table, list_pdf_tables
 @pytest.fixture(autouse=True)
 def _fresh_lakehouse_db(monkeypatch, tmp_path):
     import src.agent.data_import as di
+    import src.agent.pdf_import as pi
 
     monkeypatch.setattr(di, "LAKEHOUSE_DB_PATH", tmp_path / "lakehouse_test.duckdb")
+    # OCR is a machine-local, opt-in bonus (see pdf_import.py's own comment) -
+    # a real Tesseract install existing (or not) on whoever runs this suite
+    # must never change what these tests assert. Real OCR behavior gets its
+    # own dedicated, skippable tests further down.
+    monkeypatch.setattr(pi, "_TESSDATA_DIR", tmp_path / "no_tessdata_here")
     yield
 
 
@@ -80,6 +86,91 @@ def test_import_pdf_table_page_with_no_table_is_a_page_containing_only_text(tmp_
 
     result = import_pdf_table(p, "from_page_1", page=1)
     assert result["row_count"] == 1
+
+
+# --- OCR fallback (real image, no extractable table structure at all) -----
+# Real case found live: a TCMB chart-export PDF has 0 chars/lines/rects and
+# 1 image on its only page - pdfplumber genuinely cannot see a table, but
+# OCR often can still read the surrounding text (title, real Seri_Kod
+# values, source notes). Kept out of the default suite's dependency
+# footprint: Tesseract is a real external binary, not a pip package, so
+# these tests explicitly re-point _TESSDATA_DIR at a real install (or skip)
+# rather than assume every machine running `pytest` has one.
+
+def _real_tesseract_available() -> bool:
+    import shutil
+
+    import src.agent.pdf_import as pi
+
+    if not pi._TESSDATA_DIR_REAL.exists():
+        return False
+    if shutil.which("tesseract"):
+        return True
+    from pathlib import Path as _P
+
+    return _P(pi._WINDOWS_TESSERACT_FALLBACK).exists()
+
+
+def _make_image_only_pdf(path, text_lines):
+    """A PDF whose only content is a rendered PNG - no real text/table
+    layer at all, the same shape as the real chart-export PDF this
+    feature was built against (pdfplumber sees 0 chars/lines/rects).
+
+    Large canvas + a real TrueType font at a big point size: PIL's default
+    bitmap font (no font given) is tiny and low-fidelity enough that OCR
+    genuinely misreads it (found live - 'TCMB' came back as 'TOMB') in a
+    way the real, properly-typeset TCMB PDF this feature targets does not
+    suffer from. This is a test-fixture-quality issue, not a production
+    one - a bigger, clearer synthetic image keeps the test meaningful."""
+    from io import BytesIO
+
+    from PIL import Image, ImageDraw, ImageFont
+    from reportlab.platypus import Image as RLImage
+
+    img = Image.new("RGB", (1600, 500), "white")
+    draw = ImageDraw.Draw(img)
+    try:
+        font = ImageFont.truetype("arial.ttf", 48)
+    except OSError:
+        font = ImageFont.load_default(size=48)
+    for i, line in enumerate(text_lines):
+        draw.text((30, 30 + i * 80), line, fill="black", font=font)
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+
+    doc = SimpleDocTemplate(str(path), pagesize=A4)
+    doc.build([RLImage(buf, width=500, height=156)])
+
+
+@pytest.mark.skipif(not _real_tesseract_available(), reason="Tesseract not installed/configured on this machine")
+def test_import_pdf_table_ocr_enriches_the_error_with_real_text(tmp_path, monkeypatch):
+    import src.agent.pdf_import as pi
+
+    monkeypatch.setattr(pi, "_TESSDATA_DIR", pi._TESSDATA_DIR_REAL)
+    p = tmp_path / "chart_export.pdf"
+    _make_image_only_pdf(p, ["KONUT FIYAT ENDEKSI", "Kaynak: TCMB EVDS"])
+
+    with pytest.raises(ValueError, match="No table found on page 0") as exc_info:
+        import_pdf_table(p, "ocr_pdf")
+
+    message = str(exc_info.value)
+    assert "KONUT" in message.upper()
+    assert "TCMB" in message.upper()
+
+
+def test_import_pdf_table_ocr_absent_falls_back_to_the_plain_message(tmp_path):
+    """Default behavior (see the autouse fixture) - proves OCR being unset
+    up on a machine changes nothing about the existing rejection."""
+    p = tmp_path / "text_then_table.pdf"
+    _make_pdf(p, [["A", "B"], ["1", "2"]], page_break_before=True)
+
+    with pytest.raises(ValueError) as exc_info:
+        import_pdf_table(p, "should_fail", page=0)
+
+    assert str(exc_info.value) == (
+        "No table found on page 0. Call list_pdf_tables first to see what pdfplumber can find."
+    )
 
 
 def test_import_pdf_table_page_out_of_range(simple_pdf):
