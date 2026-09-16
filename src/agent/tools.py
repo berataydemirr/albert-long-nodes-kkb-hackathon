@@ -5,7 +5,6 @@ queries and calculations against the local DuckDB gold layer.
 """
 
 import json
-import re
 import duckdb
 import pandas as pd
 from statsmodels.tsa.stattools import grangercausalitytests

@@ -9,7 +9,6 @@ tools.py, not worked around in the test.
 Run: pytest tests/test_agent_tools_stress.py -v
 """
 import json
-import math
 
 import pytest
 

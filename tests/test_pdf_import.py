@@ -6,7 +6,6 @@ detection depends on actual vector line graphics on the page, so a fake
 that skips PDF rendering entirely would not catch a real regression in
 how pdfplumber sees the file.
 """
-import pandas as pd
 import pytest
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4

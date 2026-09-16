@@ -13,7 +13,6 @@ import pandas as pd
 import pytest
 
 from src.agent.data_import import (
-    LAKEHOUSE_DB_PATH,
     detect_schema,
     import_dataset,
     list_imported_datasets,

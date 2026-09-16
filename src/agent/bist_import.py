@@ -19,7 +19,6 @@ ticker, not yfinance's own suffix convention.
 import re
 from typing import Final
 
-import pandas as pd
 import yfinance as yf
 
 from src.agent.data_import import _write_dataset

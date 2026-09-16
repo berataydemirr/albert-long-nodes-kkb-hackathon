@@ -16,7 +16,6 @@ invents a value that was not derivable from the input.
 """
 import difflib
 import re
-from datetime import datetime
 
 from src.common.logging_setup import get_logger
 
