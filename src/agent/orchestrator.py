@@ -142,14 +142,20 @@ geçmişini canlı çek - önceden kayıtlı bir listeyle sınırlı değil, "AK
 hissesini getir" gibi bir istekte doğrudan çağır; sonuç da lakehouse'a
 yazılır ve aynı şekilde sorgulanabilir/JOIN edilebilir.
 
-TOOL DİSİPLİNİ (gecikmeyi doğrudan etkiler):
+TOOL DİSİPLİNİ (doğruluk hızdan önemli - süre kısıtı yok):
 - Aşağıdaki katalog zaten elinde; seri kodunu öğrenmek için lakehouse_schema
   ÇAĞIRMA. Sadece tablo/kolon yapısı gerçekten gerekiyorsa çağır.
 - Aynı tool'u aynı argümanlarla tekrar çağırma; aldığın sonucu kullan.
-- Bir hipotezi test etmek için tek çağrı yeterli. Aynı soruyu farklı
-  serilerle tekrar tekrar deneme; ilk sonuç yetersizse bunu yaz.
-- Cevabı yazmaya başlayabiliyorsan başla; ek tool çağrısı her seferinde
-  birkaç saniye ekliyor.
+- Her adımdan sonra kendine sor: "bu soruyu tam ve kanıtlı cevaplamak için
+  bir adım daha gerekiyor mu?" Gerekiyorsa (farklı bir seri, çapraz
+  doğrulama, eksik bir dönem, doğrulanmamış bir iddia) durmadan devam et -
+  yarım bırakıp "eksik kaldı" demek yerine gerçekten bitir. Gerekmiyorsa
+  orada dur, gereksiz tekrar tool çağrısı yapma. Bu kontrolü atlamadan
+  ilerle, ama gerekçesiz ek çağrı da yapma.
+- Uzun/çok adımlı bir araştırma (birden fazla seri, çapraz kaynak
+  doğrulama, web araması + lakehouse sorgusu birlikte) normaldir ve
+  teşvik edilir; erken kesilmiş yarım bir cevap, birkaç adım daha süren
+  tam bir cevaptan her zaman daha kötüdür.
 
 YANIT BİÇİMİ:
 - Türkçe, kısa ve kanıtlı. En fazla 150 kelime.
@@ -201,29 +207,29 @@ TOOL_OUTPUT_MAX_CHARS = 12_000
 # legitimate batch request for a financial-analytics agent - got 3 of them
 # silently blocked under a cap of 3, because the guard could not tell
 # "checking six different series" from "stuck retrying one broken call".
-# Web search is the tool that actually produced a real loop (a blocked
-# provider got retried with rephrased queries, 4 calls in 5 rounds) and
-# has no legitimate reason to run more than a couple of times per answer,
-# so it keeps the tight cap; local analysis tools - the model's own
-# workhorses for exactly this kind of multi-series batch question - get a
-# much looser one. lakehouse_query is deliberately NOT loosened: a model
-# rerunning slightly different SQL over and over is the SQL-shaped version
-# of the same confusion the tight cap exists to catch.
-DEFAULT_MAX_CALLS_PER_TOOL_PER_RUN = 3
+#
+# Raised across the board (product decision: correctness and thoroughness
+# over speed, an explicit answer to "the loop is cut too short, it can't
+# do deep research" feedback) - these are now a genuine LAST-RESORT safety
+# net against a truly stuck/looping call, not a budget a normal deep
+# question is expected to bump into. The SYSTEM_PROMPT_BASE "confirm
+# before continuing" instruction is the primary mechanism for deciding
+# when enough evidence has been gathered; these numeric caps only catch
+# the case where that self-check fails and the model keeps calling the
+# same tool anyway. An identical repeat call is still refused outright
+# regardless of this limit.
+DEFAULT_MAX_CALLS_PER_TOOL_PER_RUN = 8
 MAX_CALLS_PER_TOOL_PER_RUN_OVERRIDES = {
-    "anomaly_analysis": 10,
-    "change_detection": 10,
-    "correlation_analysis": 10,
-    "causality_analysis": 8,
-    "compare_regions": 8,
+    "anomaly_analysis": 20,
+    "change_detection": 20,
+    "correlation_analysis": 20,
+    "causality_analysis": 16,
+    "compare_regions": 16,
     # A metadata-only search (see search_tuik_dataflows' own docstring) -
-    # no data is fetched, so trying a few different keyword phrasings
-    # before concluding "nothing matches" carries none of the cost/risk
-    # web_search's tight cap exists to guard against. Found live: a
-    # legitimate single question ("enflasyon var mı") reasonably tried 4
-    # phrasings (enflasyon / TÜFE fiyat / CPI consumer price / a 4th) and
-    # hit the default cap of 3 mid-search.
-    "search_tuik_dataflows": 6,
+    # no data is fetched, so trying several keyword phrasings before
+    # concluding "nothing matches" carries none of the cost/risk a real
+    # fetch would.
+    "search_tuik_dataflows": 12,
 }
 
 
@@ -406,16 +412,24 @@ def _timing_summary(timeline: list[dict], total_ms: float, compaction_log: list[
     }
 
 
-# Cross-turn memory is deliberately tiny. Full-fidelity multi-turn history
-# would re-pay every past tool result on every new question - the exact
+# Cross-turn memory carries only the (question, final answer) pair of each
+# past turn, never its tool trace - full-fidelity multi-turn history would
+# re-pay every past tool result on every new question, the exact
 # quadratic-growth problem context_compactor.py exists to fight, except
-# starting a step earlier. So only the (question, final answer) pair of
-# each past turn survives, never its tool trace, and only the last few
-# turns at that - old enough turns are worth losing more than they're
-# worth paying to keep. This is "recent-topic memory", not a transcript.
-HISTORY_MAX_TURNS = 4
-HISTORY_QUESTION_MAX_CHARS = 300
-HISTORY_ANSWER_MAX_CHARS = 500
+# starting a step earlier. This is "recent-topic memory", not a transcript.
+#
+# Raised from (4 turns, 300/500 chars) after live feedback that the
+# original caps summarized too aggressively - a natural follow-up
+# ("peki ya bir önceki çeyrekte?", "o rakamın kaynağı neydi?") lost the
+# specific numbers/series codes/periods it needed to resolve "that" or
+# "the previous one" against. Still bounded on purpose (not unlimited):
+# an old enough turn is still worth losing eventually, and an answer's
+# OWN chart caption (see _history_messages / chartCaptionsFor in
+# static/design/index.html) is what a follow-up about "the chart" needs
+# most, so it has to survive truncation more often than it used to.
+HISTORY_MAX_TURNS = 6
+HISTORY_QUESTION_MAX_CHARS = 500
+HISTORY_ANSWER_MAX_CHARS = 1500
 
 
 def _history_messages(history: list[dict] | None) -> list[dict]:
@@ -442,7 +456,7 @@ def _history_messages(history: list[dict] | None) -> list[dict]:
     return messages
 
 
-def ask(question: str, history: list[dict] | None = None, max_rounds: int = 8,
+def ask(question: str, history: list[dict] | None = None, max_rounds: int = 25,
         return_trace: bool = False, return_timing: bool = False):
     """return_trace=True also returns the round-by-round tool-call trace
     (name + arguments + whether it raised) - used by benchmarks/

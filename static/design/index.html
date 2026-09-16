@@ -1264,7 +1264,11 @@ class Component extends DCLogic {
   }
 
   historyForRequest() {
-    const HISTORY_MAX_TURNS = 4, ANSWER_MAX_CHARS = 500;
+    // Kept in sync with orchestrator.py's HISTORY_MAX_TURNS/HISTORY_ANSWER_MAX_CHARS -
+    // raised together after feedback that follow-ups were losing the specific
+    // numbers/periods they needed; the server still truncates defensively to
+    // these same caps even if this copy ever drifts.
+    const HISTORY_MAX_TURNS = 6, ANSWER_MAX_CHARS = 1500;
     const messages = this.state.messages;
     const turns = [];
     for (let i = 0; i < messages.length - 1; i++) {
