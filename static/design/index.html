@@ -631,6 +631,22 @@ const STAGES = [
   { at: 11500, label: 'Wrapping up' }
 ];
 
+// An open-ended "you decide which series" question can genuinely keep the
+// agent busy for minutes - each reasoning round is its own model call, and
+// a real run of a broad question measured 6 rounds / ~157s wall clock, all
+// of it legitimate work, no error. Past the fixed schedule above the last
+// stage used to just sit on "Wrapping up" for the rest of that wait, which
+// reads as a hang even though the elapsed clock (elapsedLabel) keeps
+// ticking - cycling through these instead keeps the UI visibly alive for
+// as long as the agent is actually still working.
+const LONG_WAIT_STAGES = [
+  'Derin araştırma sürüyor',
+  'Ek seriler sorgulanıyor',
+  'Sonuçlar karşılaştırılıyor',
+  'Modelin yanıtı hazırlanıyor'
+];
+const LONG_WAIT_CYCLE_MS = 9000;
+
 const DEMO_TRACE = [
   { name: 'web_search', round: 1, duration_ms: 1840, start_ms: 620,
     arguments: '{"query":"TCMB politika faizi güncel","max_results":5}',
@@ -696,6 +712,22 @@ const DEMO_TOOLS = [
   { name: 'web_search', desc: 'Güncel kamuya açık bilgiyi arar (DuckDuckGo veya Tavily).' },
   { name: 'web_url_extract', desc: 'Sınırlandırılmış HTML, PDF, Excel, CSV veya metin URL’lerini okur.' }
 ];
+
+// A broad "you decide which series" question can keep the agent busy for
+// minutes (measured: 6 rounds, ~157s wall clock, on a real run - see the
+// LONG_WAIT_STAGES comment above) - a single transient network blip
+// somewhere in that window (wifi drop, laptop sleep, a proxy's idle
+// timeout) must not throw away 2+ minutes of real work and fall all the
+// way to an error. One silent retry absorbs that case; a second failure
+// in a row is treated as real.
+function fetchWithRetry(url, options, retriesLeft = 1) {
+  return fetch(url, options).catch(err => {
+    if (retriesLeft > 0 && err instanceof TypeError) {
+      return fetchWithRetry(url, options, retriesLeft - 1);
+    }
+    throw err;
+  });
+}
 
 function prettyJson(raw) {
   if (raw == null) return '';
@@ -1541,7 +1573,7 @@ class Component extends DCLogic {
     }), () => { this.scrollEnd(); this.syncActiveSession(); });
     this.markPending(sessionId);
 
-    fetch('/api/ask', {
+    fetchWithRetry('/api/ask', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ question: text, history })
     })
@@ -1632,6 +1664,14 @@ class Component extends DCLogic {
       active: i === activeIdx,
       time: i < activeIdx ? fmtMs((STAGES[i + 1].at - st.at) / pace) : ''
     }));
+    // Past the fixed schedule, swap the final stage's label through
+    // LONG_WAIT_STAGES so a multi-minute multi-round run still reads as
+    // "working" rather than stuck on "Wrapping up".
+    const lastAt = STAGES[STAGES.length - 1].at / pace;
+    if (elapsed >= lastAt && stages.length) {
+      const cycleIdx = Math.floor((elapsed - lastAt) / LONG_WAIT_CYCLE_MS) % LONG_WAIT_STAGES.length;
+      stages[stages.length - 1] = { ...stages[stages.length - 1], label: LONG_WAIT_STAGES[cycleIdx] };
+    }
 
     const sessionsView = [...s.sessions].sort((a, b) => b.updatedAt - a.updatedAt).map(sess => {
       const active = sess.id === s.activeSessionId;
