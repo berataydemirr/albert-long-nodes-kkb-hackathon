@@ -165,6 +165,17 @@ def catalog_block(refresh: bool = False) -> str:
         con.close()
 
 
+def known_series_codes(refresh: bool = False) -> set[str]:
+    """The real Seri_Kod universe, for checking a claim against reality
+    rather than trusting it. Parses catalog_block() instead of a fresh
+    query - same cache, one fewer DB round-trip, and the two can never
+    disagree about what "known" means since they share one source."""
+    block = catalog_block(refresh=refresh)
+    if not block:
+        return set()
+    return {line.split("|", 1)[0].strip() for line in block.splitlines() if line.strip()}
+
+
 def resolve_series(seri_kod: str, bolge: str | None = None,
                    start_period: str | None = None, end_period: str | None = None) -> dict:
     """Read one series out of the gold fact table, ordered by Period.

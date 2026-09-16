@@ -26,7 +26,8 @@ import openai
 from config.settings import LAKEHOUSE_DB_PATH, MIA_CHAT_MODEL, MIA_REASONING_EFFORT
 from src.agent.context_compactor import compact_messages, estimate_tokens
 from src.agent.db_utils import connect_with_retry
-from src.agent.series_resolver import catalog_block
+from src.agent.hallucination_guard import find_hallucinated_codes
+from src.agent.series_resolver import catalog_block, known_series_codes
 from src.agent.mia_client import get_client
 from src.agent.router import Route, route_question
 from src.agent.tools import TOOL_SCHEMAS, execute_tool
@@ -121,7 +122,11 @@ veya bir bölge kodunun kapsadığı illeri YAZMA. Yanlış çıkması,
 "kaynağını bulamadım" demekten çok daha kötüdür. Bir iddiayı desteklemek
 için sözde-kanıt uydurma (görmediğin bir veri örüntüsünü "böyle
 görünüyor" diye tarif etme) - sadece gerçekten sorguladığın veya
-gördüğün veriyi kanıt olarak göster.
+gördüğün veriyi kanıt olarak göster. Yanıtında bir Seri_Kod (TP.xxx,
+tablo_N.xxx, TUIK_xxx) ADI GEÇİYORSA, o kod bu konuşma sırasında gerçekten
+bir tool sonucunda görünmüş olmalı - yukarıdaki katalogda "buna benzer"
+görünen ama bu run'da hiç sorgulamadığın bir kodu hafızandan yazma; bu tek
+tek doğrulanıyor ve yanlışsa yanıt geri gönderilip düzelttiriliyor.
 Kullanıcı bir dosya yüklediyse (CSV/Excel/PDF) o veri lakehouse'un
 İÇİNDE kendi tablosunda durur ve gold_* tablolarıyla JOIN edilebilir -
 list_imported_datasets ile hangi dataset'lerin yüklü olduğunu,
@@ -235,6 +240,25 @@ MAX_CALLS_PER_TOOL_PER_RUN_OVERRIDES = {
 
 def _tool_call_limit(name: str) -> int:
     return MAX_CALLS_PER_TOOL_PER_RUN_OVERRIDES.get(name, DEFAULT_MAX_CALLS_PER_TOOL_PER_RUN)
+
+
+HALLUCINATION_CAVEAT_PREFIX = (
+    "⚠️ Doğrulama uyarısı: bu yanıt, lakehouse kataloğunda bulunamayan "
+    "seri kod(lar)ından bahsediyor: {codes}. Bu kod(lar) muhtemelen "
+    "uydurulmuş veya yanlış hatırlanmış - onları içeren kısmı doğrulanmamış "
+    "kabul edin.\n\n"
+)
+
+
+def _valid_codes_for_check() -> set[str]:
+    """Wrapped so a broken/missing database degrades to "nothing to check
+    against" (see find_hallucinated_codes) instead of taking the whole
+    answer path down - this check must never be why a question fails."""
+    try:
+        return known_series_codes()
+    except Exception:
+        logger.warning("_valid_codes_for_check: could not load series catalog", exc_info=True)
+        return set()
 
 
 RETRYABLE_ERRORS = (openai.RateLimitError, openai.APIConnectionError, openai.APITimeoutError, openai.InternalServerError)
@@ -484,6 +508,11 @@ def ask(question: str, history: list[dict] | None = None, max_rounds: int = 25,
     compaction_log: list[dict] = []
     # Per-run, so a repeated call in a LATER question is still allowed.
     call_history: dict = {"signatures": set(), "per_tool": {}}
+    # Bounds the hallucination-correction round to at most one per run - a
+    # model that invents a code twice in a row is not going to be talked
+    # out of it by asking a third time, and the caveat-prefix fallback
+    # below still keeps the answer honest either way.
+    hallucination_retry_used = False
 
     def _ms_since_start() -> float:
         return (time.monotonic() - run_t0) * 1000.0
@@ -566,6 +595,30 @@ def ask(question: str, history: list[dict] | None = None, max_rounds: int = 25,
 
         if not message.tool_calls:
             content = message.content or "Model boş yanıt döndürdü."
+            hallucinated = find_hallucinated_codes(content, _valid_codes_for_check())
+            if hallucinated and not hallucination_retry_used:
+                hallucination_retry_used = True
+                logger.warning(
+                    f"ask: round {round_no} - final answer cites unknown Seri_Kod(s) "
+                    f"{sorted(hallucinated)}, requesting a correction instead of shipping it"
+                )
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        f"Yanıtında şu seri kod(lar)ı geçiyor ama lakehouse kataloğunda böyle bir "
+                        f"seri yok: {', '.join(sorted(hallucinated))}. Bunu uydurmuş veya yanlış "
+                        f"hatırlamış olabilirsin - gerçek kodu bulmak için lakehouse_query ile "
+                        f"kontrol et, ya da bu iddiayı tamamen kaldırıp sadece gerçekten "
+                        f"doğruladığın bilgiyle kısa bir cevap yaz."
+                    ),
+                })
+                continue
+            if hallucinated:
+                logger.error(
+                    f"ask: round {round_no} - final answer STILL cites unknown Seri_Kod(s) "
+                    f"{sorted(hallucinated)} after one correction attempt; shipping with a caveat"
+                )
+                content = HALLUCINATION_CAVEAT_PREFIX.format(codes=", ".join(sorted(hallucinated))) + content
             logger.info(f"ask: round {round_no} - no tool calls, final answer len={len(content)}")
             return _finish(content)
 
@@ -644,6 +697,13 @@ def ask(question: str, history: list[dict] | None = None, max_rounds: int = 25,
         })
         content = response.choices[0].message.content
         if content:
+            hallucinated = find_hallucinated_codes(content, _valid_codes_for_check())
+            if hallucinated:
+                logger.error(
+                    f"ask: forced final answer cites unknown Seri_Kod(s) {sorted(hallucinated)}; "
+                    f"shipping with a caveat (no round budget left for a correction attempt)"
+                )
+                content = HALLUCINATION_CAVEAT_PREFIX.format(codes=", ".join(sorted(hallucinated))) + content
             logger.info(f"ask: forced final answer produced, len={len(content)}")
             return _finish(content)
         logger.error("ask: forced final call returned no content")

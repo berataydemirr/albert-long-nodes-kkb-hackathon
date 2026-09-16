@@ -10,7 +10,7 @@ import openai
 import pytest
 
 from src.agent import orchestrator
-from src.agent.series_resolver import DB_PATH, catalog_block
+from src.agent.series_resolver import DB_PATH, catalog_block, known_series_codes
 
 needs_db = pytest.mark.skipif(
     not DB_PATH.exists(), reason="gold database not built; run `python -m src.gold.build_gold`"
@@ -151,6 +151,25 @@ def test_prompt_explains_the_forward_filled_series():
     prompt = orchestrator._system_prompt()
 
     assert "flow_quarter_ffill" in prompt
+
+
+@needs_db
+def test_known_series_codes_matches_the_catalog_block_exactly():
+    """known_series_codes() (used by the live hallucination guard) parses
+    catalog_block() rather than querying separately - the two must never
+    be able to disagree about what "a real code" means."""
+    block_codes = {line.split("|", 1)[0].strip() for line in catalog_block(refresh=True).splitlines() if line.strip()}
+
+    assert known_series_codes(refresh=True) == block_codes
+    assert block_codes, "expected at least one known code when the database exists"
+
+
+def test_known_series_codes_is_empty_without_a_database(monkeypatch):
+    """Mirrors test_system_prompt_falls_back_cleanly_without_a_database:
+    a missing catalog must mean "nothing to check", not a crash."""
+    monkeypatch.setattr("src.agent.series_resolver.catalog_block", lambda refresh=False: "")
+
+    assert known_series_codes() == set()
 
 
 @needs_db
