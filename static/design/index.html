@@ -277,7 +277,7 @@ textarea:focus-visible { outline: none; }
               </div>
             </sc-for>
           </sc-if>
-          <sc-if value="{{ hasSessions }}" hint-placeholder-val="{{ false }}">
+          <sc-if value="{{ sessionsEmpty }}" hint-placeholder-val="{{ false }}">
             <div style="padding:14px 10px; font-size:12px; color:var(--faint); line-height:1.5;">Henüz sohbet yok. Bir soru sor, burada listelenecek.</div>
           </sc-if>
         </div>
@@ -1437,6 +1437,16 @@ class Component extends DCLogic {
       sidebarOpen: s.sidebarOpen,
       sessionsView,
       hasSessions: sessionsView.length > 0,
+      // Real bug found live: the empty-state placeholder's <sc-if> reused
+      // `value="{{ hasSessions }}"` with only hint-placeholder-val flipped
+      // to false - that attribute is a design-time streaming-preview hint
+      // ONLY (see support.js's walkIf), never an inversion at real
+      // runtime, so both the session list AND the "no sessions yet"
+      // placeholder rendered together whenever a real session existed. The
+      // template's mini {{ }} expressions are plain property lookups, not
+      // a JS evaluator, so `{{ !hasSessions }}` would not work either -
+      // computing the real inverse here is the correct fix.
+      sessionsEmpty: sessionsView.length === 0,
       toggleTheme: this.toggleTheme,
       themeIcon: this.isDarkNow() ? '☀️' : '🌙',
       fileInputRef: this.fileInputRef,
