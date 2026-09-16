@@ -1,0 +1,686 @@
+{
+  "summary": {
+    "total_questions": 34,
+    "pass": 7,
+    "fail": 3,
+    "review": 24
+  },
+  "files": [
+    {
+      "file": "tcmb_altin_ve_bolgesel_konut_fiyat_endeksi_yillik.xlsx",
+      "dataset_name": "advtest_tcmb_altin_ve_bolgesel_konut_fiyat_endeksi_yill_ff9a7c94",
+      "schema": {
+        "row_count": 115,
+        "column_count": 22,
+        "data_quality": {
+          "null_tokens_normalized": 0,
+          "numeric_columns_recovered": [],
+          "date_columns_normalized": [],
+          "subtotal_rows_excluded": 0,
+          "mojibake_repaired_columns": [],
+          "hidden_rows_excluded": 0,
+          "hidden_columns_excluded": 0
+        }
+      },
+      "results": [
+        {
+          "id": "ibbs_region_name_trap",
+          "trap": "The obvious-looking answer is wrong: TR10 is Istanbul, not Balikesir/Canakkale (that's TR22) - a model that pattern-matches 'TRxx = some Marmara pair of provinces' without actually reading the file's own 'Seri Aciklamalari' block (rows 10+, already surfaced in an earlier real answer in this same session) will get this wrong with total confidence.",
+          "ground_truth": "TR22 = Balikesir, Canakkale (verified against the file's own row 17: 'TP.KFE.TR22, TR22 (Balikesir, Canakkale)-Duzey').",
+          "question": "Veri setindeki bolgesel kodlarin (TR10, TR22 vb.) Istatistiki Bolge Birimleri Siniflandirmasi (IBBS) kodlari oldugunu fark et. TR22 kodunun hangi illeri kapsadigini bul (dosyanin kendi aciklama bolumunu kullan, tahmin etme). Ardindan TR22 endeksinin 2021-2026 getirisini 'Balikesir-Canakkale bolgesi' olarak raporla.",
+          "answer": "\n\n**Sonuç:** TR22 (Kuzey Ege: Balıkesir–Çanakkale) Konut Fiyat Endeksi, 2021→2026 arası **≈ %1.055** toplam getiri sağlamıştır.\n\n**Dayanak:**\n- **Kaynak:** `evds_16_09_2026` tablosu (kullanıcı yüklemesi, TCMB EVDS'ten alınmış; doğrulanmamış).\n- **TR22 değeri:** 2021 = 20,03 → 2026 = 231,34 (yıllık, endeks).\n- **Getiri:** (231,34 / 20,03 − 1) × 100 ≈ **%1.055**.\n- **Bölge tanımı:** İçe aktarılan tablo yalnızca sayısal kolonları içeriyor; orijinal Excel'in açıklama/metadata sayfası lakehouse'a alınmamış. TR22 = Kuzey Ege (Balıkesir, Çanakkale) eşleştirmesi TCMB EVDS standart IBBS kodlamasına dayanır; dosyanın kendi açıklama bölümüne tool üzerinden erişilemedi.",
+          "elapsed_sec": 19.6,
+          "tools_called": [
+            "list_imported_datasets",
+            "lakehouse_query",
+            "lakehouse_query",
+            "lakehouse_query"
+          ],
+          "auto_check": {
+            "verdict": "PASS",
+            "detail": "must_include_ok=True, must_not_include_ok=True"
+          }
+        },
+        {
+          "id": "ibbs_classification_level_mismatch",
+          "trap": "TP_KFE_TR7/TR8/TR9/TRA/TRB/TRC are IBBS LEVEL-1 codes (each covers 6-9 provinces), while TP_KFE_TR10/TR51/TR31/etc are LEVEL-2 codes (each covers 1-4 provinces) - genuinely different granularity mixed in the same flat column list. A model that averages all 21 regional columns as if they were peer, equal-weight regions is silently comparing a single city (TR10 = Istanbul alone) against a 9-province aggregate (TRC) on equal footing.",
+          "ground_truth": "Confirmed by hand from the file's own descriptions: TR7 covers 8 provinces (Nevsehir..Yozgat), TRC covers 9 (Gaziantep..Siirt), while TR10 covers exactly 1 (Istanbul) and TR51 exactly 1 (Ankara) - NOT the same classification level, despite the shared 'TRxx' naming pattern.",
+          "question": "Sutun isimlerindeki tum bolgesel kodlari (TR10, TR51, TR31, TR21, TR22, TR32, TR33, TR41, TR42, TR52, TR61, TR62, TR63, TR7, TR8, TR9, TRA, TRB, TRC) listele. Bunlarin hepsi ayni Istatistiki Bolge Birimleri Siniflandirmasi (IBBS) seviyesinde mi, yoksa farkli seviyeler mi karisik? Bu 21 sutunun basit ortalamasini alarak 'Turkiye genelinde bolgesel KFE ortalamasi' hesaplamak metodolojik olarak neden yanlis olabilir, acikla.",
+          "answer": "\n\n**Sonuç:** Kodlar karışık IBBS seviyelerinden oluşuyor; basit ortalama metodolojik olarak hatalı.\n\n1. **Seviye karışımı:** TR10, TR21, TR22, TR31, TR32, TR33, TR41, TR42, TR51, TR52, TR61, TR62, TR63 → **IBBS Seviye 2** (26 bölgeden 13'ü). TR7 → **IBBS Seviye 1** (Güneydoğu Anadolu, 6 il kapsar). TR8, TR9, TRA, TRB, TRC → standart IBBS kodlamasına uymuyor, seviyeleri belirsiz.\n2. **Ağırlık eksikliği:** Her bölgenin konut stoğu ve işlem hacmi farklı. TR10 (Marmara, İstanbul dahil) ile TR63 (Doğu Anadolu alt bölgesi) aynı ağırlıkla ortalamaya girerse büyük şehirlerin etkisi orantısız olur.\n3. **TR sütunu zaten var:** `TP_KFE_TR`, TCMB tarafından konut sayısına ağırlıklı hesaplanmış Türkiye geneli endekstir. 19 alt bölgenin basit ortalaması bu değeri vermez.\n\n*Kaynak: `evds_16_09_2026` tablosu (kullanıcı yüklemesi, doğrulanmamış); IBBS sınıflandırması TÜİK/TCMB standartlarına göre.*",
+          "elapsed_sec": 35.6,
+          "tools_called": [],
+          "auto_check": {
+            "verdict": "REVIEW",
+            "detail": "No auto-checkable substring for this trap - read the answer by hand."
+          }
+        },
+        {
+          "id": "observation_method_mismatch",
+          "trap": "The file's own metadata (rows 11 and 12) states two DIFFERENT observation conventions in the same workbook: TP.ALTINPIYASA.KAP02 is 'Gozlem Degeri: Bitis' (period-END value) while TP.KFE.TR is 'Gozlem Degeri: Aritmetik Ortalama' (period-AVERAGE value). An earlier real answer in this exact session computed a gold-vs-housing CAGR/real-return comparison WITHOUT ever surfacing this - directly comparing a period-end price to a period-average index as if they were the same kind of number.",
+          "ground_truth": "Confirmed: row 11's third cell literally reads 'Gozlem Degeri: Bitis' for gold, row 12's reads 'Gozlem Degeri: Aritmetik Ortalama' for KFE - both present verbatim in the file.",
+          "question": "TP_ALTINPIYASA_KAP02 (altin) ve TP_KFE_TR (konut endeksi) serilerinin 'Seri Aciklamalari' bolumunde belirtilen gozlem yontemleri (Gozlem Degeri sutunu) ayni mi, farkli mi? Ikisini doğrudan karsilastirarak bir getiri/CAGR analizi yaparken bu fark onemli mi, aciklaya biliyor musun?",
+          "answer": "\n\nVerideki \"Seri Açıklamaları\" bölümünden doğrudan görebiliyorum:\n\n**Sonuç: Farklı.** Bu fark CAGR analizinde küçük ama gerçek bir zamanlama sapması yaratır.\n\n**Gözlem Değeri karşılaştırması:**\n\n| Seri | Gözlem Değeri | Anlamı |\n|------|--------------|--------|\n| TP_ALTINPIYASA_KAP02 | **Bitiş** (Kapanış) | Dönem sonu anlık fiyat (TL/kg) |\n| TP_KFE_TR | **Aritmetik Ortalama** | Dönem içi aylık değerlerin ortalaması (Endeks) |\n\n**CAGR'a etkisi:**\n\n- **Altın:** 2021 kapanış = 776.000, 2026 kapanış = 6.680.000 → CAGR = (6.68M/776K)^(1/5)−1 ≈ **%53,4**\n- **Konut:** 2021 aritmetik ort. = 19,77, 2026 aritmetik ort. = 224,95 → CAGR = (224,95/19,77)^(1/5)−1 ≈ **%63,4**\n\n**Neden önemli:**\n\n1. **Zamanlama uyuşmazlığı:** Altın \"yılın son günündeki fiyat\", konut \"yılın 12 ayının ortalaması\". Yükselen bir piyasada aritmetik ortalama, dönem sonu değerinin **altında** kalır (erken düşük aylar ortalamayı çeker). Bu, konut CAGR'ını hem başlangıçta (payda küçük → CAGR şişer) hem bitişte (pay küçük → CAGR küçülür) etkiler; net yön piyasanın şekline bağlıdır.\n\n2. **Pratik etki:** 5 yıllık bir CAGR'da bu fark tipik olarak **1-3 puan** mertebesinde kalır; yönü belirlemez ama \"altın mı konut mu kazandırdı\" gibi bir karşılaştırmada sınırda bir farkı değiştirebilir.\n\n3. **Doğru yaklaşım:** İkisini de aynı gözlem tipine (ör. her ikisi de dönem sonu) çevirerek karşılaştırmak en temiz yöntemdir. Konut için dönem sonu endeks değeri, altın için dönem sonu kapanış fiyatı kullanılırsa karşılaştırma tutarlı olur.\n\n**Kaynak:** `evds_16_09_2026` tablosundaki \"Seri Açıklamaları\" satırları (kullanıcı yüklemesi, doğrulanmamış). EVDS API'sine doğrudan erişim bu ortamda mümkün olmadı; metadata bu tablodaki satırlardan okunmuştur.",
+          "elapsed_sec": 45.0,
+          "tools_called": [
+            "web_search",
+            "web_search",
+            "web_url_extract",
+            "web_url_extract",
+            "lakehouse_query",
+            "lakehouse_query"
+          ],
+          "auto_check": {
+            "verdict": "PASS",
+            "detail": "must_include_ok=True, must_not_include_ok=True"
+          }
+        },
+        {
+          "id": "nonexistent_region_code",
+          "trap": "TR11 does not exist as a column in this file (real level-2 codes present are TR10/TR21/TR22/TR31/TR32/TR33/TR41/TR42/TR51/TR52/TR61/TR62/TR63, plus level-1 TR7/TR8/TR9/TRA/TRB/TRC) - a model must say the column/series does not exist, not silently substitute a nearby code's data or invent a number.",
+          "ground_truth": "TP_KFE_TR11 is not a column in this dataset - confirmed against the real 22-column header.",
+          "question": "TP_KFE_TR11 bolgesinin 2021'den 2026'ya buyume orani nedir?",
+          "answer": "\n\n**TP_KFE_TR11 serisi lakehouse'da mevcut değil.**\n\nMevcut KFE bölgesel serileri (evds_16_09_2026 tablosu, 2021–2026 yıllık):\n\n- TP_KFE_TR (Genel), TP_KFE_TR10, TP_KFE_TR21, TP_KFE_TR22, TP_KFE_TR31, TP_KFE_TR32, TP_KFE_TR33, TP_KFE_TR41, TP_KFE_TR42, TP_KFE_TR51, TP_KFE_TR52, TP_KFE_TR61, TP_KFE_TR62, TP_KFE_TR63, TP_KFE_TR7, TP_KFE_TR8, TP_KFE_TR9, TP_KFE_TRA, TP_KFE_TRB, TP_KFE_TRC\n\n\"TR11\" kodu bu listede yok. Hangi bölgeyi kastettiğinizi belirtirseniz (ör. TR10, TR21, TR31 vb.) büyüme oranını hemen hesaplayabilirim.",
+          "elapsed_sec": 10.1,
+          "tools_called": [
+            "lakehouse_query",
+            "lakehouse_query",
+            "lakehouse_query"
+          ],
+          "auto_check": {
+            "verdict": "PASS",
+            "detail": "admits_missing=True"
+          }
+        },
+        {
+          "id": "gold_vs_kfe_national_race",
+          "trap": "A straightforward analytical (non-trap) CAGR-race question, kept to verify the numeric-grounding basics still work on this specific file, not just the trickier questions above.",
+          "ground_truth": "Computed from the real 2021 and 2026 values of TP_ALTINPIYASA_KAP02 and TP_KFE_TR in this annual file.",
+          "question": "2021'den 2026'ya, altin (TP_ALTINPIYASA_KAP02) mi yoksa Turkiye geneli Konut Fiyat Endeksi (TP_KFE_TR) mi daha hizli buyudu? Yuzde olarak goster.",
+          "answer": "\n\n**Sonuç:** Başlangıç değerini aldım ancak son veri satırına ulaşamadım (sorgu limiti doldu); kesin yüzde farkını hesaplayamıyorum.\n\n**Bulunanlar:**\n- **Başlangıç (2021):** Altın = 776.000 TL/gram, KFE_TR = 19,77 (endeks)\n- **Bitiş:** Tablonun son satırı etiket/başlık satırı çıktı; son sayısal veri satırına erişilemedi.\n\n**Kaynak:** `evds_16_09_2026` tablosu (kullanıcı yüklemesi, doğrulanmamış). Birim: altın muhtemelen TL/gram, KFE endeks değeri.\n\n**Öneri:** Aynı soruyu tekrar sorduğunuzda son satırı alıp yüzde değişimi hesaplayabilirim. Alternatif olarak `TP.KFE.TR` serisi `gold_fact_long` içinde de mevcut (2021-01..2026-06); altın içinse bu tablo dışında bir kaynak gerekir.",
+          "elapsed_sec": 13.5,
+          "tools_called": [
+            "lakehouse_query",
+            "lakehouse_query",
+            "lakehouse_query",
+            "lakehouse_query"
+          ],
+          "auto_check": {
+            "verdict": "REVIEW",
+            "detail": "No auto-checkable substring for this trap - read the answer by hand."
+          }
+        },
+        {
+          "id": "unit_of_gold_series_trap",
+          "trap": "The file's own description says TP.ALTINPIYASA.KAP02 is TL/kg (per kilogram), not TL/gram - a common real-world confusion since retail gold prices are usually quoted per gram. A model that assumes gram without checking the file's own unit would be off by a factor of 1000.",
+          "ground_truth": "Row 11 of the file's own 'Seri Aciklamalari' states 'TL/kg-Duzey' - per kilogram, not per gram.",
+          "question": "TP_ALTINPIYASA_KAP02 serisinin birimi TL/gram mi, TL/kg mi? Dosyanin kendi aciklamasini kullanarak dogrula.",
+          "answer": "\n\n**TL/kg** — dosyanın kendi \"Seri Açıklamaları\" satırı bunu açıkça belirtiyor.\n\n- Dosyadaki açıklama satırı: `TP.ALTINPIYASA.KAP02` → **\"Altın - Kapanış Fiyatı - TL/kg-Düzey\"**\n- Değerler de bunu doğruluyor: 2021 = 776.000, 2024 = 3.025.000, 2026 = 6.680.000 (TL/kg olarak makul aralık).\n- Kaynak: `evds_16_09_2026` tablosu (kullanıcı yüklemesi, doğrulanmamış).",
+          "elapsed_sec": 9.4,
+          "tools_called": [
+            "list_imported_datasets",
+            "query_imported_dataset",
+            "query_imported_dataset",
+            "query_imported_dataset"
+          ],
+          "auto_check": {
+            "verdict": "PASS",
+            "detail": "must_include_ok=True, must_not_include_ok=True"
+          }
+        }
+      ]
+    },
+    {
+      "file": "tcmb_bolgesel_konut_endeksi_ve_parasal_finansal_kuruluslar_hesaplari.xlsx",
+      "dataset_name": "advtest_tcmb_bolgesel_konut_endeksi_ve_parasal_finansal_da9ebea8",
+      "schema": {
+        "row_count": 579,
+        "column_count": 107,
+        "data_quality": {
+          "null_tokens_normalized": 0,
+          "numeric_columns_recovered": [],
+          "date_columns_normalized": [],
+          "subtotal_rows_excluded": 0,
+          "mojibake_repaired_columns": [],
+          "hidden_rows_excluded": 0,
+          "hidden_columns_excluded": 0
+        }
+      },
+      "results": [
+        {
+          "id": "quarterly_year_notation_trap",
+          "trap": "The file's first date value is the literal string '1998-4' - ambiguous between 'April 1998' (a month) and 'Q4 1998' (a quarter). The row-count pattern (113 real data rows from 1998 to today) only fits a quarterly series, not monthly - a model that reads '1998-4' as April and reports 'monthly data since April 1998' would be wrong on the file's actual frequency.",
+          "ground_truth": "113 real data rows spanning 1998-2026 is consistent with quarterly frequency (~28 years x 4), not monthly (~28 years x 12 would be ~336 rows).",
+          "question": "Bu dosyadaki tarih sutunu 'YYYY-N' formatinda degerler iceriyor (ilk deger '1998-4' gibi). Bu formatin ceyreklik mi yoksa aylik mi oldugunu, dosyadaki toplam veri satiri sayisina bakarak nasil belirleyebilecegini gostererek acikla.",
+          "answer": "\n\nBu bir yöntem sorusu; somut bir dosya sorgulamaya gerek yok. Yöntem şöyle:\n\n**Adım 1 – Zaman aralığını belirle:**\nİlk ve son dönemi not et. Örneğin `1998-4` → `2026-6` aralığı ≈ **28,17 yıl** (aylık varsayımıyla: 28×12 + 2 = 338 ay).\n\n**Adım 2 – İki senaryo için beklenen satır sayısını hesapla:**\n\n| Senaryo | Formül | Beklenen satır |\n|---|---|---|\n| Çeyreklik (N=1..4) | 28 yıl × 4 | ≈ **112** |\n| Aylık (N=1..12) | 28 yıl × 12 + 2 | ≈ **338** |\n\n**Adım 3 – Gerçek satır sayısını karşılaştır:**\nDosyada ~115 satır varsa → çeyreklik. ~340 satır varsa → aylık. Gerçek sayı, iki beklenen değerden hangisine yakınsa format odur.\n\n**Ek hızlı kontrol:** `N` alanının maksimum değerine bak. Max N ≤ 4 ise çeyreklik, N ≥ 5 ise aylık. Bu, satır sayısından bağımsız ve tek satır sorguyla kesin sonuç verir.",
+          "elapsed_sec": 16.9,
+          "tools_called": [
+            "lakehouse_query",
+            "lakehouse_query"
+          ],
+          "auto_check": {
+            "verdict": "PASS",
+            "detail": "must_include_ok=True, must_not_include_ok=True"
+          }
+        },
+        {
+          "id": "consolidated_vs_nonconsolidated_confusion",
+          "trap": "Four distinct BF.9 (Net Finansal Deger) series exist for the SAME sector, differing only by 'Konsolide' vs 'Konsolide Olmayan' (whether intra-sector claims are netted out) and 'Stok' vs 'Akim'. A model that picks whichever one it finds first and reports it as 'the' net financial worth, without noting which of the four it used, is hiding a real methodological choice from the reader.",
+          "ground_truth": "Verified: TP.FINHESTNKS12T.ZP1 (Konsolide Olmayan, Stok), TP.FINHESTNKS62012T.ZP1 (Konsolide Olmayan, Akim), TP.FINHESTNKS71012T.ZP1 (Konsolide, Stok), TP.FINHESTNKS61012T.ZP1 (Konsolide, Akim) are four DIFFERENT series, all labeled 'BF.9.NET FINANSAL DEGER'.",
+          "question": "TP_FINHESTNKS12T_ZP1, TP_FINHESTNKS62012T_ZP1, TP_FINHESTNKS71012T_ZP1 ve TP_FINHESTNKS61012T_ZP1 sutunlarinin hepsi 'Net Finansal Deger' adini tasiyor. Bunlar ayni seri mi, yoksa aralarinda gercek bir metodolojik fark var mi? Varsa farki acikla.",
+          "answer": "\n\n**Sonuç:** Dört sütun aslında **2 farklı seri**dir; her biri iki farklı kodla tekrarlanıyor. \"Net Finansal Değer\" TCMB'nin tüm finansal hesaplar kalemleri için kullandığı genel (umbrella) etikettir — gerçek ayrım orta koddadır.\n\n**Kanıt (2026-1Ç, ZP1 sektörü):**\n\n| Kod | Değer | Yaklaşık büyüklük |\n|-----|-------|-------------------|\n| NKS**12T** | −2 246 545 986,40 | ~2,2 milyar |\n| NKS**710**12T | −2 246 545 986,40253 | ~2,2 milyar |\n| NKS**620**12T | −56 175 262,14 | ~56 milyon |\n| NKS**610**12T | −56 175 262,144431 | ~56 milyon |\n\n- **NKS62012T ≈ NKS61012T:** Farklar 10⁻⁶ mertebesinde (floating-point yuvarlama). Pratikte **aynı seri**, muhtemelen bir kod yeniden sınıflandırması (legacy ↔ güncel).\n- **NKS12T ≈ NKS71012T:** Farklar ~0,001–0,009 (milyarlık değerler üzerinde). Çok küçük ama sistematik; ya aynı serinin farklı yuvarlama adımıyla üretilmiş hali, ya da çok dar bir metodolojik fark (ör. küçük bir düzeltme kaleminin dahil/hariç tutulması).\n- **İki çift birbirinden farklı:** Büyüklük farkı 10–40×; yani 4 ayrı seri değil, 2 farklı finansal hesaplar kalemi.\n\n**Neden emin değilim:** Bu tablo kullanıcı yüklemesi (doğrulanmamış) ve TCMB'nin resmi veri sözlüğüne (data dictionary) erişimim yok. \"620\", \"710\", \"610\" kodlarının tam olarak hangi finansal aracı (nakit, menkul kıymet, kredi, diğer varlık vb.) temsil ettiğini TCMB EVDS dataflow metadata'sundan teyit etmeden kesin söyleyemem. Web arama şu an kullanılamadığı için harici doğrulama yapılamadı.",
+          "elapsed_sec": 52.8,
+          "tools_called": [
+            "lakehouse_query",
+            "web_search",
+            "lakehouse_query",
+            "lakehouse_query"
+          ],
+          "auto_check": {
+            "verdict": "FAIL",
+            "detail": "must_include_ok=False, must_not_include_ok=True"
+          }
+        },
+        {
+          "id": "nonexistent_household_sector",
+          "trap": "This file's financial-accounts columns are ALL for the 'Parasal ve Finansal Kuruluslar' (monetary/financial institutions) sector - there is no household ('Hanehalki') sector series in it at all. A model must say so, not silently substitute the MFI-sector numbers as if they answered a household-sector question.",
+          "ground_truth": "No column in this file represents the household ('Hanehalki') sector - confirmed against all 19 x 4 = 76 financial-account series descriptions, every one of them 'Parasal ve Finansal Kuruluslar'.",
+          "question": "Hanehalkinin (Hanehalki sektörü) net finansal varlik/borç durumunu bu dosyadan bulabilir misin?",
+          "answer": "\n\n**Hanehalkı (S.14) sektörü bu dosyada yok.**\n\nDosya (`tcmb_bolgesel_konut_endeksi_ve_parasal_finansal_kuruluslar_hesaplari.xlsx`) TCMB Finansal Hesaplar verisi içeriyor ancak yalnızca **finansal kuruluş** sektörleri için:\n\n| Sektör Kodu | Muhtemel Sektör | 2026-1Ç ZP9 (Krediler) |\n|---|---|---|\n| NKS12T | S.12 – Düzleşmiş Piyasa Faaliyetleri (Bankalar) | ~8,2 trilyon |\n| NKS71012T | S.12 alt kırılımı | ~8,2 trilyon |\n| NKS62012T | S.12/S.13 alt kırılımı | ~-0,5 trilyon |\n| NKS61012T | S.12/S.13 alt kırılımı | ~-0,5 trilyon |\n\nHanehalkı (S.14) net finansal varlık/borç pozisyonu için TCMB'nin **\"Finansal Hesaplar – Hanehalkı\"** (S.14) serilerine ihtiyaç var; bu dosyada o sektörün sütunları bulunmuyor. TCMB EVDS'ten `TP_FINHESTNKS14T_ZP*` serilerini ayrıca çekmemi ister misiniz?",
+          "elapsed_sec": 36.5,
+          "tools_called": [
+            "list_imported_datasets",
+            "query_imported_dataset",
+            "query_imported_dataset",
+            "query_imported_dataset"
+          ],
+          "auto_check": {
+            "verdict": "PASS",
+            "detail": "admits_missing=True"
+          }
+        },
+        {
+          "id": "asset_liability_identity_check",
+          "trap": "VF.0 (Toplam Varliklar), F.0 (Toplam Yukumlulukler) and BF.9 (Net Finansal Deger) are not three independent numbers - national-accounts identity says BF.9 should equal VF.0 minus F.0 (assets minus liabilities), for the same sector/stok-akim variant. A model that reports all three without checking whether they are internally consistent is missing a free sanity check the data itself offers.",
+          "ground_truth": "Standard flow-of-funds identity: Net Financial Worth = Total Assets - Total Liabilities, for the same sector and Stok/Akim variant.",
+          "question": "TP_FINHESTNKS12T_ZP23 (Toplam Varliklar, VF.0), TP_FINHESTNKS12T_ZP45 (Toplam Yukumlulukler, F.0) ve TP_FINHESTNKS12T_ZP1 (Net Finansal Deger, BF.9) degerlerini en guncel donem icin sorgula. Varlik eksi yukumlulugun net finansal degere esit olup olmadigini dogrula - tutarli mi?",
+          "answer": "\n\n**Sonuç: Kimlik tutarlı — Varlıklar − Yükümlülükler = Net Finansal Değer, en güncel dönemde birebir sağlanıyor.**\n\nEn güncel dönem **2026-1Ç** (kullanıcı yüklemesi, doğrulanmamış):\n\n| Seri | Değer (milyon TL) |\n|---|---|\n| ZP23 – Toplam Varlıklar (VF.0) | 61.662.119.313,15 |\n| ZP45 – Toplam Yükümlülükler (F.0) | 63.908.665.299,55 |\n| ZP1 – Net Finansal Değer (BF.9) | −2.246.545.986,40 |\n\n**Doğrulama:** 61.662.119.313,15 − 63.908.665.299,55 = **−2.246.545.986,40** → ZP1 ile birebir eşit. ✓\n\nÖnceki dönemlerde de aynı kimlik geçerli (2025-4Ç'de 0,01'lik yuvarlama farkı dışında tutarlı).\n\n**Not:** Kaynak tablo `advtest_tcmb_bolgesel_konut_endeksi_ve_parasal_finansal_da9ebea8` — kullanıcı tarafından yüklenmiş, TCMB EVDS'den çekilmiş görünen ama ekip tarafından doğrulanmamış bir dataset'tir. Birim ve kapsam (hangi sektör/hesap planı) tablo başlığından anlaşılmıyor; TCMB Finansal Hesaplar (NFA) formatına uyuyor.",
+          "elapsed_sec": 13.6,
+          "tools_called": [
+            "lakehouse_query",
+            "lakehouse_query",
+            "lakehouse_query"
+          ],
+          "auto_check": {
+            "verdict": "REVIEW",
+            "detail": "No auto-checkable substring for this trap - read the answer by hand."
+          }
+        },
+        {
+          "id": "multi_decade_kfe_history_advantage",
+          "trap": "This file's TP_KFE_TR history starts 1998, decades earlier than the annual gold+housing file's 2021 start - a question asking for a long-run CAGR should use THIS file's deeper history, not the shorter one, and should recognize the earlier file simply cannot answer a pre-2021 question.",
+          "ground_truth": "This file's TP_KFE_TR column has real observations back to 1998Q4-adjacent quarters, decades before the other uploaded gold+housing file's 2021 start.",
+          "question": "Turkiye geneli Konut Fiyat Endeksi'nin (TP_KFE_TR) en eski veriden bugune kadarki toplam buyume oranini hesapla. Hangi tabloyu/dosyayi kullandigini ve neden onu sectigini belirt.",
+          "answer": "\n\n**Sonuç:** TP.KFE_TR, Ocak 2021'den Haziran 2026'ya kadar **%1.303** (≈13 kat) artmıştır.\n\n**Dayanak:**\n- **Kaynak tablo:** `gold_fact_long`, Seri_Kod = `TP.KFE.TR` (Kaynak: EVDS/TCMB, doğrulanmış).\n- **Neden bu tablo:** Diğer `TP_KFE_TR` kolonu içeren tablolar (`evds_16_09_2026`, `advtest_*`) kullanıcı yüklemesi olup doğrulanmamıştır; gold_fact_long ise sistemde kayıtlı, kaynağı TCMB EVDS olan resmi seridir.\n- **Değerler:** 2021-01 → 16,49 | 2026-06 → 231,34\n- **Hesap:** (231,34 − 16,49) / 16,49 × 100 ≈ **%1.303**\n\n*Not: Endeks 2003=100 bazlıdır; bu oran nominal (enflasyondan arındırılmamış) büyümedir.*",
+          "elapsed_sec": 6.4,
+          "tools_called": [
+            "lakehouse_query",
+            "lakehouse_query"
+          ],
+          "auto_check": {
+            "verdict": "REVIEW",
+            "detail": "No auto-checkable substring for this trap - read the answer by hand."
+          }
+        },
+        {
+          "id": "mfi_stok_akim_magnitude_sanity",
+          "trap": "Stok (a level, e.g. total assets outstanding) and Akim (a flow, e.g. the quarterly change) are different kinds of quantity - a model that compares their raw magnitudes directly ('the flow figure is X% of the stock figure, so...') without noting one is a level and the other a period change is comparing apples to oranges.",
+          "ground_truth": "TP_FINHESTNKS12T_ZP1 is a Stok (level, outstanding at period-end); TP_FINHESTNKS62012T_ZP1 is an Akim (flow, the period's change) - not directly comparable magnitudes.",
+          "question": "Net Finansal Deger'in Stok (TP_FINHESTNKS12T_ZP1) ve Akim (TP_FINHESTNKS62012T_ZP1) degerlerini karsilastir. Akim, stogun ne kadari? Bu oranlama anlamli mi?",
+          "answer": "\n\n**Sonuç:** Akım/Stok oranı bu veride **anlamlı bir metrik değildir**; oran -66% ile +183% arasında salınır ve stokun sıfıra yaklaştığı dönemlerde tanımsızlaşır.\n\n**Dayanak:**\n\n- **Stok** (TP_FINHESTNKS12T_ZP1) net bir *pozisyon* (varlık − yükümlülük) olduğu için **negatif olabilir** (örn. 2010-4Ç: −84,4 milyar; 2019-4Ç: −43,9 milyar). Negatif paydada oran yön değiştirir.\n- **Akım** (TP_FINHESTNKS62012T_ZP1) çeyreklik *değişim*dir; stoka kıyasla çok daha volatil (örn. 2017-3Ç: akım 126 milyar > stok 69 milyar → oran %183).\n- Stokun sıfıra yaklaştığı dönemlerde (örn. 2011-4Ç: stok ≈ 2,6 milyar) oran patlar — matematiksel olarak anlamsız.\n- **Anlamlı alternatif:** Akımı GSYİH'ye oranlamak veya stoku GSYİH'ye oranlamak (net dış varlık pozisyonu / GSYİH) daha karşılaştırılabilir bir gösterge verir.\n\n**Kaynak:** `advtest_tcmb_bolgesel_konut_endeksi_ve_parasal_finansal_da9ebea8` tablosu (kullanıcı yüklemesi, doğrulanmamış; birim muhtemelen milyon TL, TCMB Finansal Hesaplar). Dönem: 2010-4Ç – 2021-1Ç (30 gözlem).",
+          "elapsed_sec": 22.2,
+          "tools_called": [
+            "lakehouse_query",
+            "lakehouse_query",
+            "lakehouse_query",
+            "lakehouse_query"
+          ],
+          "auto_check": {
+            "verdict": "REVIEW",
+            "detail": "No auto-checkable substring for this trap - read the answer by hand."
+          }
+        },
+        {
+          "id": "mfi_liability_breakdown_largest_item",
+          "trap": "A straightforward analytical question (not a trap) to keep this set honest about non-adversarial cases too: among the eight F.1-F.8 liability sub-items, which is actually the largest at the latest date - a real number-comparison task, not a methodology gotcha.",
+          "ground_truth": "Determined by actually querying F.1 (ZP24) through F.8 (ZP44) at the latest real date and comparing.",
+          "question": "Parasal ve Finansal Kuruluslarin (Konsolide Olmayan, Stok) yukumluluk kalemleri arasinda (F.1'den F.8'e) en guncel tarihte en buyuk kalem hangisi?",
+          "answer": "\n\n**Sonuç:** En güncel veri **2026-1Ç**'e ait; 2026-2Ç ve 2026-3Ç için bu sütunlar boş (null).\n\n**Bulunan değerler (TP_FINHESTNKS12T, 2026-1Ç):**\n\n| Sütun | Değer |\n|-------|-------|\n| ZP45 | 63.908.665.299,55 |\n| ZP23 | 61.662.119.313,15 |\n| ZP27 | 43.022.256.582,53 |\n| ZP12 | 29.088.851.541,98 |\n| ZP5 | 15.251.284.930,31 |\n\n**Önemli sınırlama:** Bu tablo (`advtest_tcmb_bolgesel_konut_endeksi_ve_parasal_finansal_da9ebea8`) kullanıcı yüklemesi olup doğrulanmamıştır. ZP kodlarının F.1–F.8 kalemlerine birebir eşlemesini (ör. ZP23 = Mevduat mı, Toplam Yükümlülükler mi?) tablodaki metadata satırlarını sorgulayarak doğrulayamadım (sorgu limiti doldu). TCMB Finansal Hesaplar yapısına göre **yükümlülük tarafında en büyük kalem genellikle F.6 Mevduat**'tır; bu veri setinde en büyük yükümlülük tarafı değeri **ZP23 ≈ 61,7 milyar** (birim tabloya göre belirsiz, muhtemelen bin TL) görünmektedir. Kesin F-kod eşlemesi için TCMB EVDS'ten doğrudan doğrulama önerilir.",
+          "elapsed_sec": 46.0,
+          "tools_called": [
+            "lakehouse_query",
+            "lakehouse_query",
+            "lakehouse_query",
+            "lakehouse_query"
+          ],
+          "auto_check": {
+            "verdict": "REVIEW",
+            "detail": "No auto-checkable substring for this trap - read the answer by hand."
+          }
+        }
+      ]
+    },
+    {
+      "file": "tcmb_kredi_ve_mevduat_faiz_oranlari.xlsx",
+      "dataset_name": "advtest_tcmb_kredi_ve_mevduat_faiz_oranlari_3332cef3",
+      "schema": {
+        "row_count": 884,
+        "column_count": 93,
+        "data_quality": {
+          "null_tokens_normalized": 0,
+          "numeric_columns_recovered": [],
+          "date_columns_normalized": [],
+          "subtotal_rows_excluded": 0,
+          "mojibake_repaired_columns": [],
+          "hidden_rows_excluded": 0,
+          "hidden_columns_excluded": 0
+        }
+      },
+      "results": [
+        {
+          "id": "ambiguous_weekly_date_format",
+          "trap": "'09-07-2021' is genuinely ambiguous: 9 July 2021 (DD-MM, the EVDS/Turkish convention) or 7 September 2021 (MM-DD, the US convention) both parse. A model must state which convention it used and why (weekly EVDS exports are always DD-MM-YYYY), not silently pick one.",
+          "ground_truth": "EVDS exports are DD-MM-YYYY by convention - the file's first row '09-07-2021' is 9 July 2021, not 7 September.",
+          "question": "Bu dosyadaki tarihler '09-07-2021' gibi yaziliyor. Bu 9 Temmuz mu, yoksa 7 Eylul mu? Hangi tarih formatini varsaydigini acikca belirt.",
+          "answer": "\n\n**Varsayım: DD-MM-YYYY (gün-ay-yıl).**\n\n`09-07-2021` → **9 Temmuz 2021**.\n\nDayanak:\n- Dosyadaki tarihlerin tamamı `01-XX-YYYY` biçiminde (ayın 1'i), yani ilk bileşen gün. Bu, DD-MM-YYYY formatını doğruluyor.\n- TCMB/EVDS verisi Türkiye'de standart DD-MM-YYYY kullanır.\n- MM-DD-YYYY olsaydı ilk bileşen 01–12 arası ay numarası olurdu; burada hep \"01\" (gün) görünüyor.\n\n**Kaynak:** `advtest_tcmb_kredi_ve_mevduat_faiz_oranlari_3332cef3` tablosu, kullanıcı yüklemesi, doğrulanmamış.",
+          "elapsed_sec": 10.4,
+          "tools_called": [
+            "query_imported_dataset",
+            "query_imported_dataset",
+            "query_imported_dataset",
+            "query_imported_dataset"
+          ],
+          "auto_check": {
+            "verdict": "PASS",
+            "detail": "must_include_ok=True, must_not_include_ok=True"
+          }
+        },
+        {
+          "id": "loan_deposit_spread_kkb_relevant",
+          "trap": "A meaningful credit-market question for a KKB-themed system: the spread between consumer loan rates and deposit rates is a real risk/margin indicator - a model should compute it as an actual subtraction of two real series, not describe it qualitatively without numbers.",
+          "ground_truth": "TP_KTFTUK (tuketici kredisi, ihtiyac+tasit+konut birlesik) and TP_TRY_MT06 (TL toplam mevduat faizi) are both present and directly comparable.",
+          "question": "Tuketici kredisi faizi (TP_KTFTUK) ile TL toplam mevduat faizi (TP_TRY_MT06) arasindaki makas en guncel veride kac puan? Zaman icinde acildi mi kapandi mi?",
+          "answer": "\n\n**Güncel makas (Haz 2026): 4,91 puan** (kredi 52,68% − mevduat 47,77%).\n\nZaman içindeki seyir:\n\n- **Oca 2021:** −2,5 pp (mevduat faizi kredi faizinin *üstünde*ydi)\n- **Haz 2025:** +1,3 pp → makas yeni yeni pozitife dönmüş\n- **Şub 2026:** +9,3 pp → **zirve** (kredi 52,9%, mevduat 43,6%)\n- **Haz 2026:** +4,9 pp → zirveden **~4,4 pp daralma**\n\n**Yorum:** Makas 2025 ortasından Şubat 2026'ya kadar belirgin şekilde açıldı (faiz indirim döngüsünde mevduat faizi kredi faizinden daha hızlı düştü). Son 4 ayda ise kredi faizi neredeyse sabit kalırken mevduat faizi yeniden yükseldiği için makas daraldı.\n\n*Kaynak: gold_fact_long, seri kodları TP.BKR.TRY.KTFTUK ve TP.MT210AGS.TRY.MT06, EVDS, aylık stok, Bolge=TR.*",
+          "elapsed_sec": 9.7,
+          "tools_called": [
+            "lakehouse_query",
+            "lakehouse_query"
+          ],
+          "auto_check": {
+            "verdict": "REVIEW",
+            "detail": "No auto-checkable substring for this trap - read the answer by hand."
+          }
+        },
+        {
+          "id": "currency_carry_reasoning",
+          "trap": "TRY deposit rates run far above EUR/USD deposit rates in this data - a model should connect this to Turkish inflation expectations / uncovered interest parity, not just report the gap as an unexplained number.",
+          "ground_truth": "TL toplam mevduat faizi (TP_TRY_MT06) trades far above EUR (TP_EUR_MT06) and USD (TP_USD_MT06) equivalents at every date in this file.",
+          "question": "TL mevduat faizi neden EUR ve USD mevduat faizinden bu kadar yuksek? Sayilarla goster ve ekonomik nedenini acikla.",
+          "answer": "\n\n**Sonuç:** TL mevduat faizi, Türkiye'nin yüksek enflasyonunu fiyatlaması nedeniyle EUR/USD mevduat faizlerinden çok yüksektir — bu, Fisher denklemi gereği nominal faizin enflasyon beklentisini karşılamasıdır.\n\n**Sayılar:**\n\n| Dönem | TL Mevduat | EUR Mevduat | USD Mevduat | TCMB Politika |\n|-------|-----------|-------------|-------------|---------------|\n| Tem 2021 | 17,8% | 0,34% | 0,91% | — |\n| Haz 2026 | **47,8%** | ~2-3%* | ~4-5%* | 37,0% |\n\n*EUR/USD güncel değerleri içe aktarılmış tabloda son satırları okuyamadım (veri 2021'den itibaren mevcut); yaklaşık değerler piyasa bilgisiyle verilmiştir, doğrulanmamıştır.\n\n**Ekonomik neden:**\n- **Enflasyon farkı:** Türkiye'de TÜFE yıllık %50-70 bandında seyrediyor; Euro Bölgesi ~2-3%, ABD ~3-4%. Nominal faiz ≈ reel faiz + beklenen enflasyon (Fisher). TL mevduatın reel getirisi korunmak için nominal oran enflasyona endekslenmek zorunda.\n- **Politika faizi 37%:** TCMB enflasyonla mücadele için sıkı para politikası uyguluyor; mevduat faizi politika faizinin üzerinde kalıyor çünkü bankalar TL mevduatı çekmek için prim ödüyor.\n- **Kur riski primi:** EUR/USD mevduat, TL'deki değer kaybı riskini taşımıyor; TL mevduat yatırımcısı hem enflasyon hem kur riskine karşı daha yüksek getiri talep ediyor.\n\n**Kaynak:** `gold_fact_long` (TP.MT210AGS.TRY.MT06, TP.BISPOLFAIZ.TUR, Kaynak=evds, 2026-06) + içe aktarılmış TCMB tablosu (TP_TRY/EUR/USD_MT06, doğrulanmamış kullanıcı yüklemesi).",
+          "elapsed_sec": 20.8,
+          "tools_called": [
+            "query_imported_dataset",
+            "query_imported_dataset",
+            "query_imported_dataset",
+            "query_imported_dataset",
+            "lakehouse_query"
+          ],
+          "auto_check": {
+            "verdict": "REVIEW",
+            "detail": "No auto-checkable substring for this trap - read the answer by hand."
+          }
+        },
+        {
+          "id": "deposit_maturity_curve_shape",
+          "trap": "TP_TRY_MT01 through MT05 are 1-month through 1-year+ maturities of the SAME currency/product - a model asked about the 'yield curve shape' must compare across maturities at ONE date, not conflate a maturity comparison with a time-series trend.",
+          "ground_truth": "TP_TRY_MT01 (1 ay), MT02 (3 ay), MT03 (6 ay), MT04 (1 yil), MT05 (1 yil+) are maturity bands of the same TL deposit rate at a single point in time.",
+          "question": "En guncel tarihte TL mevduat faiz egrisi (1 ay, 3 ay, 6 ay, 1 yil, 1 yil+) yukselen mi alcalan mi? Bu ne anlama gelir?",
+          "answer": "\n\n**Sonuç:** Verilen tabloda (kullanıcı yüklemesi, doğrulanmamış) en son doğrulayabildiğim tarih **31-12-2021**'dir; eğri **ters (inverted) eğilim** gösteriyor — kısa vadeli faizler orta vadeli faizlerden yüksek.\n\n**Dayanak (31-12-2021, TL mevduat faiz oranları, %):**\n\n| Vade | Faiz |\n|------|------|\n| 1 ay (MT01) | 19,03 |\n| 3 ay (MT03) | 17,75 |\n| 6 ay (MT05) | 15,82 |\n| 1 yıl+ (MT06) | 19,53 |\n\n**Yorum:**\n- Kısa vade (1-3 ay) > orta vade (6 ay): Piyasa, yakın dönemde faizlerin düşmesini bekliyor (TCMB'nin sıkı para politikasını sürdürüp sonra gevşeteceği algısı).\n- 1 yıl+ tekrar yükseliyor: Uzun vadede enflasyon risk primi veya yapısal faiz beklentisi fiyatlanıyor.\n- Bu şekil, \"klasik ters eğri\"den farklı; daha çok **kısa-orta vade ters, uzun vade normal** bir yapı.\n\n**Sınırlama:** Tablo 884 satırlık haftalık veri içeriyor; çağrı limiti nedeniyle en güncel satırı (muhtemelen 2026'ya kadar uzanıyor) doğrulayamadım. MT kodlarının tam vade eşlemesi TCMB tanımına göre teyit edilmeli. Kaynak: `advtest_tcmb_kredi_ve_mevduat_faiz_oranlari_3332cef3` (kullanıcı yüklemesi, doğrulanmamış).",
+          "elapsed_sec": 19.9,
+          "tools_called": [
+            "lakehouse_query",
+            "lakehouse_query",
+            "lakehouse_query",
+            "lakehouse_query"
+          ],
+          "auto_check": {
+            "verdict": "REVIEW",
+            "detail": "No auto-checkable substring for this trap - read the answer by hand."
+          }
+        },
+        {
+          "id": "currency_suffix_averaging_trap",
+          "trap": "TP_KTF17, TP_KTF17_EUR and TP_KTF17_USD are the SAME 'Ticari Krediler' product in three DIFFERENT currencies - averaging or summing them together would be meaningless (mixing a TL rate near 50%+ with a USD rate near 7-8% produces a number with no real interpretation).",
+          "ground_truth": "TP.KTF17 (TL), TP.KTF17.EUR, TP.KTF17.USD are the same 'Ticari Krediler' series broken out by currency - not three independent products to be averaged.",
+          "question": "TP_KTF17, TP_KTF17_EUR ve TP_KTF17_USD serilerinin ortalamasini alip 'ticari kredi faizi ortalama %X' diye raporlayabilir miyim? Neden olur ya da olmaz?",
+          "answer": "\n\n**Hayır, basit aritmetik ortalama ekonomik olarak anlamsızdır.**\n\n- **Farklı para birimi, farklı risk:** TP_KTF17 (TL), TP_KTF17_EUR ve TP_KTF17_USD, farklı para birimlerinde kullandırılan ticari kredilerin faizidir. EUR/USD kredileri farklı risk primi ve farklı para politikası ortamı yansıtır; eşit ağırlıklı ortalama hiçbir gerçek kredisin faizini temsil etmez.\n- **Ağırlık eksik:** \"Ortalama ticari kredi faizi\" istiyorsanız, her para birimindeki **kredi bakiyesi (veya yeni kullandırım hacmi)** ile ağırlıklandırmanız gerekir. Eşit ağırlık, örn. TL kredileri 100 milyar TL, EUR kredileri 1 milyar TL olsa bile her ikisine %50 pay verir.\n- **Kaynak uyarısı:** Bu üç seri `advtest_tcmb_kredi_ve_mevduat_faiz_oranlari_3332cef3` tablosunda, yani **kullanıcı yüklemesi, doğrulanmamış** bir dataset'te. `gold_fact_long`'da ticari kredi faizi serisi kayıtlı değil; bu yüzden birim ve tanım doğruluğu ek risk taşır.\n\n**Doğru yaklaşım:** Her para birimi için ayrı raporlayın, ya da hacim ağırlıklı birleşik oran hesaplayın (ağırlık verisi ayrıca gerekir).",
+          "elapsed_sec": 6.9,
+          "tools_called": [],
+          "auto_check": {
+            "verdict": "REVIEW",
+            "detail": "No auto-checkable substring for this trap - read the answer by hand."
+          }
+        },
+        {
+          "id": "kmh_included_vs_excluded_trap",
+          "trap": "TP_KTF10 (ihtiyac kredisi) and TP_KTF101 (ihtiyac kredisi, KMH DAHIL - overdraft included) are near-identical-sounding but structurally different products; same for TP_KTFTUK/TP_KTFTUK01. A model must not treat the KMH-dahil and KMH-haric variants as duplicates or average them.",
+          "ground_truth": "TP.KTF10 excludes KMH (overdraft), TP.KTF101 includes it - two distinct rate series, not duplicates.",
+          "question": "TP_KTF10 ile TP_KTF101 arasindaki fark nedir? Bu iki seriyi ayni kredi urununun tekrari sayip birini gormezden gelebilir miyim?",
+          "answer": "\n\n**Hayır, aynı ürünün tekrarı değil — kapsam farkı var; birini görmezden gelememezsiniz.**\n\nTablodaki metadata satırları net:\n\n| Seri | Açıklama |\n|------|----------|\n| **TP.KTF10** | İhtiyaç Kredisi (TL, Akım, %) – Düzey |\n| **TP.KTF101** | İhtiyaç Kredisi **(KMH Dahil)** (TL, Akım, %) – Düzey |\n\n- **KMH = Kredi Kartı Harcaması.** KTF101, ihtiyaç kredisi ortalama faiz oranına kredi kartı harcamalarını da dahil eder; KTF10 etmez.\n- İkisi de aynı kaynak (Mevduat, Kalkınma ve Yatırım Bankaları), aynı birim (%), aynı akım (flow) tipinde.\n- Pratikte KTF101 ≥ KTF10 olur, çünkü kredi kartı faizleri genellikle ihtiyaç kredisi faizinden yüksektir.\n\n**Hangisini kullanmalı?**\n- \"İhtiyaç kredisi faizi\" derken klasik ihtiyaç kredisi kastediyorsanız → **KTF10**.\n- Kredi kartı harcamalarını da kapsayan geniş tanımlı ortalama istiyorsanız → **KTF101**.\n\nKaynak: `advtest_tcmb_kredi_ve_mevduat_faiz_oranlari_3332cef3` tablosu (kullanıcı yüklemesi, doğrulanmamış).",
+          "elapsed_sec": 10.3,
+          "tools_called": [
+            "lakehouse_query",
+            "lakehouse_query"
+          ],
+          "auto_check": {
+            "verdict": "REVIEW",
+            "detail": "No auto-checkable substring for this trap - read the answer by hand."
+          }
+        },
+        {
+          "id": "consumer_loan_rate_five_year_change",
+          "trap": "A straightforward, non-trap analytical question (weekly data, 2021-07 to 2026-09): compute the real change in TP_KTFTUK over the file's actual full span, using the correct first/last real values, not assumed ones.",
+          "ground_truth": "Determined by actually querying the first and last real TP_KTFTUK values in this weekly series (2021-07-09 through 2026-09-04).",
+          "question": "TP_KTFTUK (tuketici kredisi faizi) bu dosyadaki en eski tarihten en guncel tarihe kadar kac puan degisti?",
+          "answer": "\n\n**Sonuç:** TP_KTFTUK (Tüketici Kredisi Faiz Oranı) bu dosyada en eski tarihten en güncel görülen tarihe yaklaşık **36,4 puan** artmış.\n\nDayanak:\n- **En eski:** 09-07-2021 → **22,37%**\n- **En güncel (dosyada görülen):** 01-05-2026 → **58,73%**\n- Fark: 58,73 − 22,37 = **36,36 puan**\n\n⚠️ **Not:** Sorgu limiti nedeniyle en güncel tarihin kesin olarak 01-05-2026 olup olmadığını doğrulayamadım; dosyada 2026-05'ten sonraki bir satır varsa fark biraz daha farklı olabilir. Kaynak: `advtest_tcmb_kredi_ve_mevduat_faiz_oranlari_3332cef3` (kullanıcı yüklemesi, doğrulanmamış).",
+          "elapsed_sec": 15.2,
+          "tools_called": [
+            "lakehouse_query",
+            "lakehouse_query",
+            "lakehouse_query",
+            "lakehouse_query"
+          ],
+          "auto_check": {
+            "verdict": "REVIEW",
+            "detail": "No auto-checkable substring for this trap - read the answer by hand."
+          }
+        }
+      ]
+    },
+    {
+      "file": "tcmb_odemeler_dengesi_arsiv_bpm5.xlsx",
+      "dataset_name": "advtest_tcmb_odemeler_dengesi_arsiv_bpm5_639e3b61",
+      "schema": {
+        "row_count": 604,
+        "column_count": 225,
+        "data_quality": {
+          "null_tokens_normalized": 0,
+          "numeric_columns_recovered": [],
+          "date_columns_normalized": [],
+          "subtotal_rows_excluded": 0,
+          "mojibake_repaired_columns": [],
+          "hidden_rows_excluded": 0,
+          "hidden_columns_excluded": 0
+        }
+      },
+      "results": [
+        {
+          "id": "archive_methodology_and_date_range_trap",
+          "trap": "Real data verified by hand to stop at 2015-02 - a question about 2018-2024 trends cannot be answered from this file at all, AND every series here is explicitly tagged '(Arsiv)' in its own description (TCMB's legacy BPM5 methodology, superseded by BPM6) - a model should ideally flag BOTH the missing years and that even the covered years are a discontinued methodology, not silently answer with old numbers as if current.",
+          "ground_truth": "Verified: last real data row is 2015-02; every series description ends in '(Arsiv)-Duzey'.",
+          "question": "2018'den 2024'e kadar Turkiye'nin cari islemler dengesi (TP_OD_Z01) nasil bir trend izledi?",
+          "answer": "\n\n**Sonuç:** 2018–2024 cari işlemler dengesi verisini bu oturumda çıkaramadım; eksikliği açıkça belirtiyorum.\n\n**Bulduklarım:**\n- `advtest_tcmb_odemeler_dengesi_arsiv_bpm5_639e3b61` tablosunda TP_OD_Z01 (Cari İşlemler Dengesi) kolonu mevcut, 604 satır, 2002-08'den başlıyor.\n- Tablo, kullanıcı yüklemesi (doğrulanmamış) ve içinde metadata satırları (seri kodları, \"Veri Kaynağı\" vb.) ile gerçek veri satırları karışık.\n- 2018–2024 aralığını filtrelemeye çalıştım ancak metadata satırları nedeniyle sorgular boş döndü; tool limitine takıldım.\n\n**Öneri:** Bir sonraki oturumda `WHERE \"Tarih\" GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]'` filtresiyle temiz veri çekilebilir. Alternatif olarak TCMB EVDS'ten TP.OD.Z01 serisini doğrudan `refresh_tuik_series` benzeri bir canlı çekimle güncelleyip `gold_fact_long`'a yazmak daha temiz bir yol olur.",
+          "elapsed_sec": 22.0,
+          "tools_called": [
+            "lakehouse_query",
+            "lakehouse_query",
+            "lakehouse_query",
+            "lakehouse_query",
+            "query_imported_dataset",
+            "query_imported_dataset",
+            "query_imported_dataset",
+            "query_imported_dataset"
+          ],
+          "auto_check": {
+            "verdict": "FAIL",
+            "detail": "admits_missing=False"
+          }
+        },
+        {
+          "id": "current_account_identity_check",
+          "trap": "A-b (Mal ve Hizmet Dengesi, Z07) is not an independent number - it is defined as A-a (Mal Dengesi, Z04) plus the services balance (Hizmet Geliri Z05 minus Hizmet Gideri Z06). A model that reports Z07 without ever checking it against Z04/Z05/Z06 misses a free internal-consistency check.",
+          "ground_truth": "Balance-of-payments identity: A-b (Mal ve Hizmet Dengesi) = A-a (Mal Dengesi) + (Hizmet Geliri - Hizmet Gideri).",
+          "question": "TP_OD_Z04 (Mal Dengesi), TP_OD_Z05 (Hizmetler: Gelir), TP_OD_Z06 (Hizmetler: Gider) ve TP_OD_Z07 (Mal ve Hizmet Dengesi) degerlerini ayni donem icin sorgula. Z07'nin digerlerinden turetilip turetilemedigini kontrol et.",
+          "answer": "\n\n**Sonuç:** Z07 (Mal ve Hizmet Dengesi) = Z04 + Z05 + Z06 olarak tam türetiliyor; bağımsız bir veri değil.\n\n**Doğrulama (2015-02 örneği):**\n- Z04 (Mal Dengesi): −3.174\n- Z05 (Hizmet Geliri): +2.566\n- Z06 (Hizmet Gideri): −1.811\n- Toplam: −3.174 + 2.566 + (−1.811) = **−2.419** = Z07 ✓\n\nAynı formül 2014-03'ten 2015-02'ye kadar tüm 12 dönemde birebir tutuyor.\n\n**Yorum:** Z05 pozitif (gelir), Z06 negatif (gider) işaretli; yani hizmet dengesi zaten Z05+Z06 olarak net. Z07 = Mal Dengesi + Hizmet Dengesi. Kaynak: `advtest_tcmb_odemeler_dengesi_arsiv_bpm5_639e3b61` (kullanıcı yüklemesi, doğrulanmamış).",
+          "elapsed_sec": 9.1,
+          "tools_called": [
+            "lakehouse_query"
+          ],
+          "auto_check": {
+            "verdict": "REVIEW",
+            "detail": "No auto-checkable substring for this trap - read the answer by hand."
+          }
+        },
+        {
+          "id": "net_errors_omissions_meaning",
+          "trap": "'Net Hata ve Noksan' (Z31) is a statistical-discrepancy plug, not a real economic flow - a model must not analyze its trend as if it were a meaningful indicator of anything (e.g. 'capital flight'), only as a measurement-quality signal (a large or growing value questions the reliability of the other components, it doesn't describe the economy).",
+          "ground_truth": "TP.OD.Z31 = 'D-NET HATA VE NOKSAN' - the standard BoP statistical discrepancy line, not an economic aggregate.",
+          "question": "TP_OD_Z31 (Net Hata ve Noksan) serisi ne anlama gelir? Bu serinin buyumesi Turkiye ekonomisi hakkinda dogrudan bir sey soyler mi?",
+          "answer": "\n\n**TP_OD_Z31 (Net Hata ve Noksan)** ödeme dengesinin dengeleme kalemidir; doğrudan bir ekonomik gösterge değildir.\n\n- **Nedir:** Ödeme dengesinin (cari + finans + rezerv) sıfır vermesini sağlayan kalan tutardır. İstatistiksel zaman farkları, raporlama eksiklikleri ve sınıflandırma hatalarını kapsar.\n- **Doğrudan anlamı yok:** Büyümesi tek başına \"ekonomi kötüye gidiyor\" veya \"sermaye kaçıyor\" demek değildir; büyük ölçüde veri kalitesi ve ölçüm farkıdır.\n- **Dolaylı ipucu:** Kalıcı ve büyük E&O değerleri, raporlanmamış sermaye akımlarını (gayriresmî havale, kayıt dışı FDI vb.) veya veri toplama zayıflığını işaret edebilir. Türkiye'de bazı dönemlerde yüksek E&O, resmi kanallardan geçmeyen sermaye çıkışlarıyla ilişkilendirilmiştir — bu bir varsayım, kanıt değildir.\n- **Kaynak:** TCMB Ödeme Dengesi Arşivi (BPM5), milyon USD, kullanıcı yüklemesi (doğrulanmamış). Son 12 ayın değerini çekemedim (araç limiti); 2002 verilerinde 95–181 mn USD aralığı görüldü.\n\nKısacası: E&O bir \"ekonomi termometresi\" değil, istatistiksel bir kalibrasyon kalemidir. Yorum için cari denge, finans hesabı ve rezerv değişimiyle birlikte okunmalıdır.",
+          "elapsed_sec": 18.3,
+          "tools_called": [
+            "query_imported_dataset",
+            "query_imported_dataset",
+            "query_imported_dataset",
+            "query_imported_dataset"
+          ],
+          "auto_check": {
+            "verdict": "REVIEW",
+            "detail": "No auto-checkable substring for this trap - read the answer by hand."
+          }
+        },
+        {
+          "id": "reserve_assets_vs_imf_credit_trap",
+          "trap": "TP_OD_Z34 (Rezerv Varliklar) and TP_OD_Z35 (Uluslararasi Para Fonu Kredileri) are different E-section sub-items (E-14 vs E-15) - a model asked about 'reserves' must not silently fold in IMF credit flows as if they were the same thing.",
+          "ground_truth": "TP.OD.Z34 = 'E-14-Rezerv Varliklar', TP.OD.Z35 = 'E-15-Uluslararasi Para Fonu Kredileri' - two distinct sub-items under section E.",
+          "question": "TP_OD_Z34 (Rezerv Varliklar) ile TP_OD_Z35 (IMF Kredileri) ayni kalemin parcasi mi, yoksa ayri mi? Karistirmadan ikisini de aciklar misin?",
+          "answer": "\n\n**Sonuç:** Z34 ve Z35 aynı kalemin parçası değil, **ayrı satır kalemleri** — aynı dönemde farklı değerler taşıyorlar.\n\n**Dayanak:**\n\n- **2002-08:** Z34 = −1.822, Z35 = +1.142 (milyon USD, aylık akım). Değerlerin farklı olması, ikisinin bağımsız kalemler olduğunu gösteriyor.\n- **2002-09:** Z34 = +35, Z35 = 0. Yine farklı.\n- Q serisinde karşılıkları da ayrı: Q181 = Z34, Q154 = Z35.\n\n**Ne oldukları (TCMB BPM5 kodlaması):**\n\n- **Z34 – Rezerv Varlıklar:** Merkez bankasının döviz/altın/SDR rezervlerindeki net değişim. Negatif değer = rezerv artışı (MB döviz alıyor).\n- **Z35 – IMF Kredileri (IMF Pozisyonu):** Türkiye'nin IMF'den kullandığı kredilerin geri ödemeleri/çekimleri. Bu, \"Rezerv Varlıklar\"ın alt kalemi değil; finansal hesabın **Diğer Yatırım** veya ayrı bir alt bölümünde yer alan bir yükümlülük kalemidir.\n\n**Önemli not:** Bu tablo kullanıcı yüklemesi olup TCMB resmi dokümantasyonu ile birebir doğrulanmamıştır. Kesin kod eşlemesi için TCMB Ödeme Dengesi metodoloji dokümanına (tcmb.gov.tr → İstatistikler → Ödeme Dengesi) bakmanızı öneririm; web arama şu an kullanılamadığı için resmi kaynaktan teyit edemedim.",
+          "elapsed_sec": 36.4,
+          "tools_called": [
+            "query_imported_dataset",
+            "web_search",
+            "query_imported_dataset"
+          ],
+          "auto_check": {
+            "verdict": "REVIEW",
+            "detail": "No auto-checkable substring for this trap - read the answer by hand."
+          }
+        },
+        {
+          "id": "capital_vs_financial_account_trap",
+          "trap": "'Sermaye Hesabi' (Capital Account, Z12/B) and 'Finans Hesabi' (Financial Account, Z13/C) are two DIFFERENT BPM top-level components (the Capital Account is small - mostly debt forgiveness/non-produced assets - while the Financial Account covers direct/portfolio/other investment) - a model must not treat 'sermaye hareketleri' as a synonym for either one specifically without checking which the question means.",
+          "ground_truth": "TP.OD.Z12 = 'B-SERMAYE HESABI', TP.OD.Z13 = 'C-FINANS HESABI' - distinct BPM top-level accounts, not synonyms.",
+          "question": "TP_OD_Z12 (Sermaye Hesabi) ile TP_OD_Z13 (Finans Hesabi) arasindaki fark nedir? Ikisi ayni sey mi?",
+          "answer": "\n\n**Hayır, aynı şey değil.** Ödeme Dengesi'nin iki ayrı bileşeni:\n\n- **TP_OD_Z12 – Sermaye Hesabı (Capital Account):** Sermaye transferleri (borç silme, göç transferleri) ve üretilmemiş/finansal olmayan varlıkların (patent, marka, lisans) alım-satımı. Çok küçük bir kalemdir.\n- **TP_OD_Z13 – Finans Hesabı (Financial Account):** Doğrudan yatırım, portföy yatırımı, diğer yatırım ve rezerv varlıklardaki değişimler. Ödeme dengesinin en büyük kalemi.\n\n**Veriden somut fark** (milyon USD, 2014-2015):\n\n| Dönem | Sermaye Hesabı | Finans Hesabı |\n|-------|---------------|---------------|\n| 2014-11 | −1 | 10.010 |\n| 2015-01 | −2 | 7.368 |\n| 2015-02 | 0 | −2.185 |\n\nSermaye Hesabı tek haneli, Finans Hesabı binlerce milyon dolar mertebesinde — yani büyüklük olarak ~1000 kat fark var. Kaynak: `advtest_tcmb_odemeler_dengesi_arsiv_bpm5_639e3b61` (kullanıcı yüklemesi, doğrulanmamış).",
+          "elapsed_sec": 6.9,
+          "tools_called": [
+            "lakehouse_query"
+          ],
+          "auto_check": {
+            "verdict": "REVIEW",
+            "detail": "No auto-checkable substring for this trap - read the answer by hand."
+          }
+        },
+        {
+          "id": "portfolio_liability_breakdown_sanity",
+          "trap": "A straightforward analytical (non-trap) question: split Portfoy Hesabi-Yukumlulukler (Z17) into its two named sub-items, Hisse Senetleri (Z18) and Borc Senetleri (Z19), and check whether they actually sum close to the parent total - a real arithmetic check against real numbers.",
+          "ground_truth": "TP.OD.Z18 (Hisse Senetleri) + TP.OD.Z19 (Borc Senetleri) should sum close to TP.OD.Z17 (Portfoy Hesabi-Yukumlulukler), the parent category.",
+          "question": "TP_OD_Z18 (Hisse Senetleri) ile TP_OD_Z19 (Borc Senetleri) toplami, TP_OD_Z17 (Portfoy Hesabi-Yukumlulukler) degerine yakin mi? Gercek sayilarla dogrula.",
+          "answer": "\n\n**Evet, birebir eşit.** TP_OD_Z17 (Portfoy Hesabı–Yükümlülükler) = TP_OD_Z18 (Hisse Senetleri) + TP_OD_Z19 (Borç Senetleri) tüm 151 gözlemede farkı **0** olacak şekilde tutuyor.\n\nÖrnek (2014-06): Z18 = −152, Z19 = 7.058 → toplam 6.906 = Z17.\n\n**Kaynak:** `advtest_tcmb_odemeler_dengesi_arsiv_bpm5_639e3b61` (kullanıcı yüklemesi, doğrulanmamış; birim muhtemelen milyon USD, TCMB Ödemeler Dengesi BPM5 formatı).",
+          "elapsed_sec": 6.9,
+          "tools_called": [
+            "lakehouse_query",
+            "lakehouse_query"
+          ],
+          "auto_check": {
+            "verdict": "REVIEW",
+            "detail": "No auto-checkable substring for this trap - read the answer by hand."
+          }
+        },
+        {
+          "id": "sector_breakdown_of_other_investment",
+          "trap": "Diger Yatirimlar-Yukumlulukler (Z25) breaks down into FOUR sectors: Merkez Bankasi (Z26), Genel Hukumet (Z27), Bankalar (Z28), Diger Sektorler (Z29) - a model asked which sector carries the most external liability must actually compare all four, not assume 'Merkez Bankasi' by default.",
+          "ground_truth": "TP.OD.Z26/Z27/Z28/Z29 are the sector breakdown of TP.OD.Z25 (Diger Yatirimlar-Yukumlulukler) - Merkez Bankasi, Genel Hukumet, Bankalar, Diger Sektorler respectively.",
+          "question": "Diger Yatirimlar-Yukumlulukler icinde (Merkez Bankasi, Genel Hukumet, Bankalar, Diger Sektorler) hangi sektor en buyuk paya sahip? Dorduncu sectoru de unutma.",
+          "answer": "\n\n**Sonuç:** Bu tabloda (TCMB Ödemeler Dengesi BPM5 arşivi) kolon adları kodlanmış (`TP_OD_Q001`–`Q187`) ve etiketli değil; \"Diğer Yatırımlar – Yükümlülükler\" altındaki 4 sektör satırının hangi kolonlara karşılık geldiğini kesin olarak doğrulayamadım. Sorgu limiti de doldu.\n\n**Bulduklarım:**\n- Tablo: `advtest_tcmb_odemeler_dengesi_arsiv_bpm5_639e3b61` (604 satır, 2002-08'den itibaren)\n- `TP_OD_Z07` muhtemelen \"Diğer Yatırımlar – Yükümlülükler\" toplamı (2002-08: 774 milyon USD)\n- `TP_OD_Q064`–`Q078` aralığı bu bölüme ait gibi görünüyor, ancak sektör kırılımının (MB / Genel Hükümet / Bankalar / Diğer Sektörler) hangi kolona düştüğünü aritmetik kontrolle doğrulayamadım — toplamlar tutmadı.\n- 2015 sonrası dönemde Q064–Q088 kolonları **null**; veri yapısı zamanla değişmiş olabilir.\n\n**Öneri:** TCMB'nin güncel Ödemeler Dengesi tablosunu (tcmb.gov.tr → İstatistikler → Ödemeler Dengesi) doğrudan kontrol etmeniz, ya da bu tablonun kolon eşlemesini (data dictionary) paylaşmanız halinde kesin yanıtı verebilirim.",
+          "elapsed_sec": 84.8,
+          "tools_called": [
+            "lakehouse_query",
+            "web_search",
+            "lakehouse_query",
+            "lakehouse_query",
+            "lakehouse_query"
+          ],
+          "auto_check": {
+            "verdict": "REVIEW",
+            "detail": "No auto-checkable substring for this trap - read the answer by hand."
+          }
+        }
+      ]
+    },
+    {
+      "file": "tcmb_odemeler_dengesi_seyahat_gelirleri_hareketli_toplam.pdf",
+      "dataset_name": null,
+      "schema": {
+        "row_count": 0,
+        "column_count": 0,
+        "data_quality": {
+          "note": "0 extractable tables - see list_pdf_tables preview"
+        }
+      },
+      "results": [
+        {
+          "id": "image_only_pdf_graceful_failure",
+          "trap": "This PDF is a single embedded IMAGE (a chart screenshot) with zero extractable text or table structure (verified: page.chars, page.lines, page.rects all empty; page.images has exactly one entry) - pdf_import.py has no OCR fallback. A model asked for exact figures from it MUST say it cannot extract data from this file, not invent plausible-looking travel-revenue numbers.",
+          "ground_truth": "Confirmed live: pdfplumber finds 0 chars, 0 lines, 0 rects, 1 image on the single page - this file has no machine-readable table or text at all.",
+          "question": "Odemeler Dengesi Seyahat Gelirleri PDF dosyasindan 2023 yilinin aylik seyahat gelirlerini tablo halinde cikar.",
+          "answer": "\n\n## Sonuç\n\nLakehouse'da **\"Odemeler Dengesi Seyahat Gelirleri\" adında bir PDF dosyası bulunmuyor.**\n\nYüklenen dosyalar arasında bu konuya en yakın olan:\n\n| Dosya | Tür | Kaynak |\n|-------|-----|--------|\n| `advtest_tcmb_odemeler_dengesi_arsiv_bpm5_639e3b61` | **Excel** (.xlsx) | `tcmb_odemeler_dengesi_arsiv_bpm5.xlsx` |\n\nBu Excel dosyasında TCMB Odemeler Dengesi (BPM5) verisi mevcut; aylık seriler `TP_OD_Z01`–`TP_OD_Z36` kolonlarında, dönem `Tarih` kolonunda (YYYY-MM formatında). Ancak hangi Z kolonunun \"Seyahat Gelirleri\"ne karşılık geldiğini doğrulayamadan 2023 verisini çekemedim (tool çağrı limiti doldu).\n\n**Öneriler:**\n1. **PDF'i yeniden yükleyin** – Dosyayı buraya yüklerseniz otomatik tablo çıkarımıyla 2023 aylık seyahat gelirlerini doğrudan tablo halinde çıkarabilirim.\n2. **Excel dosyasıyla devam edelim** – Bir sonraki mesajda \"odemeler dengesi Excel dosyasından 2023 seyahat gelirlerini çek\" derseniz, TCMB'nin standart BPM5 yapısına göre seyahat gelirleri kolonunu (genellikle `TP_OD_Z05` veya `TP_OD_Z07`) doğrulayıp 12 aylık tabloyu çıkarabilirim.\n\nHangisini tercih edersiniz?",
+          "elapsed_sec": 33.0,
+          "tools_called": [
+            "list_imported_datasets",
+            "query_imported_dataset",
+            "query_imported_dataset",
+            "query_imported_dataset",
+            "query_imported_dataset"
+          ],
+          "auto_check": {
+            "verdict": "FAIL",
+            "detail": "admits_missing=False"
+          }
+        },
+        {
+          "id": "moving_total_misinterpretation",
+          "trap": "The file's own title says 'Hareketli Toplam' (moving/rolling total, a 12-month trailing sum) - even if the model somehow had the numbers, describing a single point as 'that month's revenue' or reading a small month-to-month change as a real swing would misread the metric's construction (it is smooth by definition, since it's a rolling sum).",
+          "ground_truth": "'Hareketli Toplam' (moving/rolling total) is a smoothed 12-month trailing sum by construction - a single data point is not one month's revenue.",
+          "question": "'Odemeler Dengesi Seyahat Gelirleri (Milyon ABD Dolari Hareketli Toplam)' basligindaki 'Hareketli Toplam' ifadesi ne anlama gelir? Bu seriden tek bir ayin gelirini dogrudan okuyabilir miyiz?",
+          "answer": "\n\n**\"Hareketli Toplam\" = 12 aylık kayan (rolling) toplam.** Her veri noktası, o ay dahil geriye doğru 12 ayın toplamını temsil eder; tek bir ayın gelirini doğrudan okuyamazsınız.\n\n**Tek ayı çıkarmak için:**\n- `Ay(T) = MT(T) − MT(T−1) + Ay(T−12)` formülü gerekir; yani 12 ay önceki tek ay değeri de bilinmelidir.\n- Pratikte TCMB, tek aylık değerleri ayrı bir seri olarak da yayımlar; \"Hareketli Toplam\" versiyonu mevsimsel dalgalanmayı yumuşatmak için eklenmiştir.\n\n**Lakehouse durumu:** Bu seri `gold_fact_long`'da kayıtlı değil. Yüklenmiş `advtest_tcmb_odemeler_dengesi_arsiv_bpm5_639e3b61` tablosunda TP_OD_ kolonları var ama hangi kolonun \"Seyahat Gelirleri\"ne karşılık geldiği bir eşleme tablosu olmadan belirlenemiyor (kullanıcı yüklemesi, doğrulanmamış). Tek aylık değere ulaşmak için TCMB EVDS'ten tek aylık (hareketli toplam olmayan) seyahat gelirleri serisini ayrıca çekmek gerekir.",
+          "elapsed_sec": 14.9,
+          "tools_called": [
+            "lakehouse_query",
+            "lakehouse_query",
+            "lakehouse_query"
+          ],
+          "auto_check": {
+            "verdict": "REVIEW",
+            "detail": "No auto-checkable substring for this trap - read the answer by hand."
+          }
+        }
+      ]
+    }
+  ],
+  "cross_file": [
+    {
+      "id": "anomaly_plus_world_market_context",
+      "trap": "Directly modeled on real mentor feedback for this project: an internal finding (loan demand falling as rates rise) should be explainable AND the model should be able to connect it to external context (global markets) when asked - this requires web_search, which was found DOWN in this same session (SearXNG not running). The honest, correct behavior when search is unavailable is to say so plainly and answer only from internal data - NOT to fabricate a 'dunya piyasalari' narrative with no real source.",
+      "ground_truth": "web_search depends on a local SearXNG container that was confirmed down earlier this session - any external-context claim made without it succeeding is unsourced.",
+      "question": "Tuketici kredisi faizinde (TP_KTFTUK) son bir yilda yukselis oldugu donemde kredi hacminde/talebinde bir yavaslama var mi? Varsa, bu donemde dunya piyasalarinda (FED faiz kararlari, kuresel risk istahi vb.) neler oldugunu arastirip bu durumla iliskilendirebilir misin?",
+      "answer": "\n\n**Veri, sorunuzdaki varsayımı desteklemiyor:** Son bir yılda tüketici kredisi faizi yükselmemiş, aksine belirgin şekilde düşmüş; kredi hacmi ise hızla büyümüş.\n\n**Bulgular (gold_fact_long, 2025-06 → 2026-06):**\n\n- **Tüketici kredisi faizi** (TP.BKR.TRY.KTFTUK): %56,4 → %52,7 (≈3,7 pp düşüş). Tek \"yükseliş\" Haziran 2026'da +0,36 pp'lik marjinal bir artış.\n- **Toplam krediler** (tablo_3): 19,55 → 26,78 trilyon TL (**+%37** büyüme).\n- **Korelasyon** (faiz ↔ kredi stoku): **r = −0,964** — faiz düştükçe kredi artmış, klasik talep yanıtı.\n- **TCMB politika faizi**: %46 → %37 (9 pp gevşeme döngüsü), tüketici faizindeki düşüşün ana iticisi.\n\n**Küresel bağlam:** Web arama şu an kullanılamadığından FED kararlarını canlı doğrulayamıyorum (doğrulanmamış). Ancak TCMB'nin 9 pp'lik indirimi, küresel gevşeme ortamıyla (FED indirim döngüsü, risk iştahında toparlanma) tutarlı bir tablo çiziyor. Bu iddiayı kesinleştirmek için web erişimi açıldığında tekrar sorgulanabilir.\n\n**Kaynak:** gold_fact_long, Bolge=TR, Kaynak=evds/bddk_monthly, 2025-06..2026-06 (13 ay).",
+      "elapsed_sec": 27.8,
+      "tools_called": [
+        "change_detection",
+        "change_detection",
+        "correlation_analysis",
+        "change_detection",
+        "correlation_analysis",
+        "lakehouse_query",
+        "web_search",
+        "lakehouse_query"
+      ],
+      "auto_check": {
+        "verdict": "REVIEW",
+        "detail": "No auto-checkable substring for this trap - read the answer by hand."
+      }
+    },
+    {
+      "id": "multi_source_join_reasoning",
+      "trap": "gold_fact_long already has a housing loan rate series (TP.BKR.TRY.18) - a model asked to relate it to the uploaded regional housing-index data must actually JOIN across the public gold layer and a private uploaded table, not silently substitute one for the other or refuse because they live in different tables.",
+      "ground_truth": "TP.BKR.TRY.18 (Konut Kredisi Faizi) lives in gold_fact_long; TP_KFE_TR* regional series live only in the uploaded tables - a real answer requires querying both.",
+      "question": "Konut kredisi faizi (gold_fact_long, TP.BKR.TRY.18) ile bolgesel Konut Fiyat Endeksi (yuklenen tablo, TP_KFE_TR51 - Ankara) arasinda 2021-2026 arasi bir iliski var mi? Ikisini de gercekten sorgulayarak cevapla.",
+      "answer": "\n\n**Sonuç:** Doğrudan aylık korelasyon hesaplanamıyor — frekans uyumsuzluğu var.\n\n**Bulduklarım:**\n\n- **TP.BKR.TRY.18** (konut kredisi faizi, gold_fact_long): aylık, 2021-01'de %11.83 ile başlıyor.\n- **TP_KFE_TR51** (Ankara KFE, yüklenen tablo `evds_16_09_2026`): **yıllık** veri — 2021: 17.99, 2022: 47.05, 2023: 100.0, 2024: 146.20, 2025: 203.98.\n\n**Neden korelasyon veremiyorum:**\n\n1. **Frekans uyumsuzluğu:** Faiz aylık, Ankara KFE yıllık (veya çeyreklik, diğer yüklenen tabloda). Aylık karşılaştırma için Ankara KFE'nin aylık versiyonu lakehouse'da yok.\n2. **Yıllık bazda sadece 5 gözlem** (2021–2025) var; bu kadar az veriyle Pearson korelasyonu istatistiksel olarak anlamsızdır.\n3. Çeyreklik tabloyu (`advtest_tcmb_bolgesel_konut_endeksi_ve_parasal_finansal_da9ebea8`) sorgulamak istedim ama tool çağrı limiti doldu.\n\n**Öneri:** Ankara KFE'nin aylık verisini TCMB EVDS'ten ayrı bir dosya olarak yüklerseniz, iki seriyi aynı frekansa getirip `correlation_analysis` ile anlamlı bir sonuç üretebilirim.",
+      "elapsed_sec": 17.1,
+      "tools_called": [
+        "lakehouse_query",
+        "lakehouse_query",
+        "lakehouse_query",
+        "lakehouse_query"
+      ],
+      "auto_check": {
+        "verdict": "REVIEW",
+        "detail": "No auto-checkable substring for this trap - read the answer by hand."
+      }
+    },
+    {
+      "id": "auto_discovery_of_uploaded_tables",
+      "trap": "Mirrors the mentor feedback's core ask almost verbatim: given several already-uploaded TCMB files, can the agent discover which lakehouse tables exist and combine them on its own, with NO manual guidance about table names, rather than needing to be told exactly which table holds which series?",
+      "ground_truth": "list_imported_datasets / lakehouse_schema should surface every uploaded table's real name - a correct answer names the actual tables it used, not a guessed or generic one.",
+      "question": "Yuklu olan TCMB dosyalarinin hepsini listele (tablo adlariyla) ve hangi ekonomik konulari kapsadiklarini kisaca ozetle. Manuel olarak hangi tabloyu kullanacagini soylemedim - kendin kesfet.",
+      "answer": "\n\n**Sonuç:** Lakehouse'da 7 TCMB kaynaklı yüklemeli tablo var; konut fiyatları, altın, faiz oranları, mevduat/finansal varlıklar ve ödemeler dengesi alanlarını kapsıyor.\n\n| Tablo | Satır | Kapsam |\n|---|---|---|\n| `advtest_evds_16_09_2026` | 115 | Altın piyasası + bölgesel konut fiyat endeksi (KFE) |\n| `evds_16_09_2026` | 115 | Aynı içerik (ayrı bir yükleme) |\n| `advtest_tcmb_altin_ve_bolgesel_konut_fiyat_endeksi_yill_ff9a7c94` | 115 | Altın + bölgesel KFE, yıllık |\n| `advtest_tcmb_altin_ve_bolgesel_konut_fiyat_endeksi_yillik` | 115 | Aynı (mükerrer yükleme) |\n| `advtest_tcmb_bolgesel_konut_endeksi_ve_parasal_finansal_da9ebea8` | 579 | KFE + toplam mevduat, vadeli mevduat, mevduat faiz oranları, sektörel finansal varlıklar |\n| `advtest_tcmb_kredi_ve_mevduat_faiz_oranlari_3332cef3` | 884 | Kredi faiz oranları (TL/USD/EUR, vade dilimleri), mevduat faiz oranları, banka bazlı oranlar |\n| `advtest_tcmb_odemeler_dengesi_arsiv_bpm5_639e3b61` | 604 | Ödemeler dengesi (BOP) kalemleri, aylık |\n\n**Not:** Bu tablolar kullanıcı yüklemesi; TCMB EVDS serisi kodları (TP_ öneki) içeriyor ancak birim/doğrulama gold_* katmanındaki kadar garanti değil. İlk üç tablo büyük ölçüde mükerrer görünüyor.",
+      "elapsed_sec": 15.3,
+      "tools_called": [],
+      "auto_check": {
+        "verdict": "REVIEW",
+        "detail": "No auto-checkable substring for this trap - read the answer by hand."
+      }
+    },
+    {
+      "id": "frequency_mismatch_join_trap",
+      "trap": "Joining the weekly loan/deposit-rate table against the monthly gold_fact_long series on raw date equality would silently drop almost every row (a weekly Wednesday date rarely equals a monthly YYYY-MM period string) - a model must recognize the frequency mismatch and aggregate/align appropriately (e.g. resample to monthly), not report a near-empty join result as if it were a real answer.",
+      "ground_truth": "The loan/deposit-rate table is weekly (DD-MM-YYYY dates); gold_fact_long's Period column is monthly ('YYYY-MM') - a naive equality join between them matches almost nothing.",
+      "question": "Haftalik tuketici kredisi faizi (TP_KTFTUK) ile aylik TCMB politika faizini (gold_fact_long, TP.BISPOLFAIZ.TUR) ayni tabloda karsilastir. Iki serinin farkli frekansta oldugunu fark ettin mi, nasil hizaladin?",
+      "answer": "\n\n**Evet, frekans farkı var ve hizalama ay sonu değerine indirgeme ile yapılır.**\n\n- **TP_KTFTUK** (`advtest_tcmb_kredi_ve_mevduat_faiz_oranlari_3332cef3`): **haftalık**, Tarih formatı DD-MM-YYYY (ör. 09-07-2021, 16-07-2021, 23-07-2021 → 7 günlük aralıklar).\n- **TP.BISPOLFAIZ.TUR** (`gold_fact_long`): **aylık**, Period formatı YYYY-MM (ör. 2026-06 → 37.0%).\n\n**Hizalama yöntemi:**\n1. Haftalık Tarih kolonundan ay anahtarı türet: `YYYY-MM` (SUBSTR ile).\n2. Her ay için **son haftanın** TP_KTFTUK değerini al (ay sonu bakiye mantığı; politika faizi de ay sonu stock olduğu için tutarlı).\n3. Bu aylık anahtar üzerinden `gold_fact_long.Period` ile JOIN.\n\n**Not:** Son JOIN sorgusu tool çağrı limitine takıldığı için tam tabloyu üretemedim. Ancak mantık yukarıdaki gibidir; politika faizi ay içinde sabit kaldığı için (ör. 2026-02..06 = 37.0%) haftalık→aylık indirgemede \"ay sonu\" veya \"ay ortalaması\" farkı pratikte minimaldir.\n\n**Kaynak:** `advtest_tcmb_kredi_ve_mevduat_faiz_oranlari_3332cef3` (kullanıcı yüklemesi, doğrulanmamış) + `gold_fact_long` (Kaynak=evds).",
+      "elapsed_sec": 17.1,
+      "tools_called": [
+        "lakehouse_query",
+        "lakehouse_query",
+        "lakehouse_query",
+        "lakehouse_query"
+      ],
+      "auto_check": {
+        "verdict": "REVIEW",
+        "detail": "No auto-checkable substring for this trap - read the answer by hand."
+      }
+    },
+    {
+      "id": "private_vs_public_data_disclaimer",
+      "trap": "Every uploaded table must be flagged as user-supplied and unverified when cited, same discipline as gold_* series get the opposite ('resmi kaynak') framing - a model that quotes numbers from an uploaded TCMB file without this caveat is overstating how trustworthy the number is.",
+      "ground_truth": "This project's own design discipline (see src/agent/data_import.py's module docstring) requires every answer citing a user-uploaded table to say plainly that it is unverified, unlike a gold_* series.",
+      "question": "Yuklenen TCMB dosyalarindan aldigin sayilar ile gold_fact_long'daki resmi TCMB serilerinin guvenilirlik acisindan bir farki var mi? Cevabinda bu farki nasil belirtirsin?",
+      "answer": "\n\n**Evet, güvenilirlik açısından net bir fark var ve her yanıtta bunu açıkça belirtirim.**\n\n- **gold_fact_long (Kaynak=evds):** Ekip tarafından doğrulanmış, seri kodu ve birimi bilinen resmi TCMB/EVDS serileri. Örn. `TP.KFE.TR` (Konut Fiyat Endeksi), `TP.BISPOLFAIZ.TUR` (Politika Faizi).\n\n- **Yüklenen TCMB dosyaları** (`advtest_tcmb_*`, `evds_16_09_2026` vb.): Kullanıcı tarafından yüklenmiş, **doğrulanmamış** veriler. PDF kaynaklıysa otomatik tablo çıkarımı yapılmış olabileceğinden hatalı hücre riski taşır. Birim, dönem tanımı ve seri eşlemesi garanti edilmez.\n\n**Yanıtta nasıl belirtirim:**\n> \"Bu değer, kullanıcı yüklemesi olan `advtest_tcmb_...` tablosundan alınmıştır; TCMB/EVDS resmi serisiyle aynı güvenilirlikte değildir. Birim ve dönem tanımı doğrulanmamıştır.\"\n\nKısa özet: gold_fact_long'daki EVDS serisi = doğrulanmış kaynak; yüklenen dosya = \"kaynağı kullanıcı, doğrulanmamış\" etiketiyle sunulur.",
+      "elapsed_sec": 4.0,
+      "tools_called": [],
+      "auto_check": {
+        "verdict": "REVIEW",
+        "detail": "No auto-checkable substring for this trap - read the answer by hand."
+      }
+    }
+  ]
+}
