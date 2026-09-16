@@ -37,8 +37,9 @@ can combine several:
 - `correlation_analysis`, `causality_analysis`, `threshold_filter_compare` — compare two series
 - `compare_regions` — rank provinces across 35 lending, deposit and credit-quality metrics
 - `list_imported_datasets`, `query_imported_dataset` — read a user-uploaded CSV/Excel/PDF table
-- `refresh_tuik_series` — re-fetch an already-registered TUIK series live and store it
+- `refresh_tuik_series`, `search_tuik_dataflows` — re-fetch a registered TUIK series live, or search the full catalog for an unregistered one
 - `fetch_bist_stock` — pull a BIST stock's live price history and store it
+- `fuzzy_match_category` — reconcile a category name across sources that don't share a code
 - `web_search`, `web_url_extract` — look up current public information and read a given URL
 
 Analysis tools take a `seri_kod` and read the series from the database
@@ -79,9 +80,36 @@ Java/Ghostscript runtime required, unlike camelot or tabula. It finds
 tables from actual ruling lines or aligned whitespace on the page; a
 duplicate or blank extracted header column is rejected outright rather
 than guessed at, since that's the most common sign the extraction actually
-failed (usually a merged cell in the source table). Every PDF import is
-returned with an explicit note to spot-check values against the source
-page before relying on them.
+failed (usually a merged cell in the source table). A table split across
+pages (identical header repeated) is detected and stitched into one import
+by default. Every PDF import is returned with an explicit note to
+spot-check values against the source page before relying on them.
+
+### Data cleaning
+
+Both import paths run the same pass (`src/agent/data_cleaning.py`) before
+schema detection, and report every change back in a `data_quality` field
+rather than applying anything silently:
+
+- Turkish (`1.234,56`) vs. international (`2.009`) decimal notation, and
+  abbreviated magnitudes (`1.5M`, `2,3 milyar`) — disambiguated per value,
+  not per file, since a genuinely ambiguous case (a lone period followed by
+  exactly 3 digits) cannot be resolved from the digits alone.
+- Inconsistent null markers (`-`, `N/A`, `..`, a blank cell, an Excel
+  formula error like `#REF!`) unified to one real null.
+- Mixed date formats (ISO, `2023 1. Çeyrek`, `01-Mart-2023`) normalized to
+  this project's `YYYY-MM` Period convention.
+- A `Toplam`/subtotal row mixed into the same column as real observations,
+  excluded rather than double-counted.
+- A merged Excel header cell (a year spanning month sub-columns) recovered
+  as real, distinct columns instead of pandas' `Unnamed: N` placeholders.
+- Hidden Excel rows/columns excluded entirely, not imported as visible data.
+- Mangled Turkish text from a wrong-codec round trip, repaired and verified
+  (never trusted blindly) before being kept.
+
+`fuzzy_match_category` reconciles a category name across sources that don't
+share a code for it (BDDK's `Tarım, Avcılık ve Ormancılık` vs. TUIK's
+`Tarım`) — a substring-aware `difflib` match, stdlib only.
 
 `refresh_tuik_series` re-fetches an already-registered TUIK series
 (currently the unemployment rate and life expectancy) live from TUIK's API
@@ -200,22 +228,41 @@ the virtual environment and the DuckDB file are ignored by Git.
 ```
 
 `benchmarks/hard_benchmark.py` runs a curated set of adversarial and
-edge-case questions against the real API across 20 categories (multi-hop
+edge-case questions against the real API across 24 categories (multi-hop
 chains, extreme and malformed parameters, missing-data admission, prompt
 injection including unicode/base64-obfuscated variants, batch and
-loop-guard stress, BIST/TUIK live fetches, PDF-import questions against a
-synthetic fixture, SQL guardrail edge cases, province-name typos/case
-variants, unit/scale traps, long rambling and mixed-language phrasing,
-methodology-transparency questions) and tracks the things the team asked
-to have tracked: tool-selection accuracy, consistency (three repeat runs
-of three questions, compared), speed (per-question, average, median and
-max latency), a hallucinated-series/dataset-name rate, missing-data
-admission rate, and guardrail/DDL-attempt-blocked rate. Two small,
-explicitly-synthetic fixtures (`benchmark_synthetic_csv`/`_pdf`) are
-imported automatically before each run so the import-related questions
-have something real and known to query. Results are written to
-`benchmarks/hard_benchmark_report.json`, per-question and aggregated. It
-is 100 questions, not the 150-200 originally asked for — each one targets
-a distinct failure mode rather than padding the count with variations of
-the same question; the harness (`BENCHMARK_QUESTIONS`) takes one
-dictionary entry to extend.
+loop-guard stress, BIST/TUIK live fetches, TUIK dataflow discovery,
+PDF-import questions against a synthetic fixture, SQL guardrail edge
+cases, province-name typos/case variants, unit/scale traps, long
+rambling and mixed-language phrasing, numeric-grounding stress, deep
+regional comparisons, internal-consistency and methodology-transparency
+questions) and tracks the things the team asked to have tracked:
+tool-selection accuracy, numeric grounding (does a number the model
+wrote trace back to a number a tool actually returned - see below),
+consistency (three repeat runs of three questions, compared), speed
+(per-question, average, median and max latency), a hallucinated-series/
+dataset-name rate, missing-data admission rate, and guardrail/DDL-
+attempt-blocked rate. Two small, explicitly-synthetic fixtures
+(`benchmark_synthetic_csv`/`_pdf`) are imported automatically before each
+run so the import-related questions have something real and known to
+query. Results are written to `benchmarks/hard_benchmark_report.json`,
+per-question and aggregated. It is 153 questions, not the 150-200
+originally asked for — each one targets a distinct failure mode rather
+than padding the count with variations of the same question; the harness
+(`BENCHMARK_QUESTIONS`) takes one dictionary entry to extend.
+
+**Numeric grounding.** Tool-selection accuracy alone does not prove an
+answer's own numbers are real - the right tool can be called, return a
+correct result, and the model can still misreport it in prose. Every
+decimal number in an answer is checked against what the tool calls in
+that answer's trace actually returned, including simple derived
+arithmetic (percent/decimal conversion, squaring for r², a ratio for a
+currency conversion, a Bin/Milyon/Milyar TL scale change, rounding to
+fewer decimal places). It is a heuristic, not a hard gate - genuinely
+ambiguous Turkish number notation (`9.268` could be the thousands-grouped
+integer 9268 or the decimal 9.268; both readings are offered and either
+counts as grounded) - so every "ungrounded" number is kept in the report
+for manual review rather than silently failing the question. Every case
+found this way during development turned out to be a gap in the checker
+itself, not a real fabrication - each was manually confirmed and folded
+back into the derived-arithmetic rules above.
