@@ -175,7 +175,19 @@ def _hidden_excel_rows_and_columns(path: Path, sheet: str | int | None) -> tuple
 
     Returns 0-indexed positions matching how pandas.read_excel(header=0)
     sees the data: row 0 = the first row AFTER the header (Excel row 2),
-    column 0 = the first column (Excel column A)."""
+    column 0 = the first column (Excel column A).
+
+    Legacy .xls (pre-2007 binary format): openpyxl cannot open this format
+    at all (it raises InvalidFileException - confirmed live against a real
+    TBB .xls export) - only .xlsx has an OOXML zip structure for openpyxl
+    to read. xlrd 2.x, the library that CAN still open .xls, does not
+    expose per-row/per-column hidden flags in a comparable way. Rather
+    than fail the whole import over a feature .xls cannot support here,
+    hidden-row/column exclusion is simply skipped for .xls (reported as
+    0/0, same shape as when a file has no hidden rows at all)."""
+    if path.suffix.lower() == ".xls":
+        return set(), set()
+
     import openpyxl
 
     wb = openpyxl.load_workbook(path, read_only=False, data_only=True)
@@ -232,9 +244,32 @@ def _flatten_merged_excel_header(df: pd.DataFrame) -> pd.DataFrame:
         else:
             new_columns.append(top or str(col))
 
+    # A genuine "year over months" merge always leaves a distinct sub_str
+    # per column, so new_columns comes out unique in that case. Real bug
+    # found live against a TBB .xls export: when the "merge" is actually
+    # a single full-width title row over two UNRELATED side-by-side
+    # tables (not this function's target shape at all), several columns
+    # share the same top with no sub_str to distinguish them, and
+    # new_columns collides - `df[col]` for a duplicated name returns a
+    # DataFrame slice instead of a Series and crashes every downstream
+    # caller with a cryptic TypeError. Deduplicating here (pandas' own
+    # ".1"/".2" suffix convention) trades a confusing-but-honest column
+    # name for a crash - it does not make this file's actual multi-table
+    # layout any more correctly parsed, which is a known limitation, not
+    # something this function is meant to solve.
+    seen: dict[str, int] = {}
+    deduped = []
+    for name in new_columns:
+        if name not in seen:
+            seen[name] = 0
+            deduped.append(name)
+        else:
+            seen[name] += 1
+            deduped.append(f"{name}.{seen[name]}")
+
     flattened = df.iloc[1:].reset_index(drop=True).copy()
-    flattened.columns = new_columns
-    logger.info(f"_flatten_merged_excel_header: merged header detected, recovered columns {new_columns}")
+    flattened.columns = deduped
+    logger.info(f"_flatten_merged_excel_header: merged header detected, recovered columns {deduped}")
     return flattened
 
 
@@ -253,7 +288,22 @@ def _raw_header(path: Path, sheet: str | int | None) -> list[str]:
         with open(path, "r", encoding="utf-8-sig", newline="") as f:
             row = next(csv.reader(f), [])
         return row
-    if suffix in (".xlsx", ".xls"):
+    if suffix == ".xls":
+        # Legacy binary format: openpyxl cannot open it at all (see
+        # _hidden_excel_rows_and_columns for the same finding), so there
+        # is no .merged_cells to inspect here either. Read the first row
+        # through pandas/xlrd instead - a merged header cell still shows
+        # up as a blank ('' after the None->"" cast below) rather than a
+        # forward-filled duplicate, same effect as the synthetic
+        # placeholder below, just without a real merge range to anchor it
+        # to (pandas' own 'Unnamed: N' columns handle the rest downstream,
+        # same as for .xlsx - see _flatten_merged_excel_header). Each blank
+        # cell still gets a unique synthetic placeholder, same reasoning as
+        # the .xlsx branch below: two blank header cells are NOT the same
+        # ambiguous name, and must not trip the duplicate-column rejection.
+        row = list(pd.read_excel(path, sheet_name=sheet if sheet is not None else 0, header=None, nrows=1).iloc[0])
+        return [f"__blank_header_{i}__" if pd.isna(v) else str(v) for i, v in enumerate(row)]
+    if suffix == ".xlsx":
         import openpyxl
         # read_only=False (not the streaming reader used elsewhere): only
         # the non-streaming worksheet exposes .merged_cells, needed next.

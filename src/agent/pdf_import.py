@@ -28,7 +28,12 @@ from src.common.logging_setup import get_logger
 
 logger = get_logger("pdf_import")
 
-MAX_PDF_PAGES = 30  # a runaway multi-hundred-page PDF should not be extracted whole
+MAX_PDF_PAGES = 60  # a runaway multi-hundred-page PDF should not be extracted whole
+# Raised from 30: a real Hazine ve Maliye Bakanligi "Kamu Borc Yonetimi
+# Raporu" (downloaded live, Aralik 2025 edition) is 47 pages and was
+# rejected outright at 30 - a routine, real government report, not an
+# adversarial input. 60 keeps a real ceiling against a runaway file while
+# covering this and similar multi-page annual/quarterly reports.
 
 
 def _check_pdf_open(path: Path):
@@ -66,12 +71,45 @@ def list_pdf_tables(path: str | Path) -> dict:
         pdf.close()
 
 
+def _flatten_pdf_merged_header(header: list[str], sub_header: list[str]) -> list[str] | None:
+    """4. Birleştirilmiş Excel başlıkları - the PDF equivalent: a year
+    (or any top-level label) spanning several sub-columns (quarters,
+    months) leaves pdfplumber's raw grid with the year on the merge's
+    first cell and '' on the rest, exactly like Excel's 'Unnamed: N'
+    pattern (see data_import.py's _flatten_merged_excel_header, the same
+    idea applied here since a PDF table has no pandas column names to key
+    off). Real case found live: a Hazine ve Maliye Bakanligi budget table
+    with 'Milyon TL' / blank / '2025' / blank*11 as row 0 and the real
+    month abbreviations as row 1. Returns None (caller keeps the original
+    blank-header rejection) if forward-filling still leaves a blank or
+    duplicate column - never guesses past that point."""
+    new_header = []
+    last_real_top = None
+    for i, cell in enumerate(header):
+        top = cell if cell else last_real_top
+        if cell:
+            last_real_top = cell
+        sub = sub_header[i].strip() if i < len(sub_header) and sub_header[i] else ""
+        if top and sub:
+            new_header.append(f"{top}_{sub}")
+        elif sub:
+            new_header.append(sub)
+        else:
+            new_header.append(top or "")
+
+    if any(h == "" for h in new_header) or len(new_header) != len(set(new_header)):
+        return None
+    return new_header
+
+
 def _table_to_dataframe(table: list[list]) -> tuple[pd.DataFrame, dict]:
     """pdfplumber returns a raw grid of strings/None - first row is
-    treated as the header. Rejected outright rather than guessed at: a
-    duplicate or blank header column (pdfplumber's most common failure
-    mode, usually from a merged cell in the source table) means the
-    extraction is not trustworthy, not that it needs a best-effort fix.
+    treated as the header. A blank header cell is first tried as a
+    merged top-level label spanning sub-columns, same as Excel's merged
+    header (see _flatten_pdf_merged_header); if that does not fully
+    resolve it, rejected outright rather than guessed at further - a
+    duplicate or still-blank header column means the extraction is not
+    trustworthy, not that it needs a best-effort fix.
 
     Returns (dataframe, cleaning_report) - the same shared
     src/agent/data_cleaning.py normalizations data_import.py applies to
@@ -81,18 +119,31 @@ def _table_to_dataframe(table: list[list]) -> tuple[pd.DataFrame, dict]:
     if not table or len(table) < 2:
         raise ValueError("Extracted table has no data rows (only a header, or nothing at all).")
     header = [repair_mojibake(("" if c is None else str(c).strip())) for c in table[0]]
+    data_rows = table[1:]
+    merged_header_used = False
     if any(h == "" for h in header):
-        raise ValueError(
-            "The extracted table has a blank column header - pdfplumber likely mis-split a merged "
-            "cell. Try a different page/table_index, or a cleaner export of the same table."
-        )
+        sub_header_raw = table[1] if len(table) > 2 else []
+        sub_header = [repair_mojibake("" if c is None else str(c).strip()) for c in sub_header_raw]
+        flattened = _flatten_pdf_merged_header(header, sub_header)
+        if flattened is not None and len(table) > 2:
+            header = flattened
+            data_rows = table[2:]
+            merged_header_used = True
+        else:
+            raise ValueError(
+                "The extracted table has a blank column header - pdfplumber likely mis-split a merged "
+                "cell. Try a different page/table_index, or a cleaner export of the same table."
+            )
     if len(header) != len(set(header)):
         dupes = sorted(name for name, count in Counter(header).items() if count > 1)
         raise ValueError(f"Duplicate column name(s) in the extracted table header: {dupes}.")
 
-    rows = [[repair_mojibake(("" if c is None else str(c).strip())) for c in row] for row in table[1:]]
+    rows = [[repair_mojibake(("" if c is None else str(c).strip())) for c in row] for row in data_rows]
     df = pd.DataFrame(rows, columns=header)
-    report = {"numeric_columns_recovered": [], "null_tokens_normalized": 0, "subtotal_rows_excluded": 0}
+    report = {
+        "numeric_columns_recovered": [], "null_tokens_normalized": 0, "subtotal_rows_excluded": 0,
+        "merged_header_flattened": merged_header_used,
+    }
 
     # There is no cell dtype in a PDF - every value comes back as text.
     # normalize_numeric_text handles Turkish vs international separator

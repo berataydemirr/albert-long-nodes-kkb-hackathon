@@ -505,6 +505,70 @@ def test_import_flattens_merged_excel_header(tmp_path):
     assert rows[1] == {"Il": "Istanbul", "2023_Ocak": 200.0, "2023_Subat": 210.0, "2023_Mart": 220.0}
 
 
+def test_import_reads_a_legacy_xls_file(tmp_path):
+    """Real bug found live against a real TBB (Turkiye Bankalar Birligi)
+    .xls export: openpyxl cannot open the pre-2007 binary format at all
+    (InvalidFileException - only .xlsx has an OOXML zip structure), but
+    _raw_header and _hidden_excel_rows_and_columns used to call it
+    unconditionally for BOTH ".xlsx" and ".xls", even though ".xls" was
+    listed in SUPPORTED_EXTENSIONS as if it worked. xlwt (the write side
+    of xlrd, the library that CAN open .xls) builds a minimal real .xls
+    fixture here rather than mocking the read path."""
+    import xlwt
+
+    p = tmp_path / "sube_sayilari.xls"
+    wb = xlwt.Workbook()
+    sheet = wb.add_sheet("Sayfa1")
+    for col, header in enumerate(["Sehir", "Sube_Sayisi"]):
+        sheet.write(0, col, header)
+    sheet.write(1, 0, "Ankara")
+    sheet.write(1, 1, 12)
+    sheet.write(2, 0, "Istanbul")
+    sheet.write(2, 1, 45)
+    wb.save(str(p))
+
+    result = import_dataset(p, "sube_xls_test")
+    assert result["row_count"] == 2
+    assert [c["column"] for c in result["columns"]] == ["Sehir", "Sube_Sayisi"]
+    # .xls has no accessible hidden-row/column metadata (see the function's
+    # own docstring) - reported as 0/0, not silently omitted from the report.
+    assert result["data_quality"]["hidden_rows_excluded"] == 0
+    assert result["data_quality"]["hidden_columns_excluded"] == 0
+
+
+def test_flatten_merged_excel_header_dedupes_a_real_collision(tmp_path):
+    """Real crash found live against a real TBB .xls export: a single
+    full-width title spanning every column (not this function's target
+    'year over months' shape at all) leaves every column with the same
+    'top' and no sub_str to distinguish them, so new_columns collided and
+    df[col] for the duplicated name returned a DataFrame slice instead of
+    a Series - _infer_column crashed with a cryptic
+    'int() argument must be ... not Series' TypeError. This does not
+    correctly parse that file's actual multi-table layout (a known,
+    documented limitation) - it only proves the collision no longer
+    crashes the import."""
+    import openpyxl
+
+    p = tmp_path / "coklu_baslik.xlsx"
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws["A1"] = "Ayni Baslik Her Sutunda"
+    ws.merge_cells("A1:C1")
+    # No real sub-header text in row 2 under B/C - the exact condition
+    # that made every 'Unnamed' column fall back to the same bare 'top'.
+    ws["A3"], ws["B3"], ws["C3"] = "Ankara", 100, 200
+    wb.save(p)
+
+    result = import_dataset(p, "coklu_baslik_test")
+    columns = [c["column"] for c in result["columns"]]
+    assert columns == [
+        "Ayni Baslik Her Sutunda",
+        "Ayni Baslik Her Sutunda.1",
+        "Ayni Baslik Her Sutunda.2",
+    ]
+    assert len(columns) == len(set(columns))
+
+
 def test_import_excel_without_merged_header_is_unaffected(csv_path, xlsx_path):
     """The merged-header flattening must never fire on an ordinary
     single-row-header file - it is gated purely on pandas' own 'Unnamed:'

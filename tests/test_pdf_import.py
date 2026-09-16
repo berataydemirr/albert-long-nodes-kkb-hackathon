@@ -109,6 +109,48 @@ def test_import_pdf_table_rejects_blank_header_cell(tmp_path):
         import_pdf_table(p, "blank_header_pdf")
 
 
+def test_import_pdf_table_flattens_a_merged_header(tmp_path):
+    """4. Birlestirilmis Excel basliklari - the PDF equivalent, found live
+    against a real Hazine ve Maliye Bakanligi budget table: a year merged
+    over quarter columns leaves pdfplumber's raw grid with the year on
+    the merge's first cell and blank on the rest, with the real
+    sub-header (the quarter names) in the row right after. Must recover
+    real column names ('2025_Ç1' etc.), not reject the whole table the
+    way an unrecoverable blank header does."""
+    p = tmp_path / "merged_header.pdf"
+    _make_pdf(p, [
+        ["Il", "2025", "", ""],
+        ["", "Ç1", "Ç2", "Ç3"],
+        ["Ankara", "100", "110", "120"],
+        ["Istanbul", "200", "210", "220"],
+    ])
+
+    result = import_pdf_table(p, "merged_header_pdf")
+    assert result["row_count"] == 2  # the sub-header row is not counted as data
+    columns = [c["column"] for c in result["columns"]]
+    assert columns == ["Il", "2025_Ç1", "2025_Ç2", "2025_Ç3"]
+    assert result["data_quality"]["merged_header_flattened"] is True
+
+
+def test_import_pdf_table_still_rejects_a_header_that_stays_blank_after_flattening(tmp_path):
+    """A genuinely broken header (not a resolvable merge - here, two
+    identical sub-header labels under two different blank top cells)
+    must still be rejected, not guessed at further, even once
+    merged-header flattening exists as a first attempt: 'Il_A' would
+    collide with itself, so the collision check that already guards
+    _flatten_merged_excel_header's Excel counterpart catches this too."""
+    p = tmp_path / "still_blank.pdf"
+    _make_pdf(p, [
+        ["Il", "", ""],
+        ["", "A", "A"],
+        ["Ankara", "1", "2"],
+        ["Istanbul", "3", "4"],
+    ])
+
+    with pytest.raises(ValueError, match="blank column header|Duplicate column"):
+        import_pdf_table(p, "still_blank_pdf")
+
+
 def test_import_pdf_table_rejects_header_only_table(tmp_path):
     p = tmp_path / "header_only.pdf"
     _make_pdf(p, [["Il", "Deger"]])

@@ -1,0 +1,157 @@
+{
+  "excel": {
+    "file": "tbb_sube_calisan.xls",
+    "format": ".xls",
+    "tests": [
+      {
+        "step": "detect_schema",
+        "ok": true,
+        "row_count": 41,
+        "column_count": 9,
+        "data_quality": {
+          "null_tokens_normalized": 0,
+          "numeric_columns_recovered": [
+            "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları.2",
+            "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları.3",
+            "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları.7",
+            "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları.8"
+          ],
+          "date_columns_normalized": [],
+          "subtotal_rows_excluded": 0,
+          "mojibake_repaired_columns": [],
+          "hidden_rows_excluded": 0,
+          "hidden_columns_excluded": 0
+        }
+      },
+      {
+        "step": "import_dataset",
+        "ok": true,
+        "row_count": 41,
+        "columns": [
+          "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları",
+          "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları.1",
+          "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları.2",
+          "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları.3",
+          "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları.4",
+          "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları.5",
+          "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları.6",
+          "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları.7",
+          "Tablo 2  31.12.2022 İtibarıyla Banka ve Gruplar Bazında Şube ve Çalışan Sayıları.8"
+        ]
+      }
+    ],
+    "source": "Turkiye Bankalar Birligi - Banka ve Gruplar Bazinda Sube ve Calisan Sayilari (legacy .xls)"
+  },
+  "pdf": {
+    "file": "hmb_kamu_borc_aralik_2025.pdf",
+    "format": ".pdf",
+    "pages": {
+      "5": {
+        "ok": true,
+        "row_count": 94,
+        "column_count": 15,
+        "columns": [
+          "Milyon ¨",
+          "2024_Oca - Kas",
+          "2025_Oca",
+          "2025_Şub",
+          "2025_Mar",
+          "2025_Nis",
+          "2025_May",
+          "2025_Haz",
+          "2025_Tem",
+          "2025_Ağu",
+          "2025_Eyl",
+          "2025_Eki",
+          "2025_Kas",
+          "2025_Ara",
+          "2025_Toplam"
+        ],
+        "data_quality": {
+          "numeric_columns_recovered": [
+            "2025_Oca",
+            "2025_Şub",
+            "2025_Mar",
+            "2025_Nis",
+            "2025_May",
+            "2025_Haz",
+            "2025_Tem",
+            "2025_Ağu",
+            "2025_Eyl",
+            "2025_Eki",
+            "2025_Kas"
+          ],
+          "null_tokens_normalized": 94,
+          "subtotal_rows_excluded": 0,
+          "merged_header_flattened": true
+        },
+        "stitched": true
+      },
+      "39": {
+        "ok": true,
+        "row_count": 43,
+        "column_count": 11,
+        "columns": [
+          "Borçlu Kuruluş (Milyon ABD Doları)",
+          "2018",
+          "2019",
+          "2020",
+          "2021",
+          "2022",
+          "2023",
+          "2024",
+          "2025 Ç1",
+          "2025 Ç2",
+          "2025 Ç3"
+        ],
+        "data_quality": {
+          "numeric_columns_recovered": [
+            "2018",
+            "2019",
+            "2020",
+            "2021",
+            "2022",
+            "2023",
+            "2024",
+            "2025 Ç1",
+            "2025 Ç2",
+            "2025 Ç3"
+          ],
+          "null_tokens_normalized": 3,
+          "subtotal_rows_excluded": 2,
+          "merged_header_flattened": false
+        },
+        "stitched": false
+      },
+      "41": {
+        "ok": true,
+        "row_count": 51,
+        "column_count": 6,
+        "columns": [
+          "Borçlu Kuruluş (Milyon ¨)",
+          "Vadesi Geçmiş\nAlacaklar",
+          "Vadesi Gelmemiş Alacaklar_Anapara",
+          "Vadesi Gelmemiş Alacaklar_Diğer",
+          "Vadesi Gelmemiş Alacaklar_Toplam",
+          "Toplam"
+        ],
+        "data_quality": {
+          "numeric_columns_recovered": [
+            "Vadesi Geçmiş\nAlacaklar",
+            "Vadesi Gelmemiş Alacaklar_Anapara",
+            "Vadesi Gelmemiş Alacaklar_Diğer",
+            "Vadesi Gelmemiş Alacaklar_Toplam",
+            "Toplam"
+          ],
+          "null_tokens_normalized": 0,
+          "subtotal_rows_excluded": 1,
+          "merged_header_flattened": true
+        },
+        "stitched": false
+      }
+    },
+    "page_count": 47,
+    "tables_found_total": 115,
+    "source": "Hazine ve Maliye Bakanligi - Kamu Borc Yonetimi Raporu, Aralik 2025"
+  }
+}
