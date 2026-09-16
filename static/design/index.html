@@ -290,10 +290,10 @@ textarea:focus-visible { outline: none; }
 
       <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ true }}">
         <div style="margin:auto 0; padding:40px 0 24px; animation:msg-in .5s ease both;">
-          <span class="premium-dots is-live" style="--orb-size:56px; display:block; margin-bottom:22px;"><i class="dots-glow"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i></span>
+          <span class="premium-dots is-live" style="--orb-size:56px; display:block; margin:0 0 22px 32px;"><i class="dots-glow"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i></span>
           <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); margin-bottom:12px;">BDDK · EVDS · TUIK</div>
           <h1 style="margin:0 0 10px; font-size:34px; font-weight:500; letter-spacing:-.035em; line-height:1.12; color:var(--ink);">Lakehouse'a ne sormak istersin?</h1>
-          <p style="margin:0 0 26px; font-size:15px; line-height:1.6; color:var(--muted); max-width:52ch;">Model planı kurar, araçları Python çalıştırır. Her yanıtın altında çağrılan aracı, süresini ve dönen veriyi açabilirsin.</p>
+          <p style="margin:0 0 26px; font-size:15px; line-height:1.6; color:var(--muted); max-width:52ch;">Plan kurar, gerçek araçları çalıştırır — uydurma değil, sorgulanmış gerçek veri. Her yanıtın altında hangi aracın çağrıldığını, ne kadar sürdüğünü ve neyi döndürdüğünü görebilirsin.</p>
 
           <div style="display:flex; flex-wrap:wrap; gap:8px;">
             <sc-for list="{{ examples }}" as="ex" hint-placeholder-count="12">
