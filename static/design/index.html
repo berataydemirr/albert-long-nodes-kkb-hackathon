@@ -180,6 +180,7 @@ textarea:focus-visible { outline: none; }
 @keyframes msg-in { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
 @keyframes caret { 0%,100% { opacity: 1 } 50% { opacity: .15 } }
 @keyframes sweep { 0% { transform: translateX(-100%) } 100% { transform: translateX(220%) } }
+@keyframes spinner-spin { to { transform: rotate(360deg) } }
 /* Premium dots marker: 8 dots placed around a circle with `translate`
    (kept separate from `scale` - two independent CSS transform properties -
    so positioning and pulsing never fight over one `transform`). Each dot
@@ -238,6 +239,9 @@ textarea:focus-visible { outline: none; }
 
   <header style="position:sticky; top:0; z-index:8; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:0 22px; height:58px; border-bottom:1px solid rgba(var(--accent-rgb),.13); background:rgba(var(--surface-rgb),.86); backdrop-filter:blur(14px); box-shadow:0 1px 3px rgba(var(--shadow-rgb),.04);">
     <div style="display:flex; align-items:center; gap:10px;">
+      <button onClick="{{ toggleSidebar }}" aria-label="Sohbet listesini aç/kapat" title="Sohbetler" style="width:30px; height:30px; flex:none; border-radius:8px; background:none; border:1px solid rgba(var(--accent-rgb),.16); color:var(--muted); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .18s ease;" style-hover="color:var(--ink); border-color:rgba(var(--accent-rgb),.32);">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+      </button>
       <svg width="18" height="18" viewBox="0 0 32 32" style="flex:none; display:block;" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--accent)"></rect><path d="M16 7l9 9-9 9-9-9z" fill="var(--accent-2)"></path></svg>
       <span style="font-size:14px; font-weight:500; letter-spacing:-.01em;">KKB Agent</span>
       <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); border:1px solid rgba(var(--accent-rgb),.18); border-radius:4px; padding:3px 7px;">{{ modeLabel }}</span>
@@ -251,7 +255,36 @@ textarea:focus-visible { outline: none; }
     </div>
   </header>
 
-  <div style="flex:1; display:flex; flex-direction:column; width:100%; max-width:840px; margin:0 auto; padding:0 20px; min-height:0;">
+  <div style="flex:1; display:flex; width:100%; min-height:0;">
+
+    <sc-if value="{{ sidebarOpen }}" hint-placeholder-val="{{ true }}">
+      <aside style="width:252px; flex:none; border-right:1px solid rgba(var(--accent-rgb),.13); background:var(--surface); display:flex; flex-direction:column; min-height:0;">
+        <div style="padding:14px 12px 8px; flex:none;">
+          <button onClick="{{ resetChat }}" style="width:100%; display:flex; align-items:center; justify-content:center; gap:7px; background:rgba(var(--accent-rgb),.06); border:1px solid rgba(var(--accent-rgb),.18); color:var(--text-2); border-radius:8px; padding:9px 10px; font-size:12.5px; cursor:pointer; transition:all .18s ease;" style-hover="background:rgba(var(--accent-rgb),.14); color:var(--ink); border-color:rgba(var(--accent-rgb),.32);">+ Yeni sohbet</button>
+        </div>
+        <div style="flex:1; overflow-y:auto; padding:4px 8px 14px; display:flex; flex-direction:column; gap:2px;">
+          <sc-if value="{{ hasSessions }}" hint-placeholder-val="{{ true }}">
+            <sc-for list="{{ sessionsView }}" as="sess" hint-placeholder-count="4">
+              <div onClick="{{ sess.open }}" style="position:relative; display:flex; flex-direction:column; gap:2px; padding:9px 30px 9px 10px; border-radius:8px; cursor:pointer; background:{{ sess.bg }}; transition:background .15s ease;" style-hover="background:rgba(var(--accent-rgb),.08);">
+                <span style="display:flex; align-items:center; gap:6px;">
+                  <sc-if value="{{ sess.isPending }}" hint-placeholder-val="{{ false }}">
+                    <span title="Yanıt bekleniyor" style="width:6px; height:6px; flex:none; border-radius:50%; background:var(--accent); box-shadow:0 0 5px rgba(var(--accent-rgb),.8);"></span>
+                  </sc-if>
+                  <span style="font-size:12.5px; line-height:1.4; color:{{ sess.titleColor }}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ sess.title }}</span>
+                </span>
+                <span style="font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:.06em; color:var(--faint);">{{ sess.dateLabel }}</span>
+                <button onClick="{{ sess.remove }}" title="Sohbeti sil" style="position:absolute; top:8px; right:6px; width:20px; height:20px; border-radius:6px; background:none; border:0; color:var(--faint); font-size:13px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .15s ease;" style-hover="background:rgba(var(--error-rgb),.12); color:var(--error);">×</button>
+              </div>
+            </sc-for>
+          </sc-if>
+          <sc-if value="{{ hasSessions }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:14px 10px; font-size:12px; color:var(--faint); line-height:1.5;">Henüz sohbet yok. Bir soru sor, burada listelenecek.</div>
+          </sc-if>
+        </div>
+      </aside>
+    </sc-if>
+
+    <div style="flex:1; display:flex; flex-direction:column; width:100%; max-width:840px; margin:0 auto; padding:0 20px; min-height:0;">
 
     <div style="flex:1; overflow-y:auto; padding:34px 0 8px; display:flex; flex-direction:column; gap:26px; min-height:0;">
 
@@ -263,7 +296,7 @@ textarea:focus-visible { outline: none; }
           <p style="margin:0 0 26px; font-size:15px; line-height:1.6; color:var(--muted); max-width:52ch;">Model planı kurar, araçları Python çalıştırır. Her yanıtın altında çağrılan aracı, süresini ve dönen veriyi açabilirsin.</p>
 
           <div style="display:flex; flex-wrap:wrap; gap:8px;">
-            <sc-for list="{{ examples }}" as="ex" hint-placeholder-count="4">
+            <sc-for list="{{ examples }}" as="ex" hint-placeholder-count="12">
               <button onClick="{{ ex.use }}" style="display:flex; align-items:center; gap:10px; text-align:left; background:var(--surface); border:1px solid rgba(var(--accent-rgb),.15); color:var(--text-2); border-radius:10px; padding:10px 14px 10px 11px; font-size:13px; line-height:1.4; max-width:100%; cursor:pointer; box-shadow:0 1px 2px rgba(var(--shadow-rgb),.05); transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease, color .2s ease;" style-hover="border-color:rgba(var(--accent-rgb),.34); color:var(--ink); transform:translateY(-1px); box-shadow:0 4px 12px rgba(var(--shadow-rgb),.09);">
                 <span style="font-family:'Space Mono',monospace; font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); background:var(--bg-grad); border-radius:4px; padding:3px 6px; flex:none;">{{ ex.tag }}</span>
                 <span>{{ ex.label }}</span>
@@ -351,6 +384,7 @@ textarea:focus-visible { outline: none; }
         <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:var(--faint);">Enter ile gönder · Shift+Enter satır · + ile CSV/Excel/PDF yükle</span>
         <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:var(--faint);">{{ charLabel }}</span>
       </div>
+    </div>
     </div>
   </div>
 
@@ -464,6 +498,63 @@ const ACC = 'var(--accent)';
 const ACC_DIM = 'rgba(var(--accent-rgb),.55)';
 const ERR = 'var(--error)';
 
+// --- Chat sessions (sidebar) --------------------------------------------
+// Sessions live in localStorage only - nothing here is ever sent to the
+// model. The per-request memory the model actually sees stays exactly what
+// historyForRequest() below already builds (last 4 turns, 500 chars each);
+// this is just letting a person come back to an earlier tab of that same
+// short memory instead of losing it on "New chat".
+const SESSIONS_KEY = 'kkb-chat-sessions';
+const MAX_SESSIONS = 30;
+const MAX_STORED_MSGS_PER_SESSION = 60;
+
+const newSessionId = () => `s_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
+function loadSessionsFromStorage() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SESSIONS_KEY) || '[]');
+    return Array.isArray(raw) ? raw : [];
+  } catch (e) { return []; }
+}
+
+function saveSessionsToStorage(sessions) {
+  try { localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions)); } catch (e) {}
+}
+
+function sessionTitleFrom(messages) {
+  const firstUser = messages.find(m => m.role === 'user');
+  if (!firstUser || !firstUser.text) return 'Yeni sohbet';
+  return firstUser.text.length > 64 ? firstUser.text.slice(0, 64) + '…' : firstUser.text;
+}
+
+function formatSessionDate(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const sameDay = d.toDateString() === new Date().toDateString();
+  return sameDay
+    ? d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+    : d.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' });
+}
+
+// Drops rendered `blocks` (React elements, not JSON-safe) and keeps only
+// the source `md`/`charts` needed to rebuild them on load.
+function serializeMessage(m) {
+  if (m.role === 'user') return { id: m.id, role: 'user', text: m.text };
+  return {
+    id: m.id, role: 'assistant', routeName: m.routeName, routeReason: m.routeReason,
+    md: m.md, charts: m.charts || [], answerText: m.answerText, trace: m.trace, timing: m.timing
+  };
+}
+
+function deserializeMessage(m) {
+  if (m.role === 'user') return { id: m.id, role: 'user', text: m.text };
+  return {
+    id: m.id, role: 'assistant', routeName: m.routeName, routeReason: m.routeReason,
+    md: m.md, charts: m.charts || [], answerText: m.answerText, trace: m.trace || [], timing: m.timing,
+    blocks: [...mdToBlocks(m.md), ...chartsToBlocks(m.charts || [])]
+  };
+}
+
 const fmtMs = (ms) => {
   const v = Number(ms) || 0;
   if (v < 1000) return `${Math.round(v)} ms`;
@@ -479,19 +570,35 @@ const pctOf = (part, whole) => {
 
 const TAG_BY_NAME = {
   lakehouse_schema: 'Data', lakehouse_query: 'Data',
+  list_imported_datasets: 'Data', query_imported_dataset: 'Data',
   anomaly_analysis: 'Analysis', change_detection: 'Analysis',
   correlation_analysis: 'Analysis', causality_analysis: 'Analysis',
   threshold_filter_compare: 'Analysis',
+  compare_regions: 'Regional',
+  fetch_bist_stock: 'Market',
+  refresh_tuik_series: 'TUIK', search_tuik_dataflows: 'TUIK',
+  fuzzy_match_category: 'Data',
   web_search: 'Web', web_url_extract: 'Web'
 };
 
 // The tag names match TAG_BY_NAME above, so the label on a suggestion and
 // the label on the tool it ends up calling read as the same vocabulary.
+// One example per tool family (Data/Analysis x5/Regional/Market/TUIK/Web
+// x2/chain) so the chip row itself demonstrates the full tool registry,
+// not just the two or three tools that happen to demo well.
 const EXAMPLES = [
   { tag: 'Data',     label: "Lakehouse'daki tabloları ve mevcut serileri listele." },
-  { tag: 'Analysis', label: 'Konut kredisi faiz oranı ile konut kredisi hacmi arasında nedensellik var mı?' },
   { tag: 'Analysis', label: 'Konut kredisi faiz oranı serisindeki aykırı dönemleri bul ve açıkla.' },
-  { tag: 'Web',      label: "TCMB'nin güncel politika faizini web'de ara." }
+  { tag: 'Analysis', label: 'Konut kredisi faiz oranındaki en büyük değişimleri bul ve yorumla.' },
+  { tag: 'Analysis', label: 'Konut kredisi faiz oranı ile konut kredisi hacmi arasında nedensellik var mı?' },
+  { tag: 'Analysis', label: 'TÜFE ile M2 para arzı arasındaki korelasyonu hesapla.' },
+  { tag: 'Analysis', label: 'Faiz %40-50 arasındayken kredi hacmi nasıl değişiyor, dışındaki dönemlerle kıyasla.' },
+  { tag: 'Regional', label: 'Kredi hacmine göre en yüksek 10 ili sırala.' },
+  { tag: 'Regional', label: 'Takipteki konut kredisi oranı en yüksek illeri geçen çeyreğe göre kıyasla.' },
+  { tag: 'Market',   label: "AKBNK hissesinin son 6 aylık fiyat geçmişini getir." },
+  { tag: 'TUIK',     label: "TUIK'in enflasyonla ilgili veri setlerini ara." },
+  { tag: 'Web',      label: "TCMB'nin güncel politika faizini web'de ara." },
+  { tag: 'Web',      label: "Güncel politika faizini web'de bul ve yerel konut kredisi serisiyle kıyasla." }
 ];
 
 // Progress narration. Each stage holds until the next one's `at` (ms) passes;
@@ -900,7 +1007,7 @@ function formatUploadSummary(result) {
 
 class Component extends DCLogic {
   state = {
-    input: '', thinking: false, elapsed: 0,
+    input: '',
     messages: [], nextId: 1,
     drawer: null,              // {kind:'trace', id} | {kind:'registry'}
     openCalls: {},             // `${msgId}:${idx}` -> true
@@ -909,7 +1016,16 @@ class Component extends DCLogic {
     // applied any saved explicit choice before this component mounted,
     // so this just reads back what is already on the document.
     themeMode: (document.documentElement.getAttribute('data-theme') || null),
-    uploading: false
+    uploading: false,
+    activeSessionId: newSessionId(),
+    sessions: [],              // past chat sessions, sidebar list (persisted, see syncActiveSession)
+    sidebarOpen: true,
+    // sessionId -> { startedAt }. An in-flight /api/ask keeps running here
+    // even after the user switches to (or opens/closes) a different
+    // session - see pushAssistantTo, which is what lets it land back in
+    // the right session's history instead of stalling or leaking into
+    // whatever session happens to be on screen when it resolves.
+    pending: {}
   };
 
   isDarkNow = () => {
@@ -944,18 +1060,36 @@ class Component extends DCLogic {
         else this.setState({ tools: this.fallbackTools() });
       })
       .catch(() => this.setState({ tools: this.fallbackTools() }));
+
+    this.setState({ sessions: loadSessionsFromStorage() });
   }
 
   componentWillUnmount() { this.stopClock(); }
 
   fallbackTools() { return DEMO_TOOLS.map(t => ({ ...t, tag: TAG_BY_NAME[t.name] || 'Tool' })); }
 
+  // One shared ticker drives the "thinking" narration for whichever
+  // session is on screen; it runs as long as ANY session has a request in
+  // flight, independent of which one is active (see `pending`).
   startClock() {
-    this.t0 = Date.now();
-    this.stopClock();
-    this.timer = setInterval(() => this.setState({ elapsed: Date.now() - this.t0 }), 120);
+    if (this.timer) return;
+    this.timer = setInterval(() => this.forceUpdate(), 120);
   }
   stopClock() { if (this.timer) { clearInterval(this.timer); this.timer = null; } }
+
+  // A request stays keyed to the session it was asked from, not to
+  // whatever's active when it resolves - see pushAssistantTo.
+  markPending = (sessionId) => {
+    this.setState(s => ({ pending: { ...s.pending, [sessionId]: { startedAt: Date.now() } } }));
+    this.startClock();
+  };
+  clearPending = (sessionId) => {
+    this.setState(s => {
+      const pending = { ...s.pending };
+      delete pending[sessionId];
+      return { pending };
+    }, () => { if (!Object.keys(this.state.pending).length) this.stopClock(); });
+  };
 
   scrollEnd = () => {
     const el = this.endEl;
@@ -969,8 +1103,60 @@ class Component extends DCLogic {
   openRegistry = () => this.setState({ drawer: { kind: 'registry' } });
   openTrace = (id) => this.setState({ drawer: { kind: 'trace', id } });
   closeDrawer = () => this.setState({ drawer: null });
-  resetChat = () => { this.stopClock(); this.setState({ messages: [], thinking: false, drawer: null, input: '', openCalls: {} }); };
+  resetChat = () => {
+    // Doesn't touch `pending` - a request started from the session being
+    // left behind keeps running and lands there in the background.
+    this.setState({
+      messages: [], drawer: null, input: '', openCalls: {},
+      activeSessionId: newSessionId()
+    });
+  };
   toggleCall = (k) => this.setState(s => ({ openCalls: { ...s.openCalls, [k]: !s.openCalls[k] } }));
+  toggleSidebar = () => this.setState(s => ({ sidebarOpen: !s.sidebarOpen }));
+
+  // Mirrors the active tab's messages into the persisted sessions list.
+  // Called after every message-affecting change; skipped once a session has
+  // nothing in it yet so an untouched "New chat" never shows up in the list.
+  syncActiveSession = () => {
+    this.setState(s => {
+      if (!s.messages.length) return null;
+      const snapshot = {
+        id: s.activeSessionId,
+        title: sessionTitleFrom(s.messages),
+        updatedAt: Date.now(),
+        nextId: s.nextId,
+        messages: s.messages.slice(-MAX_STORED_MSGS_PER_SESSION).map(serializeMessage)
+      };
+      const sessions = [snapshot, ...s.sessions.filter(sess => sess.id !== snapshot.id)].slice(0, MAX_SESSIONS);
+      saveSessionsToStorage(sessions);
+      return { sessions };
+    });
+  };
+
+  // Switching tabs never touches `pending` - a session left mid-request
+  // keeps running (markPending/pushAssistantTo track it by id, not by
+  // "current"), and its answer is waiting in the sidebar when reopened.
+  openSession = (id) => {
+    if (id === this.state.activeSessionId) return;
+    const found = this.state.sessions.find(sess => sess.id === id);
+    if (!found) return;
+    this.setState({
+      activeSessionId: id,
+      messages: found.messages.map(deserializeMessage),
+      nextId: found.nextId || found.messages.length + 1,
+      drawer: null, input: '', openCalls: {}
+    }, this.scrollEnd);
+  };
+
+  deleteSession = (id, e) => {
+    if (e) e.stopPropagation();
+    this.setState(s => {
+      const sessions = s.sessions.filter(sess => sess.id !== id);
+      saveSessionsToStorage(sessions);
+      if (id !== s.activeSessionId) return { sessions };
+      return { sessions, messages: [], drawer: null, input: '', openCalls: {}, activeSessionId: newSessionId() };
+    });
+  };
 
   fileInputRef = (el) => { this.fileInputEl = el; };
   triggerUpload = () => { if (!this.state.uploading && this.fileInputEl) this.fileInputEl.click(); };
@@ -981,10 +1167,11 @@ class Component extends DCLogic {
     if (!file) return;
 
     const datasetName = file.name.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 60) || 'dataset';
+    const sessionId = this.state.activeSessionId;
     this.setState(s => ({
       messages: [...s.messages, { id: s.nextId, role: 'user', text: `Dataset yükleniyor: ${file.name}` }],
       uploading: true, nextId: s.nextId + 1
-    }), this.scrollEnd);
+    }), () => { this.scrollEnd(); this.syncActiveSession(); });
 
     const form = new FormData();
     form.append('file', file);
@@ -993,27 +1180,61 @@ class Component extends DCLogic {
     fetch('/api/upload', { method: 'POST', body: form })
       .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail || 'Yükleme başarısız oldu.'); return d; })
       .then(result => {
-        this.pushAssistant({
+        this.pushAssistantTo(sessionId, {
           routeName: 'data_import', routeReason: `'${result.file_name}' içe aktarıldı.`,
-          blocks: mdToBlocks(formatUploadSummary(result)), trace: [], timing: null,
+          md: formatUploadSummary(result), trace: [], timing: null,
         });
       })
       .catch(err => {
-        this.pushAssistant({
+        this.pushAssistantTo(sessionId, {
           routeName: 'data_import', routeReason: 'Yükleme başarısız.',
-          blocks: mdToBlocks(`**Yükleme başarısız oldu.**\n\n${err.message}`), trace: [], timing: null,
+          md: `**Yükleme başarısız oldu.**\n\n${err.message}`, trace: [], timing: null,
         });
       })
       .finally(() => this.setState({ uploading: false }));
   };
 
-  pushAssistant(payload) {
-    this.stopClock();
-    this.setState(s => ({
-      messages: [...s.messages, { id: s.nextId, role: 'assistant', ...payload }],
-      thinking: false, nextId: s.nextId + 1
-    }), this.scrollEnd);
-  }
+  // `payload` carries `md` (raw markdown) and `charts` rather than pre-built
+  // `blocks`, so the message stays JSON-serializable for the sessions
+  // sidebar (see serializeMessage/deserializeMessage) - blocks are React
+  // elements and can't survive a localStorage round-trip.
+  //
+  // `sessionId` is the session the request was made from, captured before
+  // the fetch - NOT necessarily the active one anymore. If the user has
+  // switched away, the reply is folded straight into that session's
+  // persisted record (sessions list) instead of the on-screen messages, so
+  // it's there, no longer "pending", next time they open it.
+  pushAssistantTo = (sessionId, payload) => {
+    this.clearPending(sessionId);
+    const { md, charts, ...rest } = payload;
+    const message = {
+      role: 'assistant', md, charts: charts || [],
+      blocks: [...mdToBlocks(md), ...chartsToBlocks(charts || [])],
+      ...rest
+    };
+
+    if (sessionId === this.state.activeSessionId) {
+      this.setState(s => ({
+        messages: [...s.messages, { id: s.nextId, ...message }],
+        nextId: s.nextId + 1
+      }), () => { this.scrollEnd(); this.syncActiveSession(); });
+      return;
+    }
+
+    this.setState(s => {
+      const idx = s.sessions.findIndex(sess => sess.id === sessionId);
+      if (idx === -1) return null; // session was deleted while its request was in flight
+      const sess = s.sessions[idx];
+      const id = sess.nextId || sess.messages.length + 1;
+      const updated = {
+        ...sess, nextId: id + 1, updatedAt: Date.now(),
+        messages: [...sess.messages, serializeMessage({ id, ...message })]
+      };
+      const sessions = s.sessions.map((x, i) => i === idx ? updated : x);
+      saveSessionsToStorage(sessions);
+      return { sessions };
+    });
+  };
 
   // Only (question, final answer) pairs from real /api/ask turns count as
   // memory - a dataset-upload notice or a failed/demo-preview turn has no
@@ -1039,13 +1260,14 @@ class Component extends DCLogic {
 
   send = (override) => {
     const text = (override !== undefined ? override : this.state.input).trim();
-    if (!text || this.state.thinking) return;
+    const sessionId = this.state.activeSessionId;
+    if (!text || this.state.pending[sessionId]) return;
     const history = this.historyForRequest();
     this.setState(s => ({
       messages: [...s.messages, { id: s.nextId, role: 'user', text }],
-      input: '', thinking: true, elapsed: 0, nextId: s.nextId + 1
-    }), this.scrollEnd);
-    this.startClock();
+      input: '', nextId: s.nextId + 1
+    }), () => { this.scrollEnd(); this.syncActiveSession(); });
+    this.markPending(sessionId);
 
     fetch('/api/ask', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1053,12 +1275,12 @@ class Component extends DCLogic {
     })
       .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail || 'İstek başarısız oldu.'); return d; })
       .then(data => {
-        this.pushAssistant({
+        this.pushAssistantTo(sessionId, {
           routeName: data.route ? data.route.name : 'agent',
           routeReason: data.route ? data.route.reason : '',
           // Charts sit after the prose, inside the same answer block - the
           // reader gets the conclusion in words first, then the shape.
-          blocks: [...mdToBlocks(data.answer), ...chartsToBlocks(data.charts)],
+          md: data.answer, charts: data.charts,
           // Raw markdown, kept alongside the rendered blocks so the NEXT
           // request's historyForRequest() has actual prose to resend -
           // blocks are React-ish render nodes, not text.
@@ -1074,11 +1296,12 @@ class Component extends DCLogic {
       })
       .catch(() => {
         // No backend reachable (design preview): show the shape of a real run.
-        const wait = Math.max(0, 13800 - (Date.now() - this.t0));
-        setTimeout(() => this.pushAssistant({
+        const startedAt = (this.state.pending[sessionId] || {}).startedAt || Date.now();
+        const wait = Math.max(0, 13800 - (Date.now() - startedAt));
+        setTimeout(() => this.pushAssistantTo(sessionId, {
           routeName: 'analytics_web',
           routeReason: 'Soru hem güncel web bilgisi hem yerel seri analizi gerektiriyor; tüm araçlar açıldı.',
-          blocks: mdToBlocks(DEMO_ANSWER),
+          md: DEMO_ANSWER,
           trace: DEMO_TRACE.map(tc => ({
             name: tc.name, round: tc.round, durationMs: tc.duration_ms,
             args: prettyJson(tc.arguments), result: prettyJson(tc.output_preview), error: false
@@ -1090,6 +1313,9 @@ class Component extends DCLogic {
 
   renderVals() {
     const s = this.state;
+    const activePending = s.pending[s.activeSessionId];
+    const thinking = !!activePending;
+    const elapsed = thinking ? Date.now() - activePending.startedAt : 0;
 
     const messages = s.messages.map(m => {
       if (m.role === 'user') return { id: m.id, isUser: true, isAssistant: false, userText: m.text };
@@ -1107,13 +1333,27 @@ class Component extends DCLogic {
     // Stage narration derived from elapsed time. stagePace scales the schedule.
     const pace = Number(this.props.stagePace ?? 1) || 1;
     let activeIdx = 0;
-    for (let i = 0; i < STAGES.length; i++) if (s.elapsed >= STAGES[i].at / pace) activeIdx = i;
+    for (let i = 0; i < STAGES.length; i++) if (elapsed >= STAGES[i].at / pace) activeIdx = i;
     const stages = STAGES.slice(0, activeIdx + 1).map((st, i) => ({
       label: st.label,
       done: i < activeIdx,
       active: i === activeIdx,
       time: i < activeIdx ? fmtMs((STAGES[i + 1].at - st.at) / pace) : ''
     }));
+
+    const sessionsView = [...s.sessions].sort((a, b) => b.updatedAt - a.updatedAt).map(sess => {
+      const active = sess.id === s.activeSessionId;
+      return {
+        id: sess.id, title: sess.title, dateLabel: formatSessionDate(sess.updatedAt),
+        bg: active ? 'rgba(var(--accent-rgb),.10)' : 'transparent',
+        titleColor: active ? 'var(--ink)' : 'var(--text-2)',
+        // Still running in the background from a session the user isn't on
+        // right now - see pushAssistantTo.
+        isPending: !!s.pending[sess.id],
+        open: () => this.openSession(sess.id),
+        remove: (e) => this.deleteSession(sess.id, e)
+      };
+    });
 
     const isRegistry = !!s.drawer && s.drawer.kind === 'registry';
     const msg = s.drawer && s.drawer.kind === 'trace' ? s.messages.find(m => m.id === s.drawer.id) : null;
@@ -1160,13 +1400,17 @@ class Component extends DCLogic {
       timing: `${fmtMs(pt.duration_ms)} · ${pctOf(pt.duration_ms, total)}`
     }));
 
-    const canSend = s.input.trim().length > 0 && !s.thinking;
+    const canSend = s.input.trim().length > 0 && !thinking;
 
     return {
       modeLabel: s.live ? 'live' : 'preview',
       toolCount: s.tools.length || 9,
       openRegistry: this.openRegistry,
       resetChat: this.resetChat,
+      toggleSidebar: this.toggleSidebar,
+      sidebarOpen: s.sidebarOpen,
+      sessionsView,
+      hasSessions: sessionsView.length > 0,
       toggleTheme: this.toggleTheme,
       themeIcon: this.isDarkNow() ? '☀️' : '🌙',
       fileInputRef: this.fileInputRef,
@@ -1176,12 +1420,12 @@ class Component extends DCLogic {
       uploadIdle: !s.uploading,
       uploadLabel: '+',
       uploadCursor: s.uploading ? 'default' : 'pointer',
-      isEmpty: s.messages.length === 0 && !s.thinking,
+      isEmpty: s.messages.length === 0 && !thinking,
       examples: EXAMPLES.map(ex => ({ label: ex.label, tag: ex.tag, use: () => this.send(ex.label) })),
       messages,
-      thinking: s.thinking,
+      thinking,
       stages,
-      elapsedLabel: `${(s.elapsed / 1000).toFixed(1)}s`,
+      elapsedLabel: `${(elapsed / 1000).toFixed(1)}s`,
       endRef: (el) => { this.endEl = el; },
       input: s.input, setInput: this.setInput, handleKeyDown: this.handleKeyDown,
       onFocus: this.onFocus, onBlur: this.onBlur,
