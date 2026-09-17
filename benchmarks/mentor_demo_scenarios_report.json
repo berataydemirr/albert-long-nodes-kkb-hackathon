@@ -1,0 +1,201 @@
+[
+  {
+    "id": "senaryo_1_enflasyon_kredi_nedensellik",
+    "title": "Enflasyon ve Kredi Hacmi Nedenselliği",
+    "turns": [
+      {
+        "step": 1,
+        "question": "TCMB web bağlantısı üzerinden son iki yılın aylık ihtiyaç kredisi faiz oranlarını çek ve listele. Yazdığın koda her adımı terminale yazdıracak bol log ve hata ayıklama satırı ekle.",
+        "answer": "\n\n**Sonuç:** Lakehouse'da \"ihtiyaç kredisi\" tek başına bir seri yok; mevcut olan **TP.BKR.TRY.KTFTUK** serisi *ihtiyaç + taşıt + konut birlikte* ağırlıklı ortalama faiz oranıdır (TCMB EVDS, aylık, TL, stok, %). Son 2 yıl (Tem 2024 – Haz 2026):\n\n| Dönem | Faiz (%) |\n|-------|----------|\n| 2024-07 | 48,89 |\n| 2024-08 | 50,38 |\n| 2024-09 | 51,26 |\n| 2024-10 | 51,95 |\n| 2024-11 | 52,54 |\n| 2024-12 | 52,98 |\n| 2025-01 | 53,17 |\n| 2025-02 | 54,15 |\n| 2025-03 | 54,06 |\n| 2025-04 | 54,80 |\n| 2025-05 | 55,73 |\n| 2025-06 | 56,37 |\n| 2025-07 | 56,50 |\n| 2025-08 | 56,28 |\n| 2025-09 | 55,80 |\n| 2025-10 | 55,29 |\n| 2025-11 | 54,94 |\n| 2025-12 | 53,78 |\n| 2026-01 | 53,54 |\n| 2026-02 | 52,89 |\n| 2026-03 | 52,34 |\n| 2026-04 | 52,35 |\n| 2026-05 | 52,32 |\n| 2026-06 | 52,68 |\n\n**Kaynak:** `gold_fact_long`, Seri_Kod = `TP.BKR.TRY.KTFTUK`, Kaynak = EVDS, Birim = %, Tip = stock (ay sonu).\n\n**Notlar:**\n- Bu oran *ihtiyaç + taşıt + konut* birlikte ağırlıklı ortalamadır; yalnızca \"ihtiyaç kredisi\" alt kırılımı lakehouse'da ayrı bir seri olarak bulunmuyor.\n- Ben kod yazan bir asistan değilim; veriyi doğrudan lakehouse sorgusuyla çekip sunuyorum. Python script + log istiyorsanız, TCMB EVDS API'sine (`data.tcb.gov.tr`) kendi ortamınızda istediğiniz formatta erişim kodu yazabilirim — isterseniz o yönde yardımcı olayım.",
+        "tools_called": [
+          "lakehouse_query",
+          "lakehouse_query",
+          "lakehouse_query"
+        ],
+        "tool_errors": [
+          {
+            "name": "lakehouse_query",
+            "error": "Unknown table(s) referenced: ['advtest_tcmb_kredi_ve_mevduat_faiz_oranlari']. Known tables: ['_import_registry', '_irketler', 'advtest_tcmb_altin_ve_bolgesel_konut_fiyat_endeksi_yill_ff9a7c94', 'advtest_tcmb_bolgesel_konut_endeksi_ve_parasal_finansal_da9ebea8', 'advtest_tcmb_kredi_ve_mevduat_faiz_oranlari_3332cef3', 'advtest_tcmb_odemeler_dengesi_arsiv_bpm5_639e3b61', 'benchmark_synthetic_csv', 'benchmark_synthetic_pdf', 'bist_akbnk', 'bist_aksen', 'bist_aksue', 'bist_asels', 'bist_enjsa', 'bist_garan', 'bist_thyao', 'bist_tuprs', 'bist_xu100', 'eu_doc_medit_i900_ios_2024__2_', 'evds_16_09_2026', 'gold_bddk_net_profit_monthly', 'gold_fact_long', 'gold_finturk_regional_quarterly', 'gold_health_life_expectancy', 'gold_konut_demo', 'gold_regional_long']"
+          }
+        ],
+        "elapsed_sec": 90.6,
+        "timing_summary": {
+          "total_ms": 90594.0,
+          "llm_ms": 90079.0,
+          "tool_ms": 219.0,
+          "overhead_ms": 296.0,
+          "llm_calls": 3,
+          "tool_calls": 3,
+          "rounds": 3,
+          "per_tool": [
+            {
+              "name": "lakehouse_query",
+              "calls": 3,
+              "duration_ms": 219.0,
+              "errors": 1
+            }
+          ],
+          "context": {
+            "per_round_est_tokens": [
+              {
+                "round": 1,
+                "est_tokens": 5271
+              },
+              {
+                "round": 2,
+                "est_tokens": 5948
+              },
+              {
+                "round": 3,
+                "est_tokens": 9019
+              }
+            ],
+            "peak_est_tokens": 9019,
+            "compaction_runs": 0,
+            "compaction_saved_tokens": 0,
+            "compaction_detail": []
+          },
+          "grounding": {
+            "checked": 24,
+            "grounded": 24,
+            "ungrounded": [],
+            "repaired": false
+          }
+        },
+        "error": null
+      },
+      {
+        "step": 2,
+        "question": "Aynı zaman dilimi için aylık enflasyon verilerini yerel veri tabanından getir.",
+        "answer": "\n\n**Sonuç:** TUFE endeksinden hesaplanan aylık enflasyon (aylık değişim, %):\n\n| Dönem | Aylık Enflasyon (%) |\n|-------|---------------------|\n| 2024-07 | 3,23 |\n| 2024-08 | 2,47 |\n| 2024-09 | 2,97 |\n| 2024-10 | 2,88 |\n| 2024-11 | 2,24 |\n| 2024-12 | 1,03 |\n| 2025-01 | 5,03 |\n| 2025-02 | 2,27 |\n| 2025-03 | 2,46 |\n| 2025-04 | 2,99 |\n| 2025-05 | 1,53 |\n| 2025-06 | 1,37 |\n| 2025-07 | 2,06 |\n| 2025-08 | 2,04 |\n| 2025-09 | 3,23 |\n| 2025-10 | 2,55 |\n| 2025-11 | 0,86 |\n| 2025-12 | 0,89 |\n| 2026-01 | 4,84 |\n| 2026-02 | 2,96 |\n| 2026-03 | 1,94 |\n| 2026-04 | 4,18 |\n| 2026-05 | 1,71 |\n| 2026-06 | 0,99 |\n\n**Kaynak:** `gold_fact_long`, Seri_Kod = `TP.GENENDEKS.T1` (TUFE Genel Endeks, 2003=100), Kaynak = EVDS. Aylık enflasyon, endeksin bir önceki aya göre değişimi olarak hesaplandı: `(E_t − E_{t−1}) / E_{t−1} × 100`.\n\n**Not:** Ocak aylarındaki sıçrama (2025-01: %5,03; 2026-01: %4,84) TÜİK'in Ocak'ta uyguladığı endeks yeniden ağırlıklandırma/temel yıl değişikliğinden kaynaklanabilir; TUIK'in resmî aylık TÜFE oranlarıyla birebir örtüşmeyebilir.",
+        "tools_called": [
+          "lakehouse_query"
+        ],
+        "tool_errors": [],
+        "elapsed_sec": 234.7,
+        "timing_summary": {
+          "total_ms": 234656.0,
+          "llm_ms": 234577.0,
+          "tool_ms": 63.0,
+          "overhead_ms": 16.0,
+          "llm_calls": 2,
+          "tool_calls": 1,
+          "rounds": 2,
+          "per_tool": [
+            {
+              "name": "lakehouse_query",
+              "calls": 1,
+              "duration_ms": 63.0,
+              "errors": 0
+            }
+          ],
+          "context": {
+            "per_round_est_tokens": [
+              {
+                "round": 1,
+                "est_tokens": 5621
+              },
+              {
+                "round": 2,
+                "est_tokens": 5974
+              }
+            ],
+            "peak_est_tokens": 5974,
+            "compaction_runs": 0,
+            "compaction_saved_tokens": 0,
+            "compaction_detail": []
+          },
+          "grounding": {
+            "checked": 26,
+            "grounded": 25,
+            "ungrounded": [
+              2.99
+            ],
+            "repaired": false
+          }
+        },
+        "error": null
+      },
+      {
+        "step": 3,
+        "question": "İlk soruda bulduğun faiz oranları ile az önce çektiğin enflasyon verisini birleştirip reel faiz oranını hesapla. Hata ile karşılaşırsan log kayıtlarından algoritmanın nerede koptuğunu detaylıca bulalım.",
+        "answer": "Bu soru için 4 tur içinde tam bir cevap üretilemedi. Denenen araçlar: lakehouse_query. Soruyu daraltıp tekrar sormayı deneyin.",
+        "tools_called": [
+          "lakehouse_query",
+          "lakehouse_query"
+        ],
+        "tool_errors": [],
+        "elapsed_sec": 513.6,
+        "timing_summary": {
+          "total_ms": 513594.0,
+          "llm_ms": 325328.0,
+          "tool_ms": 141.0,
+          "overhead_ms": 188125.0,
+          "llm_calls": 2,
+          "tool_calls": 2,
+          "rounds": 2,
+          "per_tool": [
+            {
+              "name": "lakehouse_query",
+              "calls": 2,
+              "duration_ms": 141.0,
+              "errors": 0
+            }
+          ],
+          "context": {
+            "per_round_est_tokens": [
+              {
+                "round": 1,
+                "est_tokens": 5932
+              },
+              {
+                "round": 2,
+                "est_tokens": 6434
+              }
+            ],
+            "peak_est_tokens": 6434,
+            "compaction_runs": 0,
+            "compaction_saved_tokens": 0,
+            "compaction_detail": []
+          },
+          "grounding": null
+        },
+        "error": null
+      },
+      {
+        "step": 4,
+        "question": "Reel faizin negatif olduğu dönemlerde hanehalkı kredi kullanım hacmi nasıl değişmiş incele. Çıktı olarak bu ilişkinin nedenselliğini gösteren bir grafik hazırla.",
+        "answer": "\n\n**Sonuç:** Bu veri setinde reel faizin negatif olduğu **hiçbir ay yok**; dolayısıyla \"negatif reel faiz dönemlerinde kredi kullanımı\" sorusu bu aralıkta yanıtlanamıyor.\n\n**Hesap (nominal − aylık enflasyon):**\n\n| Dönem | Nominal (%) | Enflasyon (%) | Reel (%) |\n|-------|-------------|---------------|----------|\n| 2024-07 | 48,89 | 3,23 | **+45,66** |\n| 2025-01 | 53,17 | 5,03 | **+48,14** |\n| 2025-06 | 56,37 | 1,37 | **+55,00** |\n| 2026-01 | 53,54 | 4,84 | **+48,70** |\n| 2026-06 | 52,68 | 0,99 | **+51,69** |\n\nTüm 24 ayda reel faiz **+45 ile +55** aralığında; nominal oran (48–56 %) enflasyonu (0,86–5,03 %) her ay açık biçimde aşıyor.\n\n**Ek notlar:**\n- \"Nedensellik grafiği\" üretemem: (a) negatif reel faiz dönemi yok, (b) elimde çizim/plot aracı bulunmuyor, (c) istatistiksel araçlar (correlation, Granger) korelasyon/predictor ilişkisi verir, **nedensellik kanıtı değildir** — bu ayrımı korumak zorundayım.\n- İsterseniz *pozitif* reel faizin yüksek kaldığı bu dönemde hanehalkı kredi akışının (ör. `TP.KKHARTUT.KT1` kart harcaması veya `tablo_4.konut_kredisi`) trendini ayrı bir analiz olarak inceleyebilirim.",
+        "tools_called": [],
+        "tool_errors": [],
+        "elapsed_sec": 118.3,
+        "timing_summary": {
+          "total_ms": 118312.0,
+          "llm_ms": 118312.0,
+          "tool_ms": 0,
+          "overhead_ms": 0.0,
+          "llm_calls": 1,
+          "tool_calls": 0,
+          "rounds": 1,
+          "per_tool": [],
+          "context": {
+            "per_round_est_tokens": [
+              {
+                "round": 1,
+                "est_tokens": 6007
+              }
+            ],
+            "peak_est_tokens": 6007,
+            "compaction_runs": 0,
+            "compaction_saved_tokens": 0,
+            "compaction_detail": []
+          },
+          "grounding": null
+        },
+        "error": null
+      }
+    ],
+    "expected_output": "Veri kaynaklarının doğrulandığı log kayıtları ile birlikte faiz ve kredi hacmi zıtlığını gösteren net bir grafikli rapor.",
+    "requires_upload": null
+  }
+]
