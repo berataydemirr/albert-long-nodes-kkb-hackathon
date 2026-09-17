@@ -118,13 +118,16 @@ def test_normalized_args_is_stable_across_key_order():
 # --- the soft checkpoint (dynamic budget) -------------------------------
 
 def test_soft_checkpoint_fires_exactly_once_at_the_checkpoint_count():
-    """web_search has no override, so its hard limit (DEFAULT) sits above
-    the checkpoint - there's room for the checkpoint to mean something."""
+    """web_search/lakehouse_query keep a tight hard limit (DEFAULT, at or
+    below the checkpoint) on purpose - see test_web_search_keeps_the_tight_default
+    - so the checkpoint has no room to mean anything for them; it only fires
+    for a tool whose hard limit sits above SOFT_CHECKPOINT_CALLS_PER_TOOL,
+    e.g. an analysis tool's overridden limit."""
     history = _fresh_history()
     notes = []
-    for i in range(DEFAULT_MAX_CALLS_PER_TOOL_PER_RUN):
-        assert _loop_guard("web_search", f'{{"query": "q{i}"}}', history) is None
-        notes.append(_soft_checkpoint_note("web_search", history))
+    for i in range(_tool_call_limit("anomaly_analysis")):
+        assert _loop_guard("anomaly_analysis", f'{{"seri_kod": "s{i}"}}', history) is None
+        notes.append(_soft_checkpoint_note("anomaly_analysis", history))
 
     fired_at = [i + 1 for i, note in enumerate(notes) if note is not None]
     assert fired_at == [SOFT_CHECKPOINT_CALLS_PER_TOOL]

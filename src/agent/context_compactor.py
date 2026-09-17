@@ -30,6 +30,7 @@ have kept.
 
 import json
 
+from src.agent.untrusted import unwrap_untrusted, wrap_untrusted
 from src.common.logging_setup import get_logger
 
 logger = get_logger("context_compactor")
@@ -84,6 +85,9 @@ def _digest_tool_output(content: str) -> str:
     the full 66 rows are not needed once it has moved on.
     """
     original_len = len(content)
+    # A fenced third-party result keeps its fence in the digest; the sample
+    # row it carries is still untrusted text.
+    content, untrusted_source = unwrap_untrusted(content)
     try:
         payload = json.loads(content)
     except (json.JSONDecodeError, TypeError):
@@ -101,6 +105,8 @@ def _digest_tool_output(content: str) -> str:
     else:
         digest = content[:DIGEST_SAMPLE_CHARS]
         logger.debug("_digest_tool_output: non-JSON payload, kept head sample")
+    if untrusted_source:
+        digest = wrap_untrusted(digest, untrusted_source)
 
     result = (
         f"{COMPACTED_MARKER} Full output ({original_len} chars) was trimmed to save context. "
