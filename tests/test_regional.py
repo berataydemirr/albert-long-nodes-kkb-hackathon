@@ -45,10 +45,16 @@ def test_unparseable_period_sorts_last_instead_of_raising():
 
 
 def test_available_periods_are_correctly_ordered():
+    """Since build_gold._load_finturk_table started zero-padding the month
+    ('2026-06' instead of '2026-6'), plain string order and _quarter_sort_key
+    order agree on the real table - that agreement IS the fix working, not
+    a reason to drop the check. _quarter_sort_key stays in place anyway as
+    defense in depth for a database built before the padding fix (or any
+    future source that reintroduces unpadded periods)."""
     periods = available_periods()
 
     assert periods == sorted(periods, key=_quarter_sort_key)
-    assert periods != sorted(periods), "the table really does contain the string-sort trap"
+    assert periods == sorted(periods), "Period should now be zero-padded 'YYYY-MM' everywhere"
 
 
 def test_default_period_is_the_true_latest_not_the_string_max():

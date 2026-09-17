@@ -10,10 +10,14 @@ dimension at all. The data was collected, cleaned and then never exposed.
 Two traps this module exists to handle, both of which produce a wrong
 answer silently rather than an error:
 
-  1. Periods are "YYYY-Q" with no zero padding, so string ordering is
-     wrong WITHIN a year: '2021-12' < '2021-3' < '2021-6' < '2021-9'.
-     A plain MAX(Period) or ORDER BY Period returns the wrong quarter.
-     Every ordering here goes through _quarter_sort_key instead.
+  1. Periods USED to be written "YYYY-Q" with no zero padding, which made
+     string ordering wrong WITHIN a year: '2021-12' < '2021-3' < '2021-6'
+     < '2021-9', so a plain MAX(Period) or ORDER BY Period returned the
+     wrong quarter. The gold layer now stores the padded 'YYYY-MM' form
+     (see build_gold._load_finturk_table), so string order and calendar
+     order finally agree. _quarter_sort_key is kept anyway: it is what
+     makes this module correct against BOTH spellings, including a
+     database built before the fix, and it costs nothing.
 
   2. "YURT DIŞI" is not a province. It is 1.2% of national lending, which
      is large enough to land inside a top-10 list, so a ranking that
@@ -104,6 +108,22 @@ def available_periods() -> list[str]:
     return ordered
 
 
+def _normalize_period(period: str) -> str:
+    """'2026-6' and '2026-06' are the same quarter; return the padded form.
+
+    The gold layer now stores the padded spelling everywhere (see
+    build_gold._load_finturk_table for why), but the unpadded one is still
+    reachable: it is what this tool's own schema used to document, what
+    earlier chat turns carry in their history, and what a person types by
+    hand. Accepting both costs nothing and stops a formatting detail from
+    turning into "Unknown period" in the middle of a demo.
+    """
+    match = _PERIOD_RE.match(str(period).strip())
+    if not match:
+        return str(period).strip()
+    return f"{int(match.group(1)):04d}-{int(match.group(2)):02d}"
+
+
 def _resolve_period(requested: str | None, periods: list[str]) -> str:
     if not periods:
         logger.error("_resolve_period: regional table has no periods")
@@ -113,11 +133,19 @@ def _resolve_period(requested: str | None, periods: list[str]) -> str:
         logger.info(f"_resolve_period: defaulting to the true latest quarter {latest!r}")
         return latest
     cleaned = str(requested).strip()
-    if cleaned not in periods:
-        logger.warning(f"_resolve_period: {cleaned!r} not in the table")
-        raise ValueError(f"Unknown period {cleaned!r}. Available: {periods}")
-    logger.debug(f"_resolve_period: using requested period {cleaned!r}")
-    return cleaned
+    if cleaned in periods:
+        logger.debug(f"_resolve_period: using requested period {cleaned!r}")
+        return cleaned
+    # Fall back to a spelling-insensitive match before giving up, so
+    # '2026-6' still finds the stored '2026-06' (and vice versa).
+    normalized = _normalize_period(cleaned)
+    by_normalized = {_normalize_period(p): p for p in periods}
+    if normalized in by_normalized:
+        resolved = by_normalized[normalized]
+        logger.info(f"_resolve_period: normalized {cleaned!r} -> {resolved!r}")
+        return resolved
+    logger.warning(f"_resolve_period: {cleaned!r} not in the table")
+    raise ValueError(f"Unknown period {cleaned!r}. Available: {periods}")
 
 
 def compare_regions(period: str | None = None, metric: str = "kredi", top_n: int = 10,

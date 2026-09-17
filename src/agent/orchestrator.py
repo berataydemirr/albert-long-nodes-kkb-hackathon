@@ -263,8 +263,13 @@ def _system_prompt(route_addon: str = "") -> str:
         # The column names are spelled out because naming the last field
         # "dönem aralığı" alone led the model to write WHERE "Dönem" >= ...
         # against a table whose column is actually Period.
-        f"MEVCUT SERİLER. Tablo: gold_fact_long, kolonlar: Period, Bolge, Kaynak, "
+        f"MEVCUT SERİLER. Tablo: gold_fact_long, kolonlar: Period, Period_Date, Bolge, Kaynak, "
         f"Seri_Kod, Seri_Adi, Deger, Birim, Tip (Türkçe kolon adı YOK).\n"
+        f"Period metin ve HER tabloda 'YYYY-MM' (ör. '2026-06'); tüm gold_* tabloları aynı "
+        f"yazımı kullandığı için Period üzerinden JOIN güvenlidir ve ORDER BY Period kronolojik "
+        f"doğru sıralar. Tarih aritmetiği gerekiyorsa (son N ay/yıl, BETWEEN, interval) metin "
+        f"karşılaştırması yerine Period_Date (gerçek DATE) kolonunu kullan - ör. "
+        f"WHERE Period_Date >= DATE '2024-01-01'.\n"
         f"Liste formatı: Seri_Kod | Seri_Adi | Birim | Tip | Kaynak | Period aralığı (satır sayısı)\n"
         f"Tip=stock dönem sonu bakiye/oran, Tip=flow dönem içi akım. "
         f"'flow_quarter_ffill' içeren seri çeyrekliktir ve aylara taşınmıştır - "

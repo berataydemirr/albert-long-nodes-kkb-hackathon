@@ -296,6 +296,162 @@ def build_bddk_weekly_konut_facts() -> pd.DataFrame:
     ])
 
 
+# Every gold table that carries a Period, and the key that must be unique
+# within it. Kept in one place so a new table cannot quietly skip the
+# Period_Date column, the indexes, or the integrity assertion below.
+GOLD_PERIOD_TABLES = {
+    "gold_fact_long": ("Period", "Bolge", "Seri_Kod"),
+    "gold_regional_long": ("Period", "Bolge", "Metrik"),
+    "gold_finturk_regional_quarterly": ("Period", "Bolge"),
+    "gold_konut_demo": ("Period",),
+    "gold_bddk_net_profit_monthly": ("Period",),
+    "gold_health_life_expectancy": ("Period", "Bolge"),
+}
+
+# 'YYYY-MM' for monthly/quarterly rows, 'YYYY' for the annual TUIK series
+# (TUIK_LIFE_EXPECTANCY and gold_health_life_expectancy have no month at
+# all). Anything else resolves to NULL rather than raising, so one odd row
+# cannot fail the whole build - assert_gold_integrity() reports it instead.
+_PERIOD_DATE_SQL = """
+    CASE
+        WHEN regexp_matches("{col}", '^[0-9]{{4}}-[0-9]{{2}}$')
+            THEN strptime("{col}" || '-01', '%Y-%m-%d')::DATE
+        WHEN regexp_matches("{col}", '^[0-9]{{4}}$')
+            THEN strptime("{col}" || '-01-01', '%Y-%m-%d')::DATE
+        ELSE NULL
+    END
+"""
+
+
+def add_period_date_columns(con: duckdb.DuckDBPyConnection) -> None:
+    """Add a real DATE alongside the text Period on every gold table.
+
+    WHY: Period is text, which is the right primary key for joining
+    heterogeneous sources, but it makes date arithmetic impossible -
+    "son 2 yıl" has to be written as a string comparison, and any
+    BETWEEN/interval filter is out of reach. Period_Date is the same
+    instant as a DATE, so the model can write real date SQL; Period stays
+    exactly as it was so every existing query, tool and test keeps working.
+    """
+    for table, _key in GOLD_PERIOD_TABLES.items():
+        exists = con.execute(
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?", [table]
+        ).fetchone()[0]
+        if not exists:
+            logger.warning(f"add_period_date_columns: {table} not present, skipped")
+            continue
+        con.execute(f'ALTER TABLE "{table}" DROP COLUMN IF EXISTS Period_Date')
+        con.execute(f'ALTER TABLE "{table}" ADD COLUMN Period_Date DATE')
+        con.execute(f'UPDATE "{table}" SET Period_Date = {_PERIOD_DATE_SQL.format(col="Period")}')
+        nulls = con.execute(f'SELECT COUNT(*) FROM "{table}" WHERE Period_Date IS NULL').fetchone()[0]
+        total = con.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
+        if nulls:
+            logger.warning(f"add_period_date_columns: {table} has {nulls}/{total} unparseable Period value(s)")
+        else:
+            logger.info(f"add_period_date_columns: {table} -> Period_Date set on all {total} row(s)")
+
+
+def create_gold_indexes(con: duckdb.DuckDBPyConnection) -> None:
+    """Unique indexes on the natural key of every gold table.
+
+    Two jobs at once, which is why these are UNIQUE rather than plain:
+    they make the lookups the agent actually issues (one series over a
+    period range, one metric across provinces) an index seek instead of a
+    full scan, AND they turn "a rebuild silently duplicated a row" from a
+    wrong answer nobody notices into a build that fails loudly.
+    """
+    for table, key in GOLD_PERIOD_TABLES.items():
+        exists = con.execute(
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?", [table]
+        ).fetchone()[0]
+        if not exists:
+            continue
+        index_name = f"idx_{table}_key"
+        columns = ", ".join(f'"{c}"' for c in key)
+        con.execute(f'DROP INDEX IF EXISTS "{index_name}"')
+        try:
+            con.execute(f'CREATE UNIQUE INDEX "{index_name}" ON "{table}" ({columns})')
+            logger.info(f"create_gold_indexes: {index_name} on ({', '.join(key)})")
+        except duckdb.ConstraintException:
+            # A duplicate key is a real data bug; surface it with the
+            # offending rows rather than a bare index error.
+            dupes = con.execute(
+                f'SELECT {columns}, COUNT(*) c FROM "{table}" GROUP BY {columns} HAVING c > 1 LIMIT 5'
+            ).fetchall()
+            raise ValueError(
+                f"{table} has duplicate rows for key {key}; cannot build a unique index. "
+                f"First offenders: {dupes}"
+            )
+
+
+def assert_gold_integrity(con: duckdb.DuckDBPyConnection) -> None:
+    """Fail the build rather than ship a lakehouse with the defects this
+    function names. Each check is one that previously produced a WRONG
+    ANSWER silently instead of an error."""
+    problems: list[str] = []
+
+    # 1. One Period spelling across the whole lakehouse. The regional
+    #    tables used to write '2026-6' while every monthly table wrote
+    #    '2026-06', which broke joins and ordering - see _load_finturk_table.
+    for table in GOLD_PERIOD_TABLES:
+        exists = con.execute(
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?", [table]
+        ).fetchone()[0]
+        if not exists:
+            continue
+        bad = con.execute(
+            f"""SELECT DISTINCT Period FROM "{table}"
+                WHERE NOT regexp_matches(Period, '^[0-9]{{4}}(-[0-9]{{2}})?$') LIMIT 5"""
+        ).fetchall()
+        if bad:
+            problems.append(f"{table}: Period must be 'YYYY-MM' or 'YYYY', found {[b[0] for b in bad]}")
+
+    # 2. The regional quarters must actually join to the national table.
+    #    This is the check that would have caught the original bug.
+    both_exist = con.execute(
+        """SELECT COUNT(*) FROM information_schema.tables
+           WHERE table_name IN ('gold_fact_long', 'gold_regional_long')"""
+    ).fetchone()[0] == 2
+    if both_exist:
+        unmatched = con.execute(
+            """SELECT COUNT(DISTINCT r.Period) FROM gold_regional_long r
+               WHERE r.Period NOT IN (SELECT DISTINCT Period FROM gold_fact_long)"""
+        ).fetchone()[0]
+        if unmatched:
+            problems.append(
+                f"gold_regional_long has {unmatched} period(s) with no matching Period in "
+                f"gold_fact_long - a cross-table JOIN would silently drop them"
+            )
+
+    # 3. Chronological order must match string order, or every
+    #    "ORDER BY Period DESC LIMIT n" the model writes is wrong.
+    for table in ("gold_regional_long", "gold_fact_long"):
+        exists = con.execute(
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?", [table]
+        ).fetchone()[0]
+        if not exists:
+            continue
+        mismatch = con.execute(
+            f"""SELECT COUNT(*) FROM (
+                    SELECT Period,
+                           ROW_NUMBER() OVER (ORDER BY Period)      AS text_rank,
+                           ROW_NUMBER() OVER (ORDER BY Period_Date) AS date_rank
+                    FROM (SELECT DISTINCT Period, Period_Date FROM "{table}")
+                ) WHERE text_rank <> date_rank"""
+        ).fetchone()[0]
+        if mismatch:
+            problems.append(
+                f"{table}: text ordering of Period disagrees with chronological order on "
+                f"{mismatch} period(s) - ORDER BY Period would return the wrong rows"
+            )
+
+    if problems:
+        for problem in problems:
+            logger.error(f"assert_gold_integrity: {problem}")
+        raise ValueError("Gold integrity checks failed:\n  - " + "\n  - ".join(problems))
+    logger.info("assert_gold_integrity: all checks passed")
+
+
 def _load_finturk_table(table_no: int) -> pd.DataFrame:
     """Reads every quarter's FinTurk table CSV and stacks them into one long
     DataFrame with a 'YYYY-Q' Donem column.
@@ -312,7 +468,21 @@ def _load_finturk_table(table_no: int) -> pd.DataFrame:
     for csv_path in sorted(tablo_dir.glob("*.csv")):
         year, quarter_month = csv_path.stem.split("-")
         df = pd.read_csv(csv_path, encoding="utf-8")
-        df["Donem"] = f"{year}-{int(quarter_month)}"
+        # Zero-padded on purpose. This used to write f"{year}-{int(m)}"
+        # ("2026-6"), which made the regional tables the ONLY ones in the
+        # lakehouse not using the monthly tables' "YYYY-MM" spelling, and
+        # that mismatch broke two things silently - no error, just wrong
+        # data:
+        #   1. JOIN gold_fact_long ON Period matched only the December
+        #      quarters (5 of 22), because those are the only ones whose
+        #      month is already two digits. Q1/Q2/Q3 vanished from every
+        #      cross-table join the model wrote.
+        #   2. ORDER BY Period DESC sorted '2025-9' above '2025-12', so
+        #      "son 4 çeyrek" returned the wrong quarters.
+        # compare_regions defends itself against (2) via _quarter_sort_key,
+        # but the model also reaches these tables through raw lakehouse_query
+        # SQL, where nothing protected it.
+        df["Donem"] = f"{year}-{int(quarter_month):02d}"
         frames.append(df)
     if not frames:
         return pd.DataFrame()
@@ -624,6 +794,10 @@ def run(db_path=GOLD_DB_PATH) -> None:
     if not regional_long.empty:
         con.register("regional_long_df", regional_long)
         con.execute("CREATE OR REPLACE TABLE gold_regional_long AS SELECT * FROM regional_long_df")
+
+    add_period_date_columns(con)
+    create_gold_indexes(con)
+    assert_gold_integrity(con)
 
     con.close()
 
