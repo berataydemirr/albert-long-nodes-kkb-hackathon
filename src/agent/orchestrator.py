@@ -127,6 +127,15 @@ tablo_N.xxx, TUIK_xxx) ADI GEÇİYORSA, o kod bu konuşma sırasında gerçekten
 bir tool sonucunda görünmüş olmalı - yukarıdaki katalogda "buna benzer"
 görünen ama bu run'da hiç sorgulamadığın bir kodu hafızandan yazma; bu tek
 tek doğrulanıyor ve yanlışsa yanıt geri gönderilip düzelttiriliyor.
+Bir tool sonucu row_count: 0, boş bir rows/results listesi veya next_step
+alanında açık bir "veri bulunamadı" uyarısı taşıyorsa, bu senin genel
+bilgini veya hafızanı devreye sokman için bir davet DEĞİLDİR - kesin bir
+DUR işaretidir. Böyle bir sonuçtan sonra kesin bir sayı, tarih, oran veya
+değer YAZMA. next_step farklı bir sorgu/parametre öneriyorsa en fazla BİR
+kez onu dene; yine boş dönerse veya next_step böyle bir öneri
+içermiyorsa, veriye ulaşılamadığını kullanıcıya doğrudan söyle. Boş bir
+sonucu görmezden gelip kendi tahminini gerçek veri gibi sunman, yukarıdaki
+Seri_Kod uydurmakla aynı türden bir hatadır.
 Kullanıcı bir dosya yüklediyse (CSV/Excel/PDF) o veri lakehouse'un
 İÇİNDE kendi tablosunda durur ve gold_* tablolarıyla JOIN edilebilir -
 list_imported_datasets ile hangi dataset'lerin yüklü olduğunu,
@@ -223,7 +232,17 @@ TOOL_OUTPUT_MAX_CHARS = 12_000
 # the case where that self-check fails and the model keeps calling the
 # same tool anyway. An identical repeat call is still refused outright
 # regardless of this limit.
-DEFAULT_MAX_CALLS_PER_TOOL_PER_RUN = 8
+#
+# DEFAULT_MAX_CALLS_PER_TOOL_PER_RUN used to BE the wall, at 8 - the exact
+# number a complex multi-part question (several series/regions/periods
+# through lakehouse_query, which has no override) would reach mid-research
+# and get silently blocked, with no chance to explain itself. Split in two:
+# SOFT_CHECKPOINT_CALLS_PER_TOOL (still 8) is now a mechanical trigger for
+# the self-check the prompt already asks the model to run on its own -
+# see _soft_checkpoint_note() - and this constant became the actual
+# last-resort ceiling, doubled to give a checkpointed run real room to
+# keep going past 8 instead of hitting the old wall on the very next call.
+DEFAULT_MAX_CALLS_PER_TOOL_PER_RUN = 16
 MAX_CALLS_PER_TOOL_PER_RUN_OVERRIDES = {
     "anomaly_analysis": 20,
     "change_detection": 20,
@@ -240,6 +259,57 @@ MAX_CALLS_PER_TOOL_PER_RUN_OVERRIDES = {
 
 def _tool_call_limit(name: str) -> int:
     return MAX_CALLS_PER_TOOL_PER_RUN_OVERRIDES.get(name, DEFAULT_MAX_CALLS_PER_TOOL_PER_RUN)
+
+
+SOFT_CHECKPOINT_CALLS_PER_TOOL = 8
+
+SOFT_CHECKPOINT_NOTE_TEMPLATE = (
+    "'{name}' bu yanıt için {count}. kez çağrıldı - bu bir engel değil, sadece "
+    "bir kontrol noktası. Devam etmeden önce kendine sor: bu soruyu tam ve "
+    "kanıtlı cevaplamak için GERÇEKTEN bir adım daha gerekli mi? Gerekliyse "
+    "(farklı bir seri/bölge/dönem, çapraz doğrulama) devam et - bu senin "
+    "durman gerektiği anlamına gelmez. Gerekmiyorsa bu tool'u tekrar "
+    "çağırmayı bırak, elindeki sonuçlarla cevabı yazmaya başla."
+)
+
+
+def _soft_checkpoint_note(name: str, history: dict) -> str | None:
+    """One-time self-check nudge fired at exactly SOFT_CHECKPOINT_CALLS_PER_TOOL
+    calls to a single tool in one run - the dynamic-budget replacement for
+    the old flat hard cutoff at that same count (see the comment above
+    DEFAULT_MAX_CALLS_PER_TOOL_PER_RUN). Only a nudge, never a block: the
+    call it's attached to already ran and returned real data.
+
+    Reads history["per_tool"], which _loop_guard already incremented for
+    this exact call before returning None (call allowed) - no separate
+    counter needed. The `limit > checkpoint` guard is defensive rather
+    than load-bearing today (every configured limit exceeds the
+    checkpoint), but keeps this correct if a future override ever sets a
+    tool's hard limit at or below the checkpoint - a call count that low
+    is blocked by _loop_guard itself before it could ever reach here."""
+    count = history["per_tool"].get(name, 0)
+    limit = _tool_call_limit(name)
+    if count == SOFT_CHECKPOINT_CALLS_PER_TOOL and limit > SOFT_CHECKPOINT_CALLS_PER_TOOL:
+        return SOFT_CHECKPOINT_NOTE_TEMPLATE.format(name=name, count=count)
+    return None
+
+
+def _merge_step_checkpoint(output: str, note: str) -> str:
+    """Attach a soft-checkpoint note to a tool's JSON result under its own
+    key, so it can coexist with a next_step _annotate_empty_result may
+    already have set on the same call (e.g. the checkpoint call that also
+    comes back empty). Resilient by construction, same as
+    _annotate_empty_result: output that isn't a JSON object is returned
+    unchanged - a checkpoint note must never be why a tool result fails to
+    reach the model."""
+    try:
+        parsed = json.loads(output)
+    except (json.JSONDecodeError, TypeError):
+        return output
+    if not isinstance(parsed, dict):
+        return output
+    parsed["step_checkpoint"] = note
+    return json.dumps(parsed, ensure_ascii=False, default=str)
 
 
 HALLUCINATION_CAVEAT_PREFIX = (
@@ -319,6 +389,89 @@ def _truncate_tool_output(output: str, tool_name: str) -> str:
         return output
     logger.warning(f"_truncate_tool_output: '{tool_name}' output {len(output)} chars > {TOOL_OUTPUT_MAX_CHARS}, truncating")
     return output[:TOOL_OUTPUT_MAX_CHARS] + f'... [TRUNCATED: {len(output) - TOOL_OUTPUT_MAX_CHARS} more chars cut - narrow the query, e.g. add a WHERE/LIMIT]"}}'
+
+
+EMPTY_RESULT_NEXT_STEP = (
+    "Bu arac sonuc bulamadi (bos/sifir satir). Bu, kendi genel bilgini veya "
+    "hafizani kullanman icin bir davet degil - kesin bir sayi, tarih, oran "
+    "veya deger YAZMA. En fazla bir kez farkli bir sorgu/parametre dene; "
+    "yine bos donerse veya zaten denediysen, veriye ulasilamadigini acikca soyle."
+)
+
+
+def _is_empty_result(parsed: dict) -> bool:
+    """True if a tool payload signals "nothing found" via either shape a
+    tool in this codebase actually uses: sql_guard.run_guarded_select's
+    row_count/rows pair (lakehouse_query, query_imported_dataset), or a
+    generic result_count/results pair (web_search, search_tuik_dataflows-
+    style listings). Only fires on keys that are known emptiness signals -
+    never on the mere absence of some other field."""
+    if "row_count" in parsed:
+        return parsed.get("row_count") == 0 or parsed.get("rows") == []
+    if parsed.get("rows") == []:
+        return True
+    if "result_count" in parsed:
+        return parsed.get("result_count") == 0 or parsed.get("results") == []
+    return parsed.get("results") == []
+
+
+def _annotate_empty_result(name: str, output: str) -> str:
+    """Merge an explicit "do not extrapolate" next_step into a tool payload
+    that came back empty, so the model reads an instruction instead of a
+    bare zero-row/empty-list shape it could otherwise paper over from
+    memory. Generalizes the next_step pattern web_search.py already used
+    for its own empty case (see web_search.web_search) to every tool that
+    goes through this loop, notably lakehouse_query/query_imported_dataset
+    (sql_guard.run_guarded_select), which previously returned an
+    unannotated {"rows": [], "row_count": 0} with no directive at all.
+
+    Resilient by construction: output that isn't a JSON object - a plain
+    error string, a future tool returning something else entirely, or
+    truncated/malformed JSON - is returned unchanged. This check must
+    never be why a tool result fails to reach the model."""
+    try:
+        parsed = json.loads(output)
+    except (json.JSONDecodeError, TypeError):
+        return output
+    if not isinstance(parsed, dict):
+        return output
+    if "next_step" in parsed or "error" in parsed:
+        # Already explains itself (web_search's own empty-result next_step,
+        # or an execute_tool-level {"error": ...}) - don't override a
+        # message that's already more specific than the generic one here.
+        return output
+    if not _is_empty_result(parsed):
+        return output
+    parsed["next_step"] = EMPTY_RESULT_NEXT_STEP
+    logger.info(f"_annotate_empty_result: '{name}' returned empty, injected next_step directive")
+    return json.dumps(parsed, ensure_ascii=False, default=str)
+
+
+def _output_signals_empty(output: str) -> bool:
+    """True if a tool's final JSON output (post-_annotate_empty_result)
+    carries no usable data - either the emptiness shape _is_empty_result
+    recognizes, or an execution error. Used by ask() to tell whether an
+    ENTIRE round came back empty-handed, so it can add one preventive
+    nudge to the message history before the model's next turn instead of
+    trying to grade the model's own free-text answer after the fact - see
+    the round_empty_flags check in ask()."""
+    try:
+        parsed = json.loads(output)
+    except (json.JSONDecodeError, TypeError):
+        return False
+    if not isinstance(parsed, dict):
+        return False
+    if "error" in parsed:
+        return True
+    return _is_empty_result(parsed)
+
+
+EMPTY_ROUND_NUDGE = (
+    "Bu turda çağırdığın tool(lar)ın hiçbiri veri döndürmedi (hepsi boş "
+    "sonuç veya hata verdi). Bir sonraki adımda ya farklı bir sorgu/parametre "
+    "dene ya da veriye ulaşılamadığını doğrudan söyle - kendi genel bilgini "
+    "gerçek veri gibi sunma."
+)
 
 
 def _normalized_args(arguments: str) -> str:
@@ -623,6 +776,7 @@ def ask(question: str, history: list[dict] | None = None, max_rounds: int = 25,
             return _finish(content)
 
         logger.info(f"ask: round {round_no} - {len(message.tool_calls)} tool call(s): {[c.function.name for c in message.tool_calls]}")
+        round_empty_flags: list[bool] = []
         for call in message.tool_calls:
             logger.debug(f"ask: tool_call id={call.id}, name={call.function.name}, arguments={call.function.arguments}")
             entry = {"round": round_no, "name": call.function.name, "arguments": call.function.arguments, "error": None}
@@ -639,6 +793,14 @@ def ask(question: str, history: list[dict] | None = None, max_rounds: int = 25,
             else:
                 try:
                     output = execute_tool(call.function.name, call.function.arguments)
+                    output = _annotate_empty_result(call.function.name, output)
+                    checkpoint_note = _soft_checkpoint_note(call.function.name, call_history)
+                    if checkpoint_note:
+                        logger.info(
+                            f"ask: round {round_no} - '{call.function.name}' hit its soft checkpoint "
+                            f"({SOFT_CHECKPOINT_CALLS_PER_TOOL} calls), nudging instead of blocking"
+                        )
+                        output = _merge_step_checkpoint(output, checkpoint_note)
                     output = _truncate_tool_output(output, call.function.name)
                 except Exception as exc:
                     logger.warning(f"ask: tool '{call.function.name}' failed: {exc}")
@@ -667,6 +829,11 @@ def ask(question: str, history: list[dict] | None = None, max_rounds: int = 25,
             })
             trace.append(entry)
             messages.append({"role": "tool", "tool_call_id": call.id, "content": output})
+            round_empty_flags.append(_output_signals_empty(output))
+
+        if round_empty_flags and all(round_empty_flags):
+            logger.info(f"ask: round {round_no} - every tool call came back empty/errored, injecting a preventive nudge")
+            messages.append({"role": "user", "content": EMPTY_ROUND_NUDGE})
 
     # Falling out of the loop used to raise here, which turns into a 502
     # with nothing shown to the user - the worst possible outcome, because

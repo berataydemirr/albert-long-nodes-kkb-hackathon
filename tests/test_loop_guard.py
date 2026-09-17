@@ -14,8 +14,11 @@ import pytest
 from src.agent.orchestrator import (
     DEFAULT_MAX_CALLS_PER_TOOL_PER_RUN,
     MAX_CALLS_PER_TOOL_PER_RUN_OVERRIDES,
+    SOFT_CHECKPOINT_CALLS_PER_TOOL,
     _loop_guard,
+    _merge_step_checkpoint,
     _normalized_args,
+    _soft_checkpoint_note,
     _tool_call_limit,
 )
 
@@ -110,6 +113,50 @@ def test_unparseable_arguments_still_deduplicate():
 
 def test_normalized_args_is_stable_across_key_order():
     assert _normalized_args('{"a": 1, "b": 2}') == _normalized_args('{"b": 2, "a": 1}')
+
+
+# --- the soft checkpoint (dynamic budget) -------------------------------
+
+def test_soft_checkpoint_fires_exactly_once_at_the_checkpoint_count():
+    """web_search has no override, so its hard limit (DEFAULT) sits above
+    the checkpoint - there's room for the checkpoint to mean something."""
+    history = _fresh_history()
+    notes = []
+    for i in range(DEFAULT_MAX_CALLS_PER_TOOL_PER_RUN):
+        assert _loop_guard("web_search", f'{{"query": "q{i}"}}', history) is None
+        notes.append(_soft_checkpoint_note("web_search", history))
+
+    fired_at = [i + 1 for i, note in enumerate(notes) if note is not None]
+    assert fired_at == [SOFT_CHECKPOINT_CALLS_PER_TOOL]
+
+
+def test_soft_checkpoint_is_a_nudge_not_a_block():
+    """The whole point: reaching the checkpoint must not stop the call
+    that reaches it, and calls past it must still be allowed up to the
+    real (higher) hard limit."""
+    history = _fresh_history()
+    for i in range(DEFAULT_MAX_CALLS_PER_TOOL_PER_RUN):
+        guard = _loop_guard("web_search", f'{{"query": "q{i}"}}', history)
+        assert guard is None, f"call {i + 1} should not be blocked by the checkpoint"
+
+    assert _loop_guard("web_search", '{"query": "one more"}', history) is not None
+
+
+def test_soft_checkpoint_note_merges_alongside_an_existing_next_step():
+    """A checkpoint-count call that also happens to come back empty must
+    keep BOTH signals - _annotate_empty_result's next_step and this
+    checkpoint's own note - under separate keys."""
+    already_annotated = json.dumps({"rows": [], "row_count": 0, "next_step": "no data"})
+
+    merged = json.loads(_merge_step_checkpoint(already_annotated, "check yourself"))
+
+    assert merged["next_step"] == "no data"
+    assert merged["step_checkpoint"] == "check yourself"
+
+
+def test_merge_step_checkpoint_is_resilient_to_non_dict_output():
+    assert _merge_step_checkpoint("not json", "note") == "not json"
+    assert _merge_step_checkpoint(json.dumps([1, 2, 3]), "note") == json.dumps([1, 2, 3])
 
 
 # --- the search provider signal -----------------------------------------
