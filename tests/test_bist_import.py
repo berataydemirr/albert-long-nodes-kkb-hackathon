@@ -117,3 +117,77 @@ def test_normal_fetch_with_no_incomplete_rows(monkeypatch):
     result = fetch_bist_stock("AKBNK", period="1mo")
     assert result["row_count"] == 2
     assert result["last_close"] == 72.1
+
+
+# --- Index alias resolution ----------------------------------------------
+# Real bug found live: a question about "BIST 100" made the model try the
+# ticker "BIST100" first (a clean but wasted empty-result round trip)
+# before succeeding with the real Yahoo Finance symbol "XU100" on a
+# second try - burning a whole extra model round on a demo question. The
+# alias must be resolved in code, not left to the model to eventually
+# guess right.
+
+@pytest.mark.parametrize("spoken_name", ["BIST100", "BIST 100", "BIST-100", "bist100", "bist 100"])
+def test_bist_100_index_names_resolve_to_the_real_xu100_symbol(monkeypatch, spoken_name):
+    import src.agent.bist_import as bi
+
+    requested_symbols = []
+
+    def _fake_ticker(symbol):
+        requested_symbols.append(symbol)
+        return _FakeTicker(_fake_history([("2026-09-10", 9500.0, 9600.0, 9400.0, 9550.0, 1_000_000)]))
+
+    monkeypatch.setattr(bi.yf, "Ticker", _fake_ticker)
+
+    result = fetch_bist_stock(spoken_name, period="1y")
+
+    assert requested_symbols == ["XU100.IS"]
+    assert result["ticker"] == "XU100"
+    assert result["yf_symbol"] == "XU100.IS"
+    assert result["dataset_name"] == "bist_xu100"
+
+
+@pytest.mark.parametrize("spoken_name,expected", [
+    ("BIST30", "XU030"), ("BIST 30", "XU030"), ("BIST50", "XU050"), ("BIST 50", "XU050"),
+])
+def test_other_bist_index_aliases_also_resolve(monkeypatch, spoken_name, expected):
+    import src.agent.bist_import as bi
+
+    requested_symbols = []
+    monkeypatch.setattr(
+        bi.yf, "Ticker",
+        lambda symbol: (requested_symbols.append(symbol) or _FakeTicker(
+            _fake_history([("2026-09-10", 100.0, 101.0, 99.0, 100.5, 1_000)])
+        )),
+    )
+
+    result = fetch_bist_stock(spoken_name)
+
+    assert requested_symbols == [f"{expected}.IS"]
+    assert result["ticker"] == expected
+
+
+def test_the_real_xu100_symbol_passes_through_unchanged(monkeypatch):
+    """The alias table must not mangle the already-correct symbol."""
+    import src.agent.bist_import as bi
+
+    requested_symbols = []
+    monkeypatch.setattr(
+        bi.yf, "Ticker",
+        lambda symbol: (requested_symbols.append(symbol) or _FakeTicker(
+            _fake_history([("2026-09-10", 9500.0, 9600.0, 9400.0, 9550.0, 1_000_000)])
+        )),
+    )
+
+    fetch_bist_stock("XU100")
+
+    assert requested_symbols == ["XU100.IS"]
+
+
+def test_an_ordinary_stock_ticker_is_not_touched_by_alias_resolution():
+    """Regression guard: a real stock ticker that happens to share no
+    alias key must never be rewritten."""
+    import src.agent.bist_import as bi
+
+    assert bi._resolve_index_alias("AKBNK") == "AKBNK"
+    assert bi._resolve_index_alias("GARAN") == "GARAN"

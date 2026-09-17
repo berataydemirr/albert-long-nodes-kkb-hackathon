@@ -715,18 +715,31 @@ const DEMO_TOOLS = [
 
 // A broad "you decide which series" question can keep the agent busy for
 // minutes (measured: 6 rounds, ~157s wall clock, on a real run - see the
-// LONG_WAIT_STAGES comment above) - a single transient network blip
-// somewhere in that window (wifi drop, laptop sleep, a proxy's idle
-// timeout) must not throw away 2+ minutes of real work and fall all the
-// way to an error. One silent retry absorbs that case; a second failure
-// in a row is treated as real.
-function fetchWithRetry(url, options, retriesLeft = 1) {
-  return fetch(url, options).catch(err => {
-    if (retriesLeft > 0 && err instanceof TypeError) {
-      return fetchWithRetry(url, options, retriesLeft - 1);
+// LONG_WAIT_STAGES comment above) - a single transient failure somewhere
+// in that window must not throw away 2+ minutes of real work and fall
+// straight to an error. Two failure shapes count as transient here, both
+// observed live against a public cloudflared demo tunnel that has its own
+// timeout independent of the backend's: fetch() itself rejecting (wifi
+// drop, laptop sleep - a TypeError), and a response that comes back but
+// is not valid JSON - a proxy/tunnel that gave up mid-request serves its
+// OWN html error page (a bare `<!DOCTYPE ...` body) instead of ever
+// reaching the backend, which throws a SyntaxError out of response.json()
+// even though the request itself "succeeded" at the fetch() level. Either
+// one gets exactly one silent retry; a second failure in a row is treated
+// as real and surfaces to the caller.
+async function requestJsonWithRetry(url, options, retriesLeft = 1) {
+  try {
+    const r = await fetch(url, options);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'İstek başarısız oldu.');
+    return d;
+  } catch (err) {
+    const transient = err instanceof TypeError || err instanceof SyntaxError;
+    if (transient && retriesLeft > 0) {
+      return requestJsonWithRetry(url, options, retriesLeft - 1);
     }
     throw err;
-  });
+  }
 }
 
 function prettyJson(raw) {
@@ -1573,11 +1586,10 @@ class Component extends DCLogic {
     }), () => { this.scrollEnd(); this.syncActiveSession(); });
     this.markPending(sessionId);
 
-    fetchWithRetry('/api/ask', {
+    requestJsonWithRetry('/api/ask', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ question: text, history })
     })
-      .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail || 'İstek başarısız oldu.'); return d; })
       .then(data => {
         this.pushAssistantTo(sessionId, {
           routeName: data.route ? data.route.name : 'agent',
@@ -1600,21 +1612,30 @@ class Component extends DCLogic {
         });
       })
       .catch((err) => {
-        // A real backend failure (bad request, agent crash, timeout) must
-        // never be hidden behind a fabricated-looking answer - for a
-        // financial-data tool, a confidently wrong reply is worse than a
-        // visible error. The synthetic "demo" reply below is ONLY for the
-        // case this file is opened with literally no backend behind it at
-        // all (a design-only preview) - the one case where fetch() itself
-        // throws a plain network TypeError before any response is ever
-        // received. Every other failure (a non-OK status, a malformed
-        // response, an agent-side error) surfaces as a real, visible error
-        // instead.
+        // A real backend failure (bad request, agent crash, timeout, or a
+        // proxy/tunnel that gave up mid-request - see requestJsonWithRetry
+        // above) must never be hidden behind a fabricated-looking answer -
+        // for a financial-data tool, a confidently wrong reply is worse
+        // than a visible error. The synthetic "demo" reply below is ONLY
+        // for the case this file is opened with literally no backend
+        // behind it at all (a design-only preview) - the one case where
+        // fetch() itself throws a plain network TypeError before any
+        // response is ever received. Everything else (a non-OK status, a
+        // non-JSON response after both attempts, an agent-side error)
+        // surfaces as a real, visible error instead.
         const backendUnreachable = err instanceof TypeError;
         if (!backendUnreachable) {
+          // A SyntaxError here means requestJsonWithRetry got a response
+          // that was not valid JSON on both tries - almost always a
+          // proxy/tunnel's own HTML error page, not anything the backend
+          // itself said. The raw "Unexpected token '<'..." parser message
+          // is meaningless to a reader; say what actually happened instead.
+          const detail = err instanceof SyntaxError
+            ? 'Sunucudan geçerli bir yanıt alınamadı - bağlantı (tünel/ağ) yanıt tamamlanmadan kesilmiş olabilir.'
+            : (err && err.message ? err.message : 'Sunucudan geçerli bir yanıt alınamadı.');
           this.pushAssistantTo(sessionId, {
             routeName: 'error', routeReason: 'İstek başarısız oldu.',
-            md: `**Bir hata oluştu, cevap üretilemedi.**\n\n${err && err.message ? err.message : 'Sunucudan geçerli bir yanıt alınamadı.'}\n\nLütfen tekrar dener misin?`,
+            md: `**Bir hata oluştu, cevap üretilemedi.**\n\n${detail}\n\nLütfen tekrar dener misin?`,
             trace: [], timing: null,
           });
           return;
