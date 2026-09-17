@@ -29,6 +29,28 @@ logger = get_logger("bist_import")
 _TICKER_RE = re.compile(r"^[A-Za-z0-9]{2,10}$")
 VALID_PERIODS: Final = ("5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "ytd", "max")
 
+# Borsa Istanbul's own benchmark indices don't trade under the name people
+# actually use for them - "BIST 100" is Yahoo Finance's XU100, not
+# BIST100. Observed live: a question asking for "BIST 100" made the model
+# try "BIST100" first (a clean, correctly-reported empty result), then
+# succeed on a second round with "XU100" - a whole extra ~15-20s model
+# round-trip for a lookup that has exactly one right answer, which also
+# helped push a broad multi-tool question over a public demo tunnel's
+# request-timeout budget. Resolved here so it is a code-level guarantee
+# regardless of which name the model happens to try, not a "hope the
+# prompt is enough" fix. Keyed on the alphanumeric-only form so
+# "BIST100", "BIST-100" and "BIST 100" all resolve the same way.
+_INDEX_ALIAS_BY_COLLAPSED = {
+    "BIST100": "XU100",
+    "BIST30": "XU030",
+    "BIST50": "XU050",
+}
+
+
+def _resolve_index_alias(bare: str) -> str:
+    collapsed = re.sub(r"[^A-Z0-9]", "", bare)
+    return _INDEX_ALIAS_BY_COLLAPSED.get(collapsed, bare)
+
 
 def fetch_bist_stock(ticker: str, period: str = "6mo") -> dict:
     """Pull OHLCV daily history for one BIST-listed stock and write it
@@ -42,6 +64,7 @@ def fetch_bist_stock(ticker: str, period: str = "6mo") -> dict:
     bare = ticker.strip().upper()
     if bare.endswith(".IS"):
         bare = bare[:-3]
+    bare = _resolve_index_alias(bare)
     if not _TICKER_RE.match(bare):
         raise ValueError(f"'{ticker}' does not look like a BIST ticker (letters/digits, 2-10 chars, e.g. 'AKBNK').")
     if period not in VALID_PERIODS:
