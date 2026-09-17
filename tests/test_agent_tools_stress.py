@@ -158,8 +158,8 @@ def test_correlation_analysis_duplicate_periods_do_not_silently_explode():
 def test_causality_analysis_duplicate_periods_do_not_silently_explode():
     periods = [f"2021-{m:02d}" for m in range(1, 13)] * 1  # 12 unique
     dup_periods = periods[:6] + periods  # first 6 duplicated
-    x_values = list(range(len(dup_periods)))
-    y_values = list(range(len(dup_periods)))
+    x_values = list(range(6)) + list(range(12))
+    y_values = list(range(6)) + list(range(12))
     result = causality_analysis(dup_periods, x_values, dup_periods, y_values, max_lag=2)
     assert result["shared_periods"] == 12  # deduped, not the merge blow-up
 
@@ -168,7 +168,7 @@ def test_causality_analysis_result_is_json_safe():
     import random
     rng = random.Random(1)
     n = 20
-    periods = [f"2021-{((m - 1) % 12) + 1:02d}" for m in range(1, n + 1)]
+    periods = [f"{2021 + (m - 1) // 12}-{((m - 1) % 12) + 1:02d}" for m in range(1, n + 1)]
     x = [rng.uniform(-1, 1) for _ in range(n)]
     y = [rng.uniform(-1, 1) for _ in range(n)]
     result = causality_analysis(periods, x, y_periods=periods, y_values=y, max_lag=2)

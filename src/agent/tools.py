@@ -22,6 +22,8 @@ from src.agent.sql_guard import run_guarded_select
 from src.common.logging_setup import get_logger
 from src.agent.web_search import web_search
 from src.agent.web_url import web_url_extract
+from src.agent.evidence import evidence_query, evidence_correlation, recall_turn
+from src.agent.finance_fetch import import_url_dataset, search_evds_series, fetch_evds_series
 
 DB_PATH = LAKEHOUSE_DB_PATH
 logger = get_logger("agent_tools")
@@ -237,15 +239,21 @@ def correlation_analysis(x_periods: list[str] | None = None, x_values: list[floa
 
 def _align_series(x_periods: list[str], x_values: list[float], y_periods: list[str], y_values: list[float]) -> pd.DataFrame:
     """Shared helper: joins two named series on Period, drops rows missing
-    either side. Deduplicates each side on Period (keeping the first
-    occurrence) BEFORE merging - without this, a duplicate period on
+    either side. Collapses identical observations and rejects conflicting
+    same-period values BEFORE merging - without this, a duplicate period on
     either side turns a plain join into a many-to-many cross join
     (2 x 2 duplicate periods silently becomes 4 merged rows for what
     should be 2 real observations), inflating shared_periods and every
     downstream statistic without raising any error."""
     logger.debug(f"_align_series input: len(x)={len(x_values)}, len(y)={len(y_values)}")
-    left = pd.DataFrame({"period": x_periods, "x": x_values}).drop_duplicates(subset="period", keep="first")
-    right = pd.DataFrame({"period": y_periods, "y": y_values}).drop_duplicates(subset="period", keep="first")
+    left = pd.DataFrame({"period": x_periods, "x": x_values}).drop_duplicates()
+    right = pd.DataFrame({"period": y_periods, "y": y_values}).drop_duplicates()
+    for frame, column in ((left, "x"), (right, "y")):
+        if frame.period.duplicated().any():
+            raise ValueError("Conflicting values for the same period; select one source/version.")
+        frame[column] = pd.to_numeric(frame[column], errors="raise")
+        if frame[column].isin([float("inf"), float("-inf")]).any():
+            raise ValueError("Infinite values are not valid analysis inputs.")
     joined = left.merge(right, on="period").dropna().sort_values("period").reset_index(drop=True)
     logger.debug(f"_align_series output: shared_periods={len(joined)}, first={joined['period'].iloc[0] if len(joined) else None}, last={joined['period'].iloc[-1] if len(joined) else None}")
     return joined
@@ -386,6 +394,12 @@ def threshold_filter_compare(filter_periods: list[str] | None = None, filter_val
 
 
 _SCHEMAS = [
+    {"type": "function", "function": {"name": "recall_turn", "description": "Geçmiş soru kimliğiyle tam soru, yanıt ve değişmez evidence_id kayıtlarını getir. Eski sorunun verisi bağlamda yoksa kullan; özetten sayı tahmin etme.", "parameters": {"type": "object", "properties": {"turn_id": {"type": "string"}}, "required": ["turn_id"], "additionalProperties": False}}},
+    {"type": "function", "function": {"name": "evidence_correlation", "description": "İlk sorudaki ve sonraki sorudaki değişmez aylık veri kayıtlarını doğrula, ay bazında hizala ve DuckDB Pearson korelasyonu hesapla. Çelişkili ayları reddeder, eksik ayları raporlar. y bir TÜFE endeksiyse monthly_pct_change seç; aylık enflasyon oranıysa none. Sütun adlarını kayıt çıktısından al.", "parameters": {"type": "object", "properties": {"x_id": {"type": "string"}, "y_id": {"type": "string"}, "x_period": {"type": "string"}, "y_period": {"type": "string"}, "x_value": {"type": "string"}, "y_value": {"type": "string"}, "y_transform": {"type": "string", "enum": ["none", "monthly_pct_change"]}}, "required": ["x_id", "y_id"], "additionalProperties": False}}},
+    {"type": "function", "function": {"name": "evidence_query", "description": "Önceki soruların değişmez sonuçlarını DuckDB ile sorgula. evidence_ids sırasıyla data_1, data_2 tablolarıdır. İlk sorudaki değerleri yeniden yazmadan JOIN ve corr hesapla. Önce tarih tekilliğini kontrol et; eksik ayları belirt.", "parameters": {"type": "object", "properties": {"evidence_ids": {"type": "array", "items": {"type": "string"}}, "sql": {"type": "string"}}, "required": ["evidence_ids", "sql"], "additionalProperties": False}}},
+    {"type": "function", "function": {"name": "import_url_dataset", "description": "Doğrudan CSV/Excel URL'sinin tam verisini sürümlü DuckDB tablosuna al. Önizleme değildir. Sonuç dataset_name ile sorgulanır; sheet Excel sayfa adı olabilir.", "parameters": {"type": "object", "properties": {"url": {"type": "string"}, "sheet": {"type": "string"}}, "required": ["url"], "additionalProperties": False}}},
+    {"type": "function", "function": {"name": "search_evds_series", "description": "TCMB EVDS kataloğunda gerçek veri gruplarını ara; datagroup verilirse gerçek seri kodları ve metadata döner. İhtiyaç kredisini birleşik tüketici kredisiyle karıştırma.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}, "datagroup": {"type": "string"}}, "additionalProperties": False}}},
+    {"type": "function", "function": {"name": "fetch_evds_series", "description": "Grubunda doğrulanan EVDS serisini canlı çek, ham veriyi ve aylık veriyi DuckDB'ye kaydet. Oranlar için mean, stok/endeks için last, gerçek akış için sum seç. TÜFE endeksinden aylık enflasyon türetmek için önceki ayı da çek ve SQL ile 100*(endeks/önceki_endeks-1) hesapla; eksik ay üzerinden fark alma.", "parameters": {"type": "object", "properties": {"datagroup": {"type": "string"}, "seri_kod": {"type": "string"}, "start_period": {"type": "string"}, "end_period": {"type": "string"}, "aggregation": {"type": "string", "enum": ["mean", "last", "sum"]}}, "required": ["datagroup", "seri_kod", "start_period", "end_period"], "additionalProperties": False}}},
     {"type": "function", "function": {"name": "lakehouse_schema", "description": "List tables/columns and (for gold_fact_long) the real Seri_Kod/Seri_Adi/Kaynak/Birim catalog in the local DuckDB gold layer. The Seri_Kod catalog is already in the system prompt, so do not call this just to find a series code - only when you need the column structure of a table the prompt does not describe. Seri_Kod values must never be guessed.", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}}},
     {"type": "function", "function": {"name": "lakehouse_query", "description": "Run a single read-only SELECT query against the local DuckDB gold layer. Only tables returned by lakehouse_schema may be referenced. Results are limited to 200 rows.", "parameters": {"type": "object", "properties": {"sql": {"type": "string"}}, "required": ["sql"], "additionalProperties": False}}},
     {"type": "function", "function": {"name": "anomaly_analysis", "description": "Find robust outliers in a time series. PREFERRED: pass seri_kod and the series is read straight from the lakehouse - do NOT run lakehouse_query first and retype the numbers. Pass periods/values only for data that is not in the lakehouse.", "parameters": {"type": "object", "properties": {"seri_kod": {"type": "string", "description": "Seri_Kod from lakehouse_schema. Cheapest and most accurate input."}, "start_period": {"type": "string", "description": "Optional 'YYYY-MM' lower bound."}, "end_period": {"type": "string", "description": "Optional 'YYYY-MM' upper bound."}, "bolge": {"type": "string", "description": "Optional region filter; defaults to every region."}, "periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}, "threshold": {"type": "number", "default": 3.0}}, "additionalProperties": False}}},
@@ -445,6 +459,12 @@ class ToolSpec:
 # instead of hitting a hard wall on the very next call. search_tuik_dataflows
 # is metadata only, and a real question tried 4 keyword phrasings.
 _SPEC_TABLE = {
+    "recall_turn": (recall_turn, "core", 8, 30.0, True),
+    "evidence_correlation": (evidence_correlation, "analysis", 8, 60.0, True),
+    "evidence_query": (evidence_query, "core", 8, 60.0, True),
+    "import_url_dataset": (import_url_dataset, "web", 3, 90.0, False),
+    "search_evds_series": (search_evds_series, "live_fetch", 8, 60.0, True),
+    "fetch_evds_series": (fetch_evds_series, "live_fetch", 4, 120.0, False),
     "lakehouse_schema": (lakehouse_schema, "core", DEFAULT_CALL_LIMIT, 30.0, True),
     "lakehouse_query": (lakehouse_query, "core", DEFAULT_CALL_LIMIT, 60.0, True),
     "anomaly_analysis": (anomaly_analysis, "analysis", 20, 60.0, True),

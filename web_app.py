@@ -1,6 +1,7 @@
 """Local browser UI for exercising routing and function calling."""
 
 import re
+import hashlib
 import secrets
 import threading
 import time
@@ -24,6 +25,7 @@ from src.agent.orchestrator import ask, summarize_turn
 from src.agent.router import route_question
 from src.agent.charts import derive_charts
 from src.agent.tools import TOOL_SCHEMAS
+from src.agent.evidence import load_turns, save_turn, snapshot_result
 from src.common.logging_setup import get_logger
 
 logger = get_logger("web_app")
@@ -78,9 +80,8 @@ app.mount("/lab", StaticFiles(directory="static/design", html=True), name="lab")
 
 class HistoryTurn(BaseModel):
     """One prior (question, answer) pair from the SAME browser tab's chat.
-    The server holds no session state between requests - the client
-    resends its own transcript, and orchestrator.ask()/_history_messages
-    further truncates and caps it before it ever reaches the model. The
+    Legacy clients resend a transcript; clients with turn_ids use the
+    server's saved history instead. The orchestrator bounds model context. The
     field-level max_length here is a request-size guard, not the memory
     budget itself."""
     question: str = Field(min_length=1, max_length=2_000)
@@ -91,6 +92,7 @@ class HistoryTurn(BaseModel):
 
 
 class AskRequest(BaseModel):
+    turn_ids: list[str] = Field(default_factory=list, max_length=100)
     question: str = Field(min_length=1, max_length=2_000)
     # Oldest first. Capped at list level too so a request can't smuggle in
     # an unbounded transcript; orchestrator.ask() only ever looks at the
@@ -223,7 +225,8 @@ async def upload_dataset(file: UploadFile = File(...), dataset_name: str | None 
     default_name = _SAFE_STEM_RE.sub("_", Path(file.filename or "dataset").stem.lower())[:60] or "dataset"
     if default_name[0].isdigit():
         default_name = f"d_{default_name}"
-    name = dataset_name.strip() if dataset_name and dataset_name.strip() else default_name
+    content_id = hashlib.sha256(body + f"{sheet}:{page}:{table_index}".encode()).hexdigest()[:16]
+    name = dataset_name.strip() if dataset_name and dataset_name.strip() else default_name[:40] + "_" + content_id
 
     try:
         if suffix == _PDF_EXTENSION:
@@ -235,6 +238,11 @@ async def upload_dataset(file: UploadFile = File(...), dataset_name: str | None 
             result = import_dataset(saved_path, name, sheet=sheet, source_label=file.filename)
             result["sheets"] = sheets
         logger.info(f"upload_dataset: imported as {name!r}, {result['row_count']} rows")
+        result = snapshot_result("upload_dataset", "{}", result)
+        note = f"Yüklenen tablo: {name}; satır: {result['row_count']}"
+        turn_id, artifacts = save_turn(f"Dosya yükle: {file.filename}", note, note, [
+            {"name": "upload_dataset", "arguments": "{}", "output_json": result}])
+        result.update({"turn_id": turn_id, "artifacts": artifacts})
         return result
     except ValueError as exc:
         logger.warning(f"upload_dataset: import failed for {file.filename!r}: {exc}")
@@ -250,12 +258,24 @@ def answer_question(request: AskRequest) -> dict:
     if not question:
         raise HTTPException(status_code=422, detail="Soru boş olamaz.")
     history = [turn.model_dump(exclude_none=True) for turn in request.history]
+    evidence_kwargs = {}
+    if request.turn_ids:
+        try:
+            saved = load_turns(request.turn_ids)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        history = [{k: turn[k] for k in ("question", "answer", "note")} for turn in saved]
+        evidence_kwargs["evidence_context"] = [
+            {"turn_id": identifier, "question": turn["question"][:300],
+             "artifacts": turn["artifacts"] if i >= len(saved) - 3 else "recall_turn ile getir"}
+            for i, (identifier, turn) in enumerate(zip(dict.fromkeys(request.turn_ids), saved))
+        ]
     try:
         decision = route_question(question, TOOL_SCHEMAS)
         progress_kwargs = {"on_event": _progress_recorder(request.request_id)} if request.request_id else {}
         try:
             answer, trace, timing = ask(question, history=history, history_digest=request.history_digest,
-                                        return_trace=True, return_timing=True, **progress_kwargs)
+                                        return_trace=True, return_timing=True, **progress_kwargs, **evidence_kwargs)
         finally:
             if request.request_id:
                 with _PROGRESS_LOCK:
@@ -268,8 +288,12 @@ def answer_question(request: AskRequest) -> dict:
         # so it is dropped here rather than sent (a 200-row query result
         # would otherwise be serialized twice into the same response).
         lean_trace = [{k: v for k, v in entry.items() if k != "output_json"} for entry in trace]
+        note = summarize_turn(trace)
+        turn_id, artifacts = save_turn(question, answer, note, trace)
 
         return {
+            "turn_id": turn_id,
+            "artifacts": artifacts,
             "answer": answer,
             # Charts derived from the tool results, not generated by the
             # model - see src/agent/charts.py for why.
@@ -290,7 +314,7 @@ def answer_question(request: AskRequest) -> dict:
             },
             "trace": lean_trace,
             # Sent back with this turn's history entry (see HistoryTurn.note).
-            "turn_note": summarize_turn(trace),
+            "turn_note": note,
         }
     except Exception as exc:
         raise HTTPException(status_code=502, detail="Agent yanıt üretemedi. Sunucu günlüklerini kontrol edin.") from exc

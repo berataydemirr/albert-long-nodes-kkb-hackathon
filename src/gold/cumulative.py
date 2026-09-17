@@ -86,8 +86,13 @@ def decumulate(df: pd.DataFrame, period_col: str = "Period", value_col: str = "V
     work = work.sort_values(period_col)
 
     work["Value_Monthly"] = work.groupby("_year")[value_col].diff()
-    is_first_of_year = work.groupby("_year").cumcount() == 0
-    work.loc[is_first_of_year, "Value_Monthly"] = work.loc[is_first_of_year, value_col]
+    periods = pd.PeriodIndex(work[period_col], freq="M")
+    if periods.duplicated().any():
+        raise ValueError("Duplicate periods cannot be decumulated.")
+    consecutive = pd.Series(periods.asi8, index=work.index).diff().eq(1)
+    work.loc[~consecutive, "Value_Monthly"] = float("nan")
+    is_january = periods.month == 1
+    work.loc[is_january, "Value_Monthly"] = work.loc[is_january, value_col]
 
     return work[[period_col, value_col, "Value_Monthly"]].rename(
         columns={value_col: "Value_Cumulative"}

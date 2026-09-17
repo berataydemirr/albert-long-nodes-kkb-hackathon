@@ -29,6 +29,7 @@ have kept.
 """
 
 import json
+import os
 
 from src.agent.untrusted import unwrap_untrusted, wrap_untrusted
 from src.common.logging_setup import get_logger
@@ -55,6 +56,28 @@ DEFAULT_KEEP_RECENT_TOOL_MESSAGES = 3
 DIGEST_SAMPLE_CHARS = 400
 
 COMPACTED_MARKER = "[COMPACTED]"
+
+
+def compact_context(messages: list[dict], tool_schemas: list[dict]) -> tuple[list[dict], dict]:
+    """Harness-owned compact action at 80% of configured input capacity.
+
+    Capacity is a deployment setting, not an assertion about the provider's
+    model limit. Include schemas and reserve output space in the estimate.
+    """
+    capacity = int(os.getenv("AGENT_CONTEXT_TOKENS", "16384"))
+    reserve = int(os.getenv("AGENT_OUTPUT_RESERVE_TOKENS", "2048"))
+    if capacity <= reserve or reserve < 0:
+        raise ValueError("Context capacity must exceed the nonnegative output reserve.")
+    overhead = len(json.dumps(tool_schemas, ensure_ascii=False)) // CHARS_PER_TOKEN
+    usable = capacity - reserve
+    budget = max(0, int(usable * 0.8) - overhead)
+    compacted, stats = compact_messages(messages, budget_tokens=budget)
+    stats.update({"action": "compact", "threshold": 0.8, "capacity_tokens": capacity,
+                  "reserved_output_tokens": reserve, "schema_est_tokens": overhead,
+                  "utilization_before": (stats["before_tokens"] + overhead) / usable,
+                  "utilization_after": (stats["after_tokens"] + overhead) / usable,
+                  "threshold_exceeded": stats["before_tokens"] + overhead > usable * 0.8})
+    return compacted, stats
 
 
 def estimate_tokens(messages: list[dict]) -> int:
@@ -95,7 +118,7 @@ def _digest_tool_output(content: str) -> str:
 
     if isinstance(payload, dict):
         summary = {key: value for key, value in payload.items()
-                   if key in ("row_count", "columns", "truncated", "error", "shared_periods", "source", "seri_kod")}
+                   if key in ("row_count", "columns", "truncated", "error", "shared_periods", "source", "seri_kod", "evidence_id", "dataset_name", "source_url", "start_period", "end_period", "missing_periods", "aggregation", "pearson_correlation", "x_source", "y_source")}
         rows = payload.get("rows")
         if isinstance(rows, list) and rows:
             summary["first_row"] = rows[0]

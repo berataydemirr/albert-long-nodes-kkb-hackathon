@@ -52,7 +52,7 @@ REQUEST_TOOLS_SCHEMA = {"type": "function", "function": {
         "Add a tool group that is not currently available, then call its tools in the next round. "
         "analysis: anomaly/change/correlation/causality/threshold tools. regional: compare_regions "
         "(province data). imports: uploaded/fetched datasets. live_fetch: TUIK refresh/search, BIST "
-        "stock fetch. web: web_search, web_url_extract."
+        "stock fetch, EVDS series discovery/fetch. web: web_search, web_url_extract, import_url_dataset."
     ),
     "parameters": {"type": "object", "properties": {
         "group": {"type": "string", "enum": list(REQUESTABLE_GROUPS)},
@@ -140,6 +140,7 @@ _IMPORT_PATTERNS = (
     r"\b(yukle\w*|yuklu\w*|upload\w*|dataset\w*|veri ?set\w*|import\w*|dosya\w*|excel\w*|csv|pdf)\b",
 )
 _TUIK_PATTERNS = (r"\b(tuik\w*|dataflow\w*)\b",)
+_EVDS_FETCH = (r"\b(tcmb|evds|cbrt)\b.{0,160}\b(cek\w*|getir\w*|baglanti\w*|canli\w*)\b",)
 _BIST_PATTERNS = (r"\b(bist\w*|imkb\w*|borsa\w*|hisse\w*|stock\w*|ticker\w*)\b",)
 _REGIONAL_PATTERNS = (
     r"\b(il|ili|iller\w*|ilin|ilde|ilden|il bazli|ilce\w*|province\w*|bolge\w*|sehir\w*|sehri\w*|ibbs|yurt disi)\b",
@@ -230,6 +231,10 @@ def detect_signals(question: str) -> set[str]:
         signals.add("imports")
     if _any(_TUIK_PATTERNS, normalized) or _any(_BIST_PATTERNS, normalized):
         signals.add("live_fetch")
+    if _any(_EVDS_FETCH, normalized):
+        signals.add("live_fetch")
+    if re.search(r"\b(ilk sor|onceki (soru|veri|sonuc)|az once|ayni zaman|ayni donem)", normalized):
+        signals.add("analysis")
     if any(token in _KNOWN_TICKERS for token in _TICKER_RE.findall(question)):
         signals.add("live_fetch")
     # "Borsa Istanbul" is an exchange, not the province.

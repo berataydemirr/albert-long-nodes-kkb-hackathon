@@ -18,6 +18,12 @@ END_MARKER = "<<<END_UNTRUSTED_CONTENT>>>"
 # Tools whose output is (or can be) text written by someone other than the
 # team: remote pages/documents, and user-uploaded or live-fetched datasets.
 UNTRUSTED_TOOLS = frozenset({
+    "recall_turn",
+    "evidence_correlation",
+    "evidence_query",
+    "import_url_dataset",
+    "search_evds_series",
+    "fetch_evds_series",
     "web_search",
     "web_url_extract",
     "list_imported_datasets",
