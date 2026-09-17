@@ -10,6 +10,8 @@ logs/*.log
 data/bronze/
 data/debug/
 data/gold/*.duckdb
+data/gold/evidence.sqlite3*
+.playtest/
 data/uploads/
 
 # Keep the folder skeleton (.gitkeep)

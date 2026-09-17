@@ -1,5 +1,8 @@
 # Agent mimarisi
 
+Güncel çok sorulu finans akışı, kalıcı kanıt kayıtları, %80 compact eşiği
+ve veri doğrulama sözleşmesi: [Ardışık finans analizi](progressive_finance.md).
+
 ## Genel akış
 
 ```text
@@ -24,14 +27,15 @@ Final cevap
 
 Router soruyu sınıflandırır:
 
-- `local_analytics`
+- `local_analytics`, `analysis`, `regional`, `imports`, `live_fetch`
 - `web_search`
 - `web_url`
 - `refuse`
 
-Güvenli isteklerde tüm kayıtlı tool'lar modele açılır. Böylece model birden
-fazla aracı zincirleyebilir. Tehlikeli SQL veya prompt-injection istekleri
-model çağrılmadan reddedilir.
+Router çekirdek ve ilgili yetenek gruplarını açar; `request_tools` eksik
+grubu sonradan ekler. Yazma SQL'i reddedilir. Enjeksiyon şüphesi ek
+talimatla işaretlenir; gerçek sınır salt okunur sorgular ve veri/talimat
+ayrımıdır. İstemci geçmişi sistem mesajına dönüştürülmez.
 
 ## Agent loop
 

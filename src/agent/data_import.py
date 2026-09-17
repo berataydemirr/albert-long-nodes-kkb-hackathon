@@ -601,6 +601,7 @@ def _write_dataset(dataset_name: str, display_name: str, df: pd.DataFrame) -> st
     con = _db(read_only=False)
     try:
         _reject_curated_collision(con, dataset_name)
+        con.execute("BEGIN TRANSACTION")
         con.register("_incoming_df", df)
         con.execute(f'CREATE OR REPLACE TABLE "{dataset_name}" AS SELECT * FROM _incoming_df')
         con.unregister("_incoming_df")
@@ -619,6 +620,7 @@ def _write_dataset(dataset_name: str, display_name: str, df: pd.DataFrame) -> st
             f"INSERT OR REPLACE INTO {REGISTRY_TABLE} VALUES (?, ?, ?, ?, ?)",
             [dataset_name, display_name, imported_at, len(df), len(df.columns)],
         )
+        con.execute("COMMIT")
         logger.info(f"_write_dataset: done, {dataset_name!r} <- {len(df)} rows x {len(df.columns)} cols")
         return imported_at
     finally:

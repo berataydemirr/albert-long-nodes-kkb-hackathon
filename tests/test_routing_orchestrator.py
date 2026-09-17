@@ -45,7 +45,7 @@ def test_a_lookup_sends_only_core_tools_plus_the_escape_hatch(monkeypatch):
 
     orchestrator.ask("Konut kredisi faizinin son değeri nedir?")
 
-    assert _tool_names(client.requests[0]) == {"lakehouse_schema", "lakehouse_query", "request_tools"}
+    assert _tool_names(client.requests[0]) == {"lakehouse_schema", "lakehouse_query", "request_tools", "evidence_query", "recall_turn"}
     assert client.requests[0]["reasoning_effort"] == "low"
     assert "ROTA" in client.requests[0]["messages"][0]["content"]
 
@@ -122,7 +122,8 @@ def test_web_output_is_fenced_for_the_model_but_raw_in_the_trace(monkeypatch):
 
     tool_message = _tool_message(client)
     assert tool_message["content"].startswith("<<<UNTRUSTED_CONTENT source=web_search>>>")
-    assert trace[0]["output_json"] == json.loads(raw)
+    assert trace[0]["output_json"]["results"] == json.loads(raw)["results"]
+    assert trace[0]["output_json"]["evidence_id"]
 
 
 def test_gold_query_output_is_not_fenced(monkeypatch):
@@ -134,7 +135,7 @@ def test_gold_query_output_is_not_fenced(monkeypatch):
 
     orchestrator.ask("Konut kredisi faizinin son değeri nedir?")
 
-    assert _tool_message(client)["content"] == '{"ok": true}'
+    assert json.loads(_tool_message(client)["content"])["ok"] is True
 
 
 def test_untrusted_call_detection():

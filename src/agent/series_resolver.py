@@ -28,6 +28,7 @@ import duckdb
 
 from config.settings import GOLD_DIR
 from src.common.logging_setup import get_logger
+from src.agent.db_utils import connect_with_retry
 
 logger = get_logger("series_resolver")
 
@@ -49,7 +50,7 @@ def _db() -> duckdb.DuckDBPyConnection:
         raise FileNotFoundError(
             f"Gold database not found: {DB_PATH}. Run `python -m src.gold.build_gold` first."
         )
-    return duckdb.connect(str(DB_PATH), read_only=True)
+    return connect_with_retry(DB_PATH, read_only=True)
 
 
 def _validate_seri_kod(seri_kod) -> str:
@@ -234,7 +235,13 @@ def resolve_series(seri_kod: str, bolge: str | None = None,
                 f"(bolge={bolge!r}, start_period={start_period!r}, end_period={end_period!r})."
             )
 
-        # Metadata is constant per series; the first row is representative.
+        if frame["Bolge"].nunique(dropna=False) > 1:
+            raise ValueError("Multiple regions match; specify bolge before analysis.")
+        if frame["Birim"].nunique(dropna=False) > 1:
+            raise ValueError("Conflicting units for this series; resolve source metadata first.")
+        if frame["Period"].duplicated().any():
+            raise ValueError("Duplicate periods in Gold; resolve source/version before analysis.")
+        # Preserve all frequency/forward-fill flags rather than only the first.
         first = frame.iloc[0]
         # NaN values would become the invalid JSON token 'NaN' downstream and
         # would also corrupt every statistic, so they are dropped here with
@@ -249,7 +256,7 @@ def resolve_series(seri_kod: str, bolge: str | None = None,
             "seri_kod": seri_kod,
             "seri_adi": None if first["Seri_Adi"] is None else str(first["Seri_Adi"]),
             "birim": None if first["Birim"] is None else str(first["Birim"]),
-            "tip": None if first["Tip"] is None else str(first["Tip"]),
+            "tip": "+".join(sorted(frame["Tip"].dropna().astype(str).unique())) or None,
             "bolge": None if first["Bolge"] is None else str(first["Bolge"]),
             "periods": [str(value) for value in frame["Period"].tolist()],
             "values": [float(value) for value in frame["Deger"].tolist()],

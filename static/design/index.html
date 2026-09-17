@@ -181,6 +181,12 @@ a:hover { color: var(--accent-hover); border-bottom-color: var(--accent-hover); 
 ::selection { background: rgba(var(--accent2-rgb),.38); }
 textarea, button, input { font-family: inherit; }
 textarea::placeholder { color: var(--faint); }
+.chat-workspace { min-width: 0; }
+@media (max-width: 700px) {
+  header { height: auto !important; min-height: 58px; flex-wrap: wrap; padding: 8px 12px !important; gap: 8px !important; }
+  aside { position: absolute; z-index: 10; top: 100px; bottom: 0; left: 0; box-shadow: 6px 0 20px rgba(0,0,0,.12); }
+  .chat-workspace { padding: 0 12px !important; }
+}
 /* Tabular figures stop timing readouts from shifting sideways as they
    tick up during a run. */
 pre, .num { font-variant-numeric: tabular-nums; }
@@ -305,7 +311,7 @@ textarea:focus-visible { outline: none; }
       </aside>
     </sc-if>
 
-    <div onDragEnter="{{ onDragEnter }}" onDragOver="{{ onDragOver }}" onDragLeave="{{ onDragLeave }}" onDrop="{{ onDropFile }}" style="position:relative; flex:1; display:flex; flex-direction:column; width:100%; max-width:840px; margin:0 auto; padding:0 20px; min-height:0;">
+    <div class="chat-workspace" onDragEnter="{{ onDragEnter }}" onDragOver="{{ onDragOver }}" onDragLeave="{{ onDragLeave }}" onDrop="{{ onDropFile }}" style="position:relative; flex:1; display:flex; flex-direction:column; width:100%; max-width:840px; margin:0 auto; padding:0 20px; min-height:0;">
 
       <sc-if value="{{ isDragOver }}" hint-placeholder-val="{{ false }}">
         <div style="position:absolute; inset:6px; z-index:5; display:flex; align-items:center; justify-content:center; background:rgba(var(--accent-rgb),.06); border:2px dashed rgba(var(--accent-rgb),.45); border-radius:16px; pointer-events:none; animation:msg-in .2s ease both;">
@@ -324,7 +330,7 @@ textarea:focus-visible { outline: none; }
           <span class="premium-dots is-live" style="--orb-size:56px; display:block; margin:0 0 22px 32px;"><i class="dots-glow"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i></span>
           <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); margin-bottom:12px;">BDDK · EVDS · TUIK</div>
           <h1 style="margin:0 0 10px; font-size:34px; font-weight:500; letter-spacing:-.035em; line-height:1.12; color:var(--ink);">Lakehouse'a ne sormak istersin?</h1>
-          <p style="margin:0 0 26px; font-size:15px; line-height:1.6; color:var(--muted); max-width:52ch;">Planlayıp gerçek araçları çalıştırır, her adımını sana açık şekilde gösterir.</p>
+          <p style="margin:0 0 26px; font-size:15px; line-height:1.6; color:var(--muted); max-width:52ch;">Veriyi getir → aynı dönemi birleştir → sonucu hesapla. CSV ve Excel yükleyebilir veya indirme bağlantısı paylaşabilirsin. Önceki soruların veri sonuçları sonraki analizlerde korunur.</p>
 
           <div style="display:flex; flex-wrap:wrap; gap:8px;">
             <sc-for list="{{ examples }}" as="ex" hint-placeholder-count="12">
@@ -348,6 +354,7 @@ textarea:focus-visible { outline: none; }
               <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted);">{{ m.routeName }}</span>
               <span style="width:3px; height:3px; border-radius:50%; background:var(--separator);"></span>
               <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--dim);">{{ m.totalLabel }}</span>
+              <span style="font-size:11px; color:var(--muted);">{{ m.memoryLabel }}</span>
             </div>
             <div style="padding-left:30px; color:var(--ink-2); font-size:15px; line-height:1.7;">
               <sc-for list="{{ m.blocks }}" as="blk" hint-placeholder-count="2">
@@ -537,7 +544,7 @@ const ERR = 'var(--error)';
 // plus a digest of older turns' key points);
 // this is just letting a person come back to an earlier tab of that same
 // short memory instead of losing it on "New chat".
-const SESSIONS_KEY = 'kkb-chat-sessions';
+const SESSIONS_KEY = 'kkb-chat-sessions:v2';
 const MAX_SESSIONS = 30;
 const MAX_STORED_MSGS_PER_SESSION = 60;
 
@@ -545,7 +552,7 @@ const newSessionId = () => `s_${Date.now().toString(36)}_${Math.random().toStrin
 
 function loadSessionsFromStorage() {
   try {
-    const raw = JSON.parse(localStorage.getItem(SESSIONS_KEY) || '[]');
+    const raw = JSON.parse(localStorage.getItem(SESSIONS_KEY) || localStorage.getItem('kkb-chat-sessions') || '[]');
     return Array.isArray(raw) ? raw : [];
   } catch (e) { return []; }
 }
@@ -575,7 +582,8 @@ function serializeMessage(m) {
   if (m.role === 'user') return { id: m.id, role: 'user', text: m.text };
   return {
     id: m.id, role: 'assistant', routeName: m.routeName, routeReason: m.routeReason,
-    md: m.md, charts: m.charts || [], answerText: m.answerText, trace: m.trace, timing: m.timing
+    md: m.md, charts: m.charts || [], answerText: m.answerText, trace: m.trace, timing: m.timing,
+    turnId: m.turnId, turnNote: m.turnNote, artifacts: m.artifacts || []
   };
 }
 
@@ -584,6 +592,7 @@ function deserializeMessage(m) {
   return {
     id: m.id, role: 'assistant', routeName: m.routeName, routeReason: m.routeReason,
     md: m.md, charts: m.charts || [], answerText: m.answerText, trace: m.trace || [], timing: m.timing,
+    turnId: m.turnId, turnNote: m.turnNote, artifacts: m.artifacts || [],
     blocks: [...mdToBlocks(m.md), ...chartsToBlocks(m.charts || [])]
   };
 }
@@ -621,6 +630,8 @@ function stagesFromEvents(events, elapsed) {
       }
     } else if (e.kind === 'repair') {
       rows.push({ label: 'Checking the numbers', t: e.t_ms });
+    } else if (e.kind === 'compact') {
+      rows.push({ label: e.ran ? 'Bağlam sıkıştırıldı · veri kayıtları korundu' : 'Bağlam %80 eşiğini aştı · sıkıştırma kontrolü', t: e.t_ms });
     }
   }
   return rows.map((r, i) => {
@@ -633,6 +644,8 @@ function stagesFromEvents(events, elapsed) {
 }
 
 const TAG_BY_NAME = {
+  evidence_query: 'Data', import_url_dataset: 'Web',
+  search_evds_series: 'Data', fetch_evds_series: 'Data',
   lakehouse_schema: 'Data', lakehouse_query: 'Data',
   list_imported_datasets: 'Data', query_imported_dataset: 'Data',
   anomaly_analysis: 'Analysis', change_detection: 'Analysis',
@@ -651,6 +664,9 @@ const TAG_BY_NAME = {
 // kept to exactly one each so the starter row stays scannable rather than
 // a long wall of near-duplicate questions.
 const EXAMPLES = [
+  { tag: 'Data', label: 'TCMB EVDS üzerinden son iki yılın aylık ihtiyaç kredisi faiz oranlarını çek ve listele.' },
+  { tag: 'Web', label: 'Şimdi aynı zaman dilimi için aylık enflasyon verilerini web üzerinden sisteme getir.' },
+  { tag: 'Analysis', label: 'İlk sorudaki ihtiyaç kredisi faizleri ile enflasyonu aylara göre birleştir ve korelasyonu hesapla.' },
   { tag: 'Data',     label: "Lakehouse'daki tabloları ve serileri listele." },
   { tag: 'Analysis', label: 'Konut kredisi faizindeki aykırı dönemleri bul.' },
   { tag: 'Regional', label: 'Kredi hacmine göre en yüksek 10 ili sırala.' },
@@ -1455,6 +1471,8 @@ class Component extends DCLogic {
         title: sessionTitleFrom(s.messages),
         updatedAt: Date.now(),
         nextId: s.nextId,
+        turnIds: [...new Set([...(s.sessions.find(sess => sess.id === s.activeSessionId)?.turnIds || []),
+          ...s.messages.filter(m => m.turnId).map(m => m.turnId)])].slice(-100),
         messages: s.messages.slice(-MAX_STORED_MSGS_PER_SESSION).map(serializeMessage)
       };
       const sessions = [snapshot, ...s.sessions.filter(sess => sess.id !== snapshot.id)].slice(0, MAX_SESSIONS);
@@ -1534,7 +1552,6 @@ class Component extends DCLogic {
   };
 
   uploadFile = (file) => {
-    const datasetName = file.name.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 60) || 'dataset';
     const sessionId = this.state.activeSessionId;
     this.setState(s => ({
       messages: [...s.messages, { id: s.nextId, role: 'user', text: `Dataset yükleniyor: ${file.name}` }],
@@ -1543,7 +1560,6 @@ class Component extends DCLogic {
 
     const form = new FormData();
     form.append('file', file);
-    form.append('dataset_name', datasetName);
 
     fetch('/api/upload', { method: 'POST', body: form })
       .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail || 'Yükleme başarısız oldu.'); return d; })
@@ -1551,6 +1567,8 @@ class Component extends DCLogic {
         this.pushAssistantTo(sessionId, {
           routeName: 'data_import', routeReason: `'${result.file_name}' içe aktarıldı.`,
           md: formatUploadSummary(result), trace: [], timing: null,
+          turnId: result.turn_id, artifacts: result.artifacts || [],
+          answerText: formatUploadSummary(result),
         });
       })
       .catch(err => {
@@ -1684,7 +1702,9 @@ class Component extends DCLogic {
 
     requestJsonWithRetry('/api/ask', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question: text, history, history_digest: historyDigest || undefined, request_id: requestId })
+      body: JSON.stringify({ question: text, history, history_digest: historyDigest || undefined, request_id: requestId,
+        turn_ids: [...new Set([...(this.state.sessions.find(sess => sess.id === sessionId)?.turnIds || []),
+          ...this.state.messages.filter(m => m.turnId).map(m => m.turnId)])].slice(-100) })
     })
       .then(data => {
         this.pushAssistantTo(sessionId, {
@@ -1700,6 +1720,8 @@ class Component extends DCLogic {
           // Tools/series this answer used; resent with the history so a
           // follow-up like "aynısını 2023 için yap" keeps that context.
           turnNote: data.turn_note || '',
+          turnId: data.turn_id,
+          artifacts: data.artifacts || [],
           trace: (data.trace || []).map(tc => ({
             name: tc.name, round: tc.round, durationMs: tc.duration_ms || 0,
             args: prettyJson(tc.arguments),
@@ -1768,6 +1790,7 @@ class Component extends DCLogic {
         id: m.id, isUser: false, isAssistant: true, blocks: m.blocks,
         routeName: m.routeName,
         totalLabel: m.timing ? fmtMs(m.timing.summary.total_ms) : '—',
+        memoryLabel: m.turnId ? `${(m.artifacts || []).length} veri kaydı korundu${m.timing?.context?.compaction_runs ? ' · Bağlam sıkıştırıldı (%80)' : ''}` : '',
         hasTools: n > 0,
         traceButtonLabel: `Tool details · ${n} call${n === 1 ? '' : 's'}${m.timing ? ` · ${fmtMs(m.timing.summary.tool_ms)}` : ''}`,
         openTrace: () => this.openTrace(m.id)
