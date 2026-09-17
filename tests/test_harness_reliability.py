@@ -254,6 +254,30 @@ def test_history_note_reaches_the_model():
     assert "seriler: KONUT_FAIZ" in messages[1]["content"]
 
 
+def test_history_digest_from_older_turns_is_carried_as_a_system_note():
+    """Turns beyond HISTORY_MAX_TURNS are gone from `history` itself, but
+    their key points survive as `digest` - this is what keeps a long
+    session from forgetting what it was working on entirely."""
+    messages = orchestrator._history_messages(
+        [{"question": "Konut faizi?", "answer": "%3,2"}],
+        digest="araçlar: lakehouse_query; seriler: KONUT_FAIZ, TUFE",
+    )
+
+    assert messages[0]["role"] == "system"
+    assert "KONUT_FAIZ, TUFE" in messages[0]["content"]
+    # The digest is background, not a live turn - it never displaces the
+    # recent (question, answer) pair that follows it.
+    assert messages[1]["content"] == "Konut faizi?"
+    assert messages[2]["content"] == "%3,2"
+
+
+def test_history_digest_alone_with_no_recent_turns_still_produces_a_message():
+    messages = orchestrator._history_messages(None, digest="seriler: KONUT_FAIZ")
+
+    assert len(messages) == 1
+    assert messages[0]["role"] == "system"
+
+
 # --- system prompt cache ---------------------------------------------------
 
 def test_other_tables_block_is_rebuilt_only_when_the_database_changes(monkeypatch, tmp_path):

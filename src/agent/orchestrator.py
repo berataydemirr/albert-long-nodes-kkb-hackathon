@@ -591,6 +591,15 @@ HISTORY_QUESTION_MAX_CHARS = 300
 HISTORY_ANSWER_MAX_CHARS = 500
 HISTORY_NOTE_MAX_CHARS = 300
 
+# Turns older than HISTORY_MAX_TURNS are dropped in full, but the client
+# still carries their summarize_turn() notes (tools/series/tables/params)
+# forward as one short digest line - see historyForRequest() in
+# static/design/index.html. This is the "remembers key points, not the
+# whole transcript" middle ground: a session that has drifted past 20
+# turns still knows it was working with a given seri_kod or table without
+# re-paying for 20 turns of full Q&A text on every request.
+HISTORY_DIGEST_MAX_CHARS = 500
+
 _SQL_SERIES_RE = re.compile(r"seri_kod\"?\s*(?:=|\bin\b)\s*\(?\s*((?:'[^']+'\s*,?\s*)+)", re.IGNORECASE)
 _NOTE_ARG_KEYS = ("metric", "period", "compare_to_period", "ticker", "dataset_name", "start_period", "end_period", "url", "query")
 
@@ -644,14 +653,26 @@ def summarize_turn(trace: list[dict]) -> str:
     return note if len(note) <= HISTORY_NOTE_MAX_CHARS else note[:HISTORY_NOTE_MAX_CHARS - 1] + "…"
 
 
-def _history_messages(history: list[dict] | None) -> list[dict]:
+def _history_messages(history: list[dict] | None, digest: str | None = None) -> list[dict]:
     """Turn compacted prior turns into user/assistant messages placed
     ahead of the current question. Truncates defensively even though the
     API layer already caps sizes - this function must stay safe to call
-    with any list of dicts, not just ones that went through that layer."""
-    if not history:
-        return []
+    with any list of dicts, not just ones that went through that layer.
+
+    digest is the client's rolled-up summary of turns that fell out of the
+    recent-turns window entirely (see HISTORY_DIGEST_MAX_CHARS). It goes in
+    as a single system note ahead of the recent turns, oldest context
+    first, so the model reads it as background rather than as something
+    the user just said."""
     messages: list[dict] = []
+    digest = (digest or "").strip()[:HISTORY_DIGEST_MAX_CHARS]
+    if digest:
+        messages.append({
+            "role": "system",
+            "content": f"Bu sohbette daha önce (son birkaç turdan daha eski) konuşulanların özeti: {digest}",
+        })
+    if not history:
+        return messages
     for turn in history[-HISTORY_MAX_TURNS:]:
         question = str(turn.get("question") or "").strip()
         answer = str(turn.get("answer") or "").strip()
@@ -666,8 +687,9 @@ def _history_messages(history: list[dict] | None) -> list[dict]:
             answer = f"{answer}\n[Bu yanıtta kullanılan - {note}]"
         messages.append({"role": "user", "content": question})
         messages.append({"role": "assistant", "content": answer})
-    if messages:
-        logger.info(f"_history_messages: carried {len(messages) // 2} prior turn(s) into context")
+    turn_count = sum(1 for m in messages if m["role"] == "user")
+    if turn_count or digest:
+        logger.info(f"_history_messages: carried {turn_count} prior turn(s), digest={'yes' if digest else 'no'} into context")
     return messages
 
 
@@ -704,7 +726,8 @@ def _effective_reasoning_effort(explicit: str | None, route_effort: str | None) 
 GROUNDING_REPAIR_MIN_REMAINING_SEC = 20.0
 
 
-def ask(question: str, history: list[dict] | None = None, max_rounds: int | None = None,
+def ask(question: str, history: list[dict] | None = None, history_digest: str | None = None,
+        max_rounds: int | None = None,
         return_trace: bool = False, return_timing: bool = False,
         reasoning_effort: str | None = None, deadline_sec: float | None = None,
         on_event=None):
@@ -729,6 +752,12 @@ def ask(question: str, history: list[dict] | None = None, max_rounds: int | None
     via _history_messages(), which is where the actual truncation/cap lives
     - see that function for why this has to stay small on purpose. note is
     the summarize_turn() line returned with that past answer.
+
+    history_digest is the client's rolled-up notes from turns that already
+    fell out of `history`'s window (see HISTORY_DIGEST_MAX_CHARS) - key
+    points (tools/series/tables/params), not prose, so a long session still
+    carries forward what it was working on without resending the whole
+    transcript.
 
     max_rounds and reasoning_effort default to the router's per-route
     settings; passing either overrides the route. deadline_sec is the
@@ -862,7 +891,7 @@ def ask(question: str, history: list[dict] | None = None, max_rounds: int | None
     ]
     client = get_client()
     messages = [{"role": "system", "content": _system_prompt(settings.prompt_addon if settings else "")}]
-    messages.extend(_history_messages(history))
+    messages.extend(_history_messages(history, history_digest))
     messages.append({"role": "user", "content": question})
 
     stop_reason = "rounds"

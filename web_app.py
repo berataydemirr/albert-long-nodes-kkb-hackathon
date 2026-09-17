@@ -96,6 +96,12 @@ class AskRequest(BaseModel):
     # an unbounded transcript; orchestrator.ask() only ever looks at the
     # last few entries anyway (see HISTORY_MAX_TURNS).
     history: list[HistoryTurn] = Field(default_factory=list, max_length=12)
+    # Rolled-up notes from turns older than `history` covers (see
+    # historyForRequest() in static/design/index.html and
+    # HISTORY_DIGEST_MAX_CHARS in orchestrator.py) - key points, not prose,
+    # so a session that has run long still carries forward what it was
+    # working on.
+    history_digest: str | None = Field(default=None, max_length=800)
     # Client-generated id; /api/progress/{request_id} streams this run's events.
     request_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{8,64}$")
 
@@ -248,8 +254,8 @@ def answer_question(request: AskRequest) -> dict:
         decision = route_question(question, TOOL_SCHEMAS)
         progress_kwargs = {"on_event": _progress_recorder(request.request_id)} if request.request_id else {}
         try:
-            answer, trace, timing = ask(question, history=history, return_trace=True, return_timing=True,
-                                        **progress_kwargs)
+            answer, trace, timing = ask(question, history=history, history_digest=request.history_digest,
+                                        return_trace=True, return_timing=True, **progress_kwargs)
         finally:
             if request.request_id:
                 with _PROGRESS_LOCK:

@@ -1318,8 +1318,16 @@ class Component extends DCLogic {
   // model as if it were a prior Q&A. Capped and truncated again on the
   // server (see orchestrator._history_messages); this is just what the
   // tab itself remembers of its own conversation, kept short on purpose.
+  //
+  // Turns beyond HISTORY_MAX_TURNS aren't just dropped: their turnNote
+  // (the tools/series/tables/params summarize_turn() extracted server-side)
+  // is folded into `digest`, a single deduped, length-capped line sent
+  // alongside `turns`. That's the "not too large, not too small" middle
+  // ground - full (question, answer) fidelity for the last few turns, a
+  // handful of key points (not prose) for everything before that, instead
+  // of a session past turn 4 losing all memory of what it was working on.
   historyForRequest() {
-    const HISTORY_MAX_TURNS = 4, ANSWER_MAX_CHARS = 500;
+    const HISTORY_MAX_TURNS = 4, ANSWER_MAX_CHARS = 500, DIGEST_MAX_CHARS = 500;
     const messages = this.state.messages;
     const turns = [];
     for (let i = 0; i < messages.length - 1; i++) {
@@ -1331,14 +1339,24 @@ class Component extends DCLogic {
         turns.push(next.turnNote ? { question: m.text, answer, note: next.turnNote } : { question: m.text, answer });
       }
     }
-    return turns.slice(-HISTORY_MAX_TURNS);
+    const older = turns.slice(0, -HISTORY_MAX_TURNS);
+    const seen = new Set();
+    let digest = '';
+    for (const t of older) {
+      if (!t.note || seen.has(t.note)) continue;
+      seen.add(t.note);
+      const candidate = digest ? `${digest} | ${t.note}` : t.note;
+      if (candidate.length > DIGEST_MAX_CHARS) continue;
+      digest = candidate;
+    }
+    return { turns: turns.slice(-HISTORY_MAX_TURNS), digest };
   }
 
   send = (override) => {
     const text = (override !== undefined ? override : this.state.input).trim();
     const sessionId = this.state.activeSessionId;
     if (!text || this.state.pending[sessionId]) return;
-    const history = this.historyForRequest();
+    const { turns: history, digest: historyDigest } = this.historyForRequest();
     this.setState(s => ({
       messages: [...s.messages, { id: s.nextId, role: 'user', text }],
       input: '', nextId: s.nextId + 1
@@ -1348,7 +1366,7 @@ class Component extends DCLogic {
 
     fetch('/api/ask', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question: text, history, request_id: requestId })
+      body: JSON.stringify({ question: text, history, history_digest: historyDigest || undefined, request_id: requestId })
     })
       .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail || 'İstek başarısız oldu.'); return d; })
       .then(data => {

@@ -52,7 +52,7 @@ def test_tool_registry_endpoint_includes_c4_and_c6():
 
 
 def test_ask_endpoint_returns_agent_answer(monkeypatch):
-    monkeypatch.setattr(web_app, "ask", lambda question, history, return_trace, return_timing: (
+    monkeypatch.setattr(web_app, "ask", lambda question, history, history_digest, return_trace, return_timing: (
         f"yanıt: {question}",
         [{"round": 1, "name": "web_search", "arguments": '{"query":"faiz"}', "error": None,
           "output_preview": "{}", "start_ms": 12.0, "duration_ms": 340.0}],
@@ -86,8 +86,9 @@ def test_ask_endpoint_forwards_history_to_the_orchestrator(monkeypatch):
     must pass whatever `history` it was given straight through to ask()."""
     received = {}
 
-    def fake_ask(question, history, return_trace, return_timing):
+    def fake_ask(question, history, history_digest, return_trace, return_timing):
         received["history"] = history
+        received["history_digest"] = history_digest
         return "ok", [], {"timeline": [], "summary": {
             "total_ms": 0.0, "llm_ms": 0.0, "tool_ms": 0.0, "overhead_ms": 0.0,
             "llm_calls": 0, "tool_calls": 0, "rounds": 0, "per_tool": [],
@@ -98,10 +99,12 @@ def test_ask_endpoint_forwards_history_to_the_orchestrator(monkeypatch):
     response = TestClient(web_app.app).post("/api/ask", json={
         "question": "peki ya geçen çeyrek?",
         "history": [{"question": "konut kredisi faizi nedir?", "answer": "%42.5"}],
+        "history_digest": "araçlar: sql_query; seriler: TP.KREDI.KONUT",
     })
 
     assert response.status_code == 200
     assert received["history"] == [{"question": "konut kredisi faizi nedir?", "answer": "%42.5"}]
+    assert received["history_digest"] == "araçlar: sql_query; seriler: TP.KREDI.KONUT"
 
 
 def test_ask_endpoint_rejects_blank_questions():
