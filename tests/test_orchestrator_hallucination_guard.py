@@ -221,3 +221,35 @@ def test_an_answer_with_no_code_shaped_text_is_never_touched(monkeypatch):
 
     assert answer == "Bu soruyla ilgili lakehouse'da veri bulunamadı."
     assert client.chat.completions.call_count == 1
+
+
+def test_a_code_fetched_live_this_run_is_not_treated_as_hallucinated(monkeypatch):
+    """Real bug found live: fetch_evds_series can pull a series code that
+    was never built into the static gold_fact_long catalog (it exists in
+    EVDS but was only fetched on demand this run) - find_hallucinated_codes
+    used to check ONLY the static catalog, so citing that freshly fetched
+    code in the final answer got wrongly flagged as "muhtemelen uydurulmuş"
+    even though the model had just gotten it from a real tool result."""
+    tool_call = _FakeToolCall(
+        "fetch_evds_series",
+        '{"datagroup": "bie_kt210a", "seri_kod": "TP.BKR.TRY.KTF10", '
+        '"start_period": "2024-09", "end_period": "2026-08"}',
+    )
+    client = _install(
+        monkeypatch,
+        messages=[
+            _FakeMessage(content=None, tool_calls=[tool_call]),
+            _FakeMessage(content="TP.BKR.TRY.KTF10'a göre ihtiyaç kredisi faizi %45.2."),
+        ],
+        valid_codes={"TP.BKR.TRY.18"},  # the live-fetched code is NOT in the static catalog
+    )
+    monkeypatch.setattr(
+        orchestrator, "execute_tool",
+        lambda name, args: '{"seri_kod": "TP.BKR.TRY.KTF10", "rows": [{"Period": "2026-06", "Value": 45.2}]}',
+    )
+
+    answer = orchestrator.ask("test sorusu")
+
+    assert answer == "TP.BKR.TRY.KTF10'a göre ihtiyaç kredisi faizi %45.2."
+    assert not answer.startswith("⚠️")
+    assert client.chat.completions.call_count == 2  # tool round + final answer, no correction round spent

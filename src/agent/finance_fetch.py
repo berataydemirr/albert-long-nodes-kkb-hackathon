@@ -75,7 +75,23 @@ def _closest_rows(frame, needle: str, limit: int = 20):
 
 def search_evds_series(query: str = "", datagroup: str | None = None) -> dict:
     client = _get_client()
-    frame = client.get_series(datagroup) if datagroup else client.get_sub_categories()
+    try:
+        frame = client.get_series(datagroup) if datagroup else client.get_sub_categories()
+    except KeyError:
+        # The evds package indexes the response with a fixed column list
+        # (SERIE_CODE/SERIE_NAME/START_DATE) and raises a raw KeyError
+        # instead of a clear error when `datagroup` is not a real
+        # DATAGROUP_CODE - confirmed live: the model guessed "BKR" (a
+        # SERIE_CODE prefix, not a datagroup code) and this propagated as
+        # an opaque tool_error with a pandas traceback. Turn it into a
+        # helpful result that points back at the real discovery flow
+        # instead of a crash the model has no way to act on.
+        raise ValueError(
+            f"datagroup={datagroup!r} geçerli bir EVDS DATAGROUP_CODE değil (SERIE_CODE öneki "
+            f"'BKR' gibi bir şeyle karıştırılmış olabilir). Önce search_evds_series'i datagroup "
+            f"OLMADAN çağır (get_sub_categories) - gerçek DATAGROUP_CODE değerleri (ör. "
+            f"'bie_kt210a') sonuçta görünür; sonra o kodla tekrar dene."
+        ) from None
     fuzzy = False
     if query:
         needle = _fold(query)

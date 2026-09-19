@@ -425,6 +425,42 @@ def _valid_codes_for_check() -> set[str]:
         return set()
 
 
+# Fields that carry a real series code in a tool's own JSON output, across
+# every tool that can return one (fetch_evds_series' "seri_kod", its
+# "metadata"/EVDS catalog rows' "SERIE_CODE", search results' "SERIE_CODE").
+_CODE_FIELDS = ("seri_kod", "SERIE_CODE", "Seri_Kod")
+
+
+def _codes_seen_in_trace(trace: list[dict]) -> set[str]:
+    """Series codes that genuinely appeared in a real tool result THIS run
+    (e.g. a live EVDS fetch via fetch_evds_series) - confirmed live: a
+    freshly fetched EVDS code like TP.BKR.TRY.KTF10 is not in the static
+    gold_fact_long catalog _valid_codes_for_check() checks by default (it
+    was never built into the lakehouse, only fetched on demand), so
+    find_hallucinated_codes flagged it as "muhtemelen uydurulmuş" even
+    though the model had just gotten it from a real tool call two rounds
+    earlier. Only scans successful tool outputs, never message text, so
+    this cannot be used to smuggle in an actually-invented code."""
+    codes: set[str] = set()
+
+    def _walk(node) -> None:
+        if isinstance(node, dict):
+            for key in _CODE_FIELDS:
+                value = node.get(key)
+                if isinstance(value, str) and value:
+                    codes.add(value)
+            for value in node.values():
+                _walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                _walk(item)
+
+    for entry in trace:
+        if not entry.get("error"):
+            _walk(entry.get("output_json"))
+    return codes
+
+
 RETRYABLE_ERRORS = (openai.RateLimitError, openai.APIConnectionError, openai.APITimeoutError, openai.InternalServerError)
 
 
@@ -1200,7 +1236,7 @@ def ask(question: str, history: list[dict] | None = None, history_digest: str | 
             if not message.content:
                 return _finish("Model boş yanıt döndürdü.")
             content = message.content
-            hallucinated = find_hallucinated_codes(content, _valid_codes_for_check())
+            hallucinated = find_hallucinated_codes(content, _valid_codes_for_check() | _codes_seen_in_trace(trace))
             if hallucinated and not hallucination_retry_used:
                 hallucination_retry_used = True
                 logger.warning(
@@ -1373,7 +1409,7 @@ def ask(question: str, history: list[dict] | None = None, history_digest: str | 
         })
         content = response.choices[0].message.content
         if content:
-            hallucinated = find_hallucinated_codes(content, _valid_codes_for_check())
+            hallucinated = find_hallucinated_codes(content, _valid_codes_for_check() | _codes_seen_in_trace(trace))
             if hallucinated:
                 logger.error(
                     f"ask: forced final answer cites unknown Seri_Kod(s) {sorted(hallucinated)}; "

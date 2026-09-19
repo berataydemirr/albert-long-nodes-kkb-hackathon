@@ -21,6 +21,20 @@ def _catalog_frame():
     })
 
 
+def test_invalid_datagroup_code_raises_a_helpful_error_not_a_raw_keyerror(monkeypatch):
+    """Real bug found live: the evds package raises a bare KeyError with a
+    pandas traceback when `datagroup` isn't a real DATAGROUP_CODE (the
+    model had guessed "BKR", a SERIE_CODE prefix, as a datagroup code) -
+    the model had no way to act on that. It must now surface as a
+    ValueError with guidance back to the real discovery flow."""
+    class Client:
+        def get_series(self, group):
+            raise KeyError("None of [Index(['SERIE_CODE', 'SERIE_NAME', 'START_DATE'])] are in the [columns]")
+    monkeypatch.setattr(finance_fetch, "_get_client", Client)
+    with pytest.raises(ValueError, match="DATAGROUP_CODE"):
+        finance_fetch.search_evds_series("ihtiyaç kredisi", datagroup="BKR")
+
+
 def test_exact_substring_match_is_not_marked_fuzzy(monkeypatch):
     class Client:
         def get_series(self, group):
