@@ -180,3 +180,22 @@ def test_discovery_effort_never_drags_down_a_real_analysis():
 
     assert decision.settings.reasoning_effort != "none", \
         "a real analysis in the same question must not inherit discovery's zero-reasoning budget"
+
+
+def test_elasticity_and_contraction_wording_routes_to_analysis():
+    """Real repro found live: this exact question matched no existing
+    analysis signal (no "azal/dus/trend/risk" stem covers "daral"), fell
+    to LOCAL_ANALYTICS's 4-round/low-effort defaults, ran out of rounds
+    before fetching TUFE, and shipped an approximate real-terms figure
+    with a visible caveat instead of the precise computation every other
+    tested scenario got (560.9s total)."""
+    decision = route_question(
+        "Politika faizinin %9'dan %50'ye çıktığı 2023-2024 döneminde konut ve taşıt kredilerinin "
+        "reel daralma hızlarını karşılaştır; hangisinin faize daha duyarlı (elastik) olduğunu "
+        "verilerle ispatla.",
+        TOOL_SCHEMAS,
+    )
+
+    assert decision.route is Route.ANALYSIS
+    assert decision.settings.reasoning_effort == "medium"
+    assert decision.settings.max_rounds == 8

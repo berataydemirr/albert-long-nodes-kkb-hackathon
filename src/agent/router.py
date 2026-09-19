@@ -166,6 +166,16 @@ _ANALYSIS_PATTERNS = (
     r"\b(anomal\w*|aykiri\w*|outlier\w*|sapma\w*|degisim\w*|change_detection|threshold\w*|esik\w*|arasindayken)\b",
     r"\b(trend\w*|art(ti|mis|is)\w*|azal\w*|dus(tu|mus|us)\w*|nasil gitmis|nasil degisti|buyume\w*|buyumus|buyuyen|risk\w*)\b",
     r"\b(once|sonra|ardindan|ayrica)\b.{0,160}\b(sonra|ardindan|ayrica|son olarak)\b",
+    # Found live via a real repro: "reel daralma hizlarini karsilastir...
+    # hangisinin faize daha duyarli (elastik) oldugunu ispatla" matched NO
+    # existing pattern (no "azal/dus/trend/risk" stem covers "daral"), so
+    # it fell through to LOCAL_ANALYTICS's 4-round/low-effort defaults - a
+    # multi-series real-vs-nominal comparison needs ANALYSIS's budget. The
+    # under-provisioned run measured live: 560.9s, ran out of rounds
+    # before fetching TUFE, and had to ship an approximate/estimated real
+    # figure with a visible caveat instead of the precise SQL computation
+    # every other tested scenario got.
+    r"\b(daral\w*|elastik\w*|duyarli\w*|duyarl[ıi]l[ıi]k\w*)\b",
 )
 # Broad catalog discovery ("tüm/bütün X'i bul", "sınıflandır"). These used
 # to be folded into _ANALYSIS_PATTERNS, which was measurably the WRONG
