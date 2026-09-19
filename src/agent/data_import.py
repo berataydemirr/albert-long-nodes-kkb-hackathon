@@ -810,11 +810,17 @@ def search_tuik_dataflows(query: str, limit: int = 10) -> dict:
     from src.collectors.tuik import search_dataflows
 
     matches = search_dataflows(query, limit=limit)
+    fuzzy = bool(matches) and all(m.get("fuzzy") for m in matches)
     result = {
         "query": query,
         "match_count": len(matches),
-        "matches": [{"dataflow_id": m["dataflow_id"], "version": m["version"], "name_tr": m["name_tr"], "name_en": m["name_en"]} for m in matches],
+        "fuzzy_match": fuzzy,
+        "matches": [{"dataflow_id": m["dataflow_id"], "version": m["version"], "name_tr": m["name_tr"],
+                     "name_en": m["name_en"], "fuzzy": m.get("fuzzy", False)} for m in matches],
         "note": (
+            ("Tam eşleşme bulunamadı; bunlar harf benzerliğine göre en yakın adaylardır (YAKLAŞIK "
+             "eşleşme) - kullanmadan önce name_tr/name_en'i oku ve gerçekten istenen kavramı "
+             "karşılıyor mu değerlendir. " if fuzzy else "") +
             "Metadata search only - none of this data has been fetched. A dataflow_id here cannot be "
             "passed to refresh_tuik_series directly; that tool only works for the series already "
             "registered in config/tuik_series.py, because turning a dataflow_id into a fetchable "
@@ -822,7 +828,7 @@ def search_tuik_dataflows(query: str, limit: int = 10) -> dict:
             "codelists by hand - guessing risks a real but wrong series being reported as correct."
         ),
     }
-    logger.info(f"search_tuik_dataflows: query={query!r} -> {len(matches)} match(es)")
+    logger.info(f"search_tuik_dataflows: query={query!r} -> {len(matches)} match(es), fuzzy={fuzzy}")
     return result
 
 

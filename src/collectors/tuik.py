@@ -20,6 +20,7 @@ Usage (from the repo root):
     python -m src.collectors.tuik
     python -m src.collectors.tuik --force
 """
+import difflib
 import re
 import argparse
 import xml.etree.ElementTree as ET
@@ -159,6 +160,11 @@ def _tr_casefold(s: str) -> str:
     return s.translate(_TR_CASEFOLD_MAP).lower()
 
 
+# Word-level similarity floor for the fuzzy fallback below - same
+# calibration and reasoning as finance_fetch.py's EVDS search fallback.
+_FUZZY_FLOOR = 0.6
+
+
 def search_dataflows(query: str, limit: int = 10) -> list[dict]:
     """Case-insensitive (Turkish-aware) substring match against every
     dataflow's Turkish AND English name - discovery only. A match here is
@@ -169,16 +175,41 @@ def search_dataflows(query: str, limit: int = 10) -> list[dict]:
     because the key could not be confirmed). Finding a matching
     dataflow_id does NOT mean the series can be fetched: fetch_series
     still needs a resolved 'key' that only a human, reading that
-    dataflow's own DSD codelists, can produce safely."""
+    dataflow's own DSD codelists, can produce safely.
+
+    Falls back to per-word letter-similarity when the exact substring
+    search finds nothing (same real failure mode as EVDS's search: a
+    query phrased slightly differently than TUIK's own naming returns 0
+    rows even though a close dataflow exists) - each returned dict carries
+    its own "fuzzy" flag so a fuzzy result is never confused with an
+    exact one."""
     if not query or not isinstance(query, str):
         raise ValueError("query must be a non-empty string.")
     q = _tr_casefold(query.strip())
-    matches = [
-        d for d in list_dataflows()
+    dataflows = list_dataflows()
+    exact = [
+        d for d in dataflows
         if q in _tr_casefold(d["name_tr"]) or q in _tr_casefold(d["name_en"]) or q in _tr_casefold(d["dataflow_id"])
     ]
-    logger.info(f"search_dataflows: query={query!r} -> {len(matches)} match(es), returning up to {limit}")
-    return matches[:limit]
+    if exact:
+        logger.info(f"search_dataflows: query={query!r} -> {len(exact)} exact match(es), returning up to {limit}")
+        return [{**d, "fuzzy": False} for d in exact[:limit]]
+
+    needle_words = q.split()
+
+    def score(d: dict) -> float:
+        text_words = _tr_casefold(f"{d['name_tr']} {d['name_en']}").split()
+        if not text_words or not needle_words:
+            return 0.0
+        return sum(
+            max((difflib.SequenceMatcher(None, w, tw).ratio() for tw in text_words), default=0.0)
+            for w in needle_words
+        ) / len(needle_words)
+
+    scored = sorted(((score(d), d) for d in dataflows), key=lambda pair: pair[0], reverse=True)
+    fuzzy_matches = [d for s, d in scored if s >= _FUZZY_FLOOR][:limit]
+    logger.info(f"search_dataflows: query={query!r} -> 0 exact match(es), {len(fuzzy_matches)} fuzzy candidate(s)")
+    return [{**d, "fuzzy": True} for d in fuzzy_matches]
 
 
 def parse_args():

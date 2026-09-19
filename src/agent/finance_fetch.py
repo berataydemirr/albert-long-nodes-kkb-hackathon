@@ -1,4 +1,5 @@
 """Fetch source data into versioned DuckDB tables; never import a preview."""
+import difflib
 import hashlib
 import json
 import re
@@ -34,18 +35,67 @@ def import_url_dataset(url: str, sheet: str | None = None) -> dict:
             "content_trust": "untrusted_remote_content"}
 
 
+def _fold(value) -> str:
+    return str(value).casefold().replace("i̇", "i").translate(str.maketrans("çğıöşü", "cgiosu"))
+
+
+# Word-level similarity threshold for the fuzzy fallback below - below this,
+# a row is unrelated noise rather than a plausible near-miss (calibrated by
+# hand against real EVDS catalog rows: "ihtiyaç kredisi" vs "İhtiyaç
+# Kredisi Faiz Oranı" scores ~0.9 per word; unrelated rows score <0.3).
+_FUZZY_FLOOR = 0.6
+
+
+def _closest_rows(frame, needle: str, limit: int = 20):
+    """Falls back to per-word letter-similarity when the exact substring
+    search finds nothing - confirmed live: "ihtiyaç kredisi faiz oranı"
+    returned 0 rows even though EVDS has a close series, purely because
+    its own naming doesn't contain that exact phrase as a substring.
+    Scored per query-word against the best-matching word anywhere in the
+    row (not the whole joined row against the whole query) so word order
+    and extra words in either side don't tank the score the way a
+    whole-string ratio would."""
+    needle_words = needle.split()
+    if not needle_words:
+        return frame.iloc[0:0]
+
+    def row_score(row) -> float:
+        text_words = _fold(" ".join(map(str, row))).split()
+        if not text_words:
+            return 0.0
+        return sum(
+            max((difflib.SequenceMatcher(None, w, tw).ratio() for tw in text_words), default=0.0)
+            for w in needle_words
+        ) / len(needle_words)
+
+    scores = frame.apply(row_score, axis=1)
+    ranked = scores[scores >= _FUZZY_FLOOR].sort_values(ascending=False)
+    return frame.loc[ranked.index[:limit]]
+
+
 def search_evds_series(query: str = "", datagroup: str | None = None) -> dict:
     client = _get_client()
     frame = client.get_series(datagroup) if datagroup else client.get_sub_categories()
+    fuzzy = False
     if query:
-        def fold(value):
-            return str(value).casefold().replace("i̇", "i").translate(str.maketrans("çğıöşü", "cgiosu"))
-        needle = fold(query)
-        frame = frame[frame.apply(lambda row: needle in fold(" ".join(map(str, row))), axis=1)]
+        needle = _fold(query)
+        exact = frame[frame.apply(lambda row: needle in _fold(" ".join(map(str, row))), axis=1)]
+        if not exact.empty:
+            frame = exact
+        else:
+            frame = _closest_rows(frame, needle)
+            fuzzy = True
     rows = json.loads(frame.head(60).to_json(orient="records", force_ascii=False))
+    next_step = (
+        "Tam eşleşme bulunamadı; bunlar harf benzerliğine göre en yakın adaylardır (YAKLAŞIK "
+        "eşleşme) - kullanmadan önce SERIE_NAME'i oku ve gerçekten istenen kavramı karşılıyor mu "
+        "değerlendir, sonra fetch_evds_series ile doğrula."
+        if fuzzy else
+        "DATAGROUP_CODE ile tekrar ara; yalnızca doğrulanmış SERIE_CODE ile fetch_evds_series çağır."
+    )
     return {"source_url": "https://evds2.tcmb.gov.tr/", "rows": rows,
             "row_count": len(rows), "truncated": len(frame) > 60,
-            "next_step": "DATAGROUP_CODE ile tekrar ara; yalnızca doğrulanmış SERIE_CODE ile fetch_evds_series çağır."}
+            "fuzzy_match": fuzzy, "next_step": next_step}
 
 
 def fetch_evds_series(datagroup: str, seri_kod: str, start_period: str,
