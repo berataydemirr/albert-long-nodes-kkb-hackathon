@@ -660,17 +660,20 @@ const TAG_BY_NAME = {
 
 // The tag names match TAG_BY_NAME above, so the label on a suggestion and
 // the label on the tool it ends up calling read as the same vocabulary.
-// Five mentor-caliber questions, each exercising a different capability
-// (autonomous series selection, discovery/classification, URL import,
-// anomaly/fragility testing, regional cross-source analysis) rather than
-// one example per tool family - these are meant to read like a real
-// jury/mentor question, not a feature-list demo.
+// Mentor-caliber questions, each exercising a different capability
+// (discovery/classification, URL import, anomaly/fragility testing,
+// real-vs-nominal elasticity, a break-point search, regional cross-source
+// analysis) - meant to read like a real jury/mentor question, not a
+// feature-list demo. Clicking one fills the composer; it never sends on
+// its own (see `use` above) - the URL example in particular has a
+// bracketed placeholder that must be replaced first.
 const EXAMPLES = [
-  { tag: 'Analysis', label: "2022-2024 döneminde Türkiye'de bireylerin borçlanma davranışında dikkat çekici bir değişim olup olmadığını araştır. Sadece BDDK ve TCMB lakehouse verilerini kullan. Hangi serileri kullanacağına sen karar ver ve nedenlerini açıkla." },
   { tag: 'Data', label: "Lakehouse'ta hanehalkının kredi kullanımını açıklamak için kullanabileceğim bütün BDDK ve TCMB göstergelerini bul. Henüz analiz yapma. Göstergeleri konu, frekans, birim ve kaynak açısından sınıflandır." },
-  { tag: 'Web', label: "Paylaştığım CSV/Excel bağlantısındaki veriyi lakehouse'a aktar, aynı dönemin ilgili BDDK/TCMB serisiyle birleştir ve karşılaştır." },
-  { tag: 'Analysis', label: "Bankacılık sektöründe likidite veya sermaye yeterliliği açısından bir kırılganlık belirtisi var mı? Anomali testiyle ortaya çıkar, varsa hangi dönemde ve hangi göstergede olduğunu göster." },
-  { tag: 'Regional', label: "Takipteki alacak oranının en hızlı arttığı 5 ili belirle. Bu illerde kredi hacmi gerçekten daraldı mı - nominal ve enflasyondan arındırılmış (reel) rakamlarla ispatla." }
+  { tag: 'Web', label: "[CSV/Excel bağlantısını buraya yapıştırın] — bu veriyi lakehouse'a aktar, aynı dönemin ilgili BDDK/TCMB serisiyle birleştir ve karşılaştır." },
+  { tag: 'Analysis', label: "Sermaye yeterliliği rasyosunda 2021-2026 arasında istatistiksel olarak anormal sayılacak bir düşüş dönemi var mı? Anomali testiyle tespit et; varsa hangi ayda ve ne büyüklükte olduğunu rakamlarla göster." },
+  { tag: 'Analysis', label: "Politika faizinin %9'dan %50'ye çıktığı 2023-2024 döneminde konut ve taşıt kredilerinin reel daralma hızlarını karşılaştır; hangisinin faize daha duyarlı (elastik) olduğunu verilerle ispatla." },
+  { tag: 'Analysis', label: "2022-2024 arası Toplam Kredi ve Mevduat verileriyle Kredi/Mevduat Oranı'nı (KMO) hesapla; sıkılaşma sürecinde bu oranın en keskin düşüş yaşadığı ayı tespit et." },
+  { tag: 'Regional', label: "En yüksek riskli illerdeki takipteki alacaklar (NPL) tırmanışının bireysel kredilerde mi yoksa ticari/KOBİ kollarında mı daha baskın olduğunu sektörel ayrışmayla ispatla." }
 ];
 
 // Fixed categorical hue per tag - never cycled, never reused between tags -
@@ -1953,7 +1956,11 @@ class Component extends DCLogic {
         label: ex.label, tag: ex.tag,
         tagFg: (TAG_COLOR[ex.tag] || {}).fg || 'var(--accent)',
         tagBg: (TAG_COLOR[ex.tag] || {}).bg || 'var(--bg-grad)',
-        use: () => this.send(ex.label)
+        // Fills the composer, does NOT send - a real URL/CSV example
+        // cannot be sent as-is (it has a bracketed placeholder the user
+        // must replace first), and even a self-contained example should
+        // give the user a chance to read/edit before it goes out.
+        use: () => this.setState({ input: ex.label, focused: true })
       })),
       messages,
       thinking,
