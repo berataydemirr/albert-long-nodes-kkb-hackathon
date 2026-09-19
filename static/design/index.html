@@ -330,7 +330,7 @@ textarea:focus-visible { outline: none; }
           <span class="premium-dots is-live" style="--orb-size:56px; display:block; margin:0 0 22px 32px;"><i class="dots-glow"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i></span>
           <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); margin-bottom:12px;">BDDK · EVDS · TUIK</div>
           <h1 style="margin:0 0 10px; font-size:34px; font-weight:500; letter-spacing:-.035em; line-height:1.12; color:var(--ink);">Lakehouse'a ne sormak istersin?</h1>
-          <p style="margin:0 0 26px; font-size:15px; line-height:1.6; color:var(--muted); max-width:52ch;">Veriyi getir → aynı dönemi birleştir → sonucu hesapla. CSV ve Excel yükleyebilir veya indirme bağlantısı paylaşabilirsin. Önceki soruların veri sonuçları sonraki analizlerde korunur.</p>
+          <p style="margin:0 0 26px; font-size:15px; line-height:1.6; color:var(--muted); max-width:52ch;">Lakehouse'daki BDDK/TCMB/TÜİK verilerini sorgular, canlı web ve dosya kaynaklarıyla birleştirir, istatistiksel analiz ve karşılaştırma üretir.</p>
 
           <div style="display:flex; flex-wrap:wrap; gap:8px;">
             <sc-for list="{{ examples }}" as="ex" hint-placeholder-count="12">
@@ -660,19 +660,17 @@ const TAG_BY_NAME = {
 
 // The tag names match TAG_BY_NAME above, so the label on a suggestion and
 // the label on the tool it ends up calling read as the same vocabulary.
-// One example per tool family (Data/Analysis/Regional/Market/TUIK/Web) -
-// kept to exactly one each so the starter row stays scannable rather than
-// a long wall of near-duplicate questions.
+// Five mentor-caliber questions, each exercising a different capability
+// (autonomous series selection, discovery/classification, URL import,
+// anomaly/fragility testing, regional cross-source analysis) rather than
+// one example per tool family - these are meant to read like a real
+// jury/mentor question, not a feature-list demo.
 const EXAMPLES = [
-  { tag: 'Data', label: 'TCMB EVDS üzerinden son iki yılın aylık ihtiyaç kredisi faiz oranlarını çek ve listele.' },
-  { tag: 'Web', label: 'Şimdi aynı zaman dilimi için aylık enflasyon verilerini web üzerinden sisteme getir.' },
-  { tag: 'Analysis', label: 'İlk sorudaki ihtiyaç kredisi faizleri ile enflasyonu aylara göre birleştir ve korelasyonu hesapla.' },
-  { tag: 'Data',     label: "Lakehouse'daki tabloları ve serileri listele." },
-  { tag: 'Analysis', label: 'Konut kredisi faizindeki aykırı dönemleri bul.' },
-  { tag: 'Regional', label: 'Kredi hacmine göre en yüksek 10 ili sırala.' },
-  { tag: 'Market',   label: "AKBNK hissesinin son 6 aylık fiyatını getir." },
-  { tag: 'TUIK',     label: "TUIK'in enflasyon veri setlerini ara." },
-  { tag: 'Web',      label: "TCMB'nin güncel politika faizini web'de ara." }
+  { tag: 'Analysis', label: "2022-2024 döneminde Türkiye'de bireylerin borçlanma davranışında dikkat çekici bir değişim olup olmadığını araştır. Sadece BDDK ve TCMB lakehouse verilerini kullan. Hangi serileri kullanacağına sen karar ver ve nedenlerini açıkla." },
+  { tag: 'Data', label: "Lakehouse'ta hanehalkının kredi kullanımını açıklamak için kullanabileceğim bütün BDDK ve TCMB göstergelerini bul. Henüz analiz yapma. Göstergeleri konu, frekans, birim ve kaynak açısından sınıflandır." },
+  { tag: 'Web', label: "Paylaştığım CSV/Excel bağlantısındaki veriyi lakehouse'a aktar, aynı dönemin ilgili BDDK/TCMB serisiyle birleştir ve karşılaştır." },
+  { tag: 'Analysis', label: "Bankacılık sektöründe likidite veya sermaye yeterliliği açısından bir kırılganlık belirtisi var mı? Anomali testiyle ortaya çıkar, varsa hangi dönemde ve hangi göstergede olduğunu göster." },
+  { tag: 'Regional', label: "Takipteki alacak oranının en hızlı arttığı 5 ili belirle. Bu illerde kredi hacmi gerçekten daraldı mı - nominal ve enflasyondan arındırılmış (reel) rakamlarla ispatla." }
 ];
 
 // Fixed categorical hue per tag - never cycled, never reused between tags -
