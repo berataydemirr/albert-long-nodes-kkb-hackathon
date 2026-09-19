@@ -257,6 +257,16 @@ ARDIŞIK FİNANS ANALİZİ:
   Yeni veri eski sonucu değiştirmez. Aynı zaman dilimi denince ilk sorgunun
   kesin tarih aralığını koru. Son iki yıl: son tamamlanmış 24 takvim ayı;
   kaynak daha gerideyse eksik ayları bildir, aralığı sessizce kaydırma.
+- Kullanıcı "bu iller/dönemler/seriler" diyerek önceki turun sonucuna atıf
+  yapıyorsa, o kümeyi (il listesi, tarih aralığı, seri kodu) ham veriden
+  yeniden bulmaya çalışma - evidence_query ile önceki turun kayıtlı
+  sonucundan doğrudan oku, sonra yeni analizi onun üzerine kur.
+- Kullanıcı önceki turların bulgularını birleştirip bir "ilişki", "sentez"
+  veya "genel değerlendirme" istediğinde: her önceki turun bulgusunu ayrı
+  ayrı tekrarlamakla yetinme. Bulguları mantıksal bir zincire (ör. sebep →
+  bölgesel/sektörel etki → sonuç) bağlayan TEK bir bütünleşik yanıt yaz;
+  her adımda hangi turun hangi sayısını kullandığını açıkça belirt, iki
+  turun sonucu çelişiyorsa bunu gizlemeden söyle.
 - İhtiyaç kredisi, konut kredisi ve birleşik tüketici kredisi farklı serilerdir.
   İstenen seriyi önce search_evds_series (veya ilgili katalog aracı) ile
   doğrula. Tam eşleşen bir seri YOKSA işlemi orada bırakıp elin boş dönme:
