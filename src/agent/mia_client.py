@@ -23,12 +23,24 @@ _client = None
 # minutes end to end rather than cutting a real tool call short and
 # risking a rushed or unsupported answer.
 REQUEST_TIMEOUT_SEC = 240
-# The OpenAI SDK's own retry only fires on connection-level failures; MIA
-# is a shared hackathon endpoint that can also return 429/5xx under load,
-# so orchestrator.py adds its own retry on top - keep the SDK's low so a
-# transient failure surfaces to that layer quickly instead of silently
-# eating tens of seconds inside the SDK first.
-SDK_MAX_RETRIES = 1
+# 0, not 1: this used to be 1 on the assumption that the SDK's own retry
+# "only fires on connection-level failures" - that assumption was wrong,
+# and finding out cost a live 1163s run. Read the SDK's own request()
+# source (openai._base_client.SyncAPIClient.request): it catches
+# httpx's timeout exceptions directly (`except timeout_exceptions()`) and
+# retries internally BEFORE ever raising APITimeoutError to our code -
+# max_retries=1 means every one of orchestrator.py's own outer attempts
+# could silently become 2 real HTTP attempts, EACH allowed to run the
+# full configured timeout. That is exactly what was observed live: a
+# round whose deadline-aware timeout should have capped it at ~563s
+# instead ran ~1127s (2.00x) before _call_model's own except block ever
+# saw the exception - the SDK had quietly retried once underneath it,
+# doubling the wait with no log line to show it happened.
+# orchestrator._call_model already owns retry/backoff/deadline for this
+# endpoint end to end; a second, invisible retry layer underneath it
+# only defeats that budget, it never improves it. 0 makes the SDK raise
+# on the first real failure, so _call_model's own accounting is accurate.
+SDK_MAX_RETRIES = 0
 
 
 def get_client() -> OpenAI:
