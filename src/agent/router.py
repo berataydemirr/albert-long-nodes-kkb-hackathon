@@ -91,11 +91,18 @@ ROUTE_SETTINGS: dict[Route, RouteSettings] = {
     # effort "none" is measured, not guessed: on one identical request
     # none=23.6s/0 reasoning tokens vs medium=143.1s/1060, and the answer
     # here is a re-presentation of a catalog the prompt already carries.
+    # 8 rounds, not 4: with effort "none" a round on this route measured
+    # 4.7-16.8s end to end, where a medium-effort round measured 118-244s.
+    # The old budget of 4 was calibrated for rounds that cost minutes; once
+    # a round is ~10s, refusing an 8th one buys nothing and a live run hit
+    # the limit mid-exploration with the answer unwritten.
     Route.DISCOVERY: RouteSettings(
         "ROTA: katalog/keşif. İstenen liste zaten sistem talimatındaki katalogda var - "
         "onu oku ve doğrudan yaz. Keşif amaçlı SELECT DISTINCT sorgusu ÇALIŞTIRMA. "
-        "Bir tablonun kolon yapısı gerekiyorsa lakehouse_schema'yı konu parametresiyle çağır.",
-        "none", 4),
+        "Bir tablonun kolon yapısı gerekiyorsa lakehouse_schema'yı konu parametresiyle çağır. "
+        "Cevabı TEK bir markdown tablosu olarak ver (satır başına bir gösterge, kolonlar: "
+        "Gösterge | Konu | Frekans | Birim | Kaynak); gösterge başına paragraf yazma.",
+        "none", 8),
     Route.ANALYSIS: RouteSettings(
         "ROTA: analiz. Serileri seri_kod ile analiz araçlarına ver; adımları sırayla tamamla.", "medium", 8),
     Route.REGIONAL: RouteSettings(
