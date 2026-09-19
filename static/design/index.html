@@ -415,7 +415,7 @@ textarea:focus-visible { outline: none; }
             <span>{{ uploadLabel }}</span>
           </sc-if>
         </button>
-        <textarea rows="1" placeholder="Seriler, anomaliler veya güncel oranlar hakkında sor…" value="{{ input }}" onChange="{{ setInput }}" onKeyDown="{{ handleKeyDown }}" onFocus="{{ onFocus }}" onBlur="{{ onBlur }}" style="flex:1; background:none; border:0; outline:none; resize:none; color:var(--ink); font-size:15px; font-weight:400; line-height:1.6; min-height:26px; max-height:180px; padding:6px 6px;"></textarea>
+        <textarea rows="{{ composerRows }}" placeholder="Seriler, anomaliler veya güncel oranlar hakkında sor…" value="{{ input }}" onChange="{{ setInput }}" onKeyDown="{{ handleKeyDown }}" onFocus="{{ onFocus }}" onBlur="{{ onBlur }}" style="flex:1; background:none; border:0; outline:none; resize:none; color:var(--ink); font-size:15px; font-weight:400; line-height:1.6; min-height:26px; max-height:180px; padding:6px 6px;"></textarea>
         <button onClick="{{ send }}" disabled="{{ sendDisabled }}" style="flex:none; width:38px; height:38px; border-radius:11px; border:0; background:{{ sendBg }}; color:var(--on-accent); font-size:16px; cursor:{{ sendCursor }}; display:flex; align-items:center; justify-content:center; transition:all .2s ease;" style-hover="filter:brightness(1.08);">↑</button>
       </div>
       <div style="display:flex; justify-content:space-between; gap:12px; margin-top:9px; padding:0 4px;">
@@ -1976,6 +1976,15 @@ class Component extends DCLogic {
       composerBorder: s.focused ? 'rgba(var(--accent-rgb),.35)' : 'var(--border)',
       composerShadow: s.focused ? '0 0 0 3px rgba(var(--accent-rgb),.08)' : 'none',
       charLabel: `${s.input.length}/2000`,
+      // Recomputed on every render from the current input, not driven by
+      // a ref/scrollHeight timing trick - so it grows correctly whether
+      // the text arrived from typing OR was set programmatically (an
+      // example chip click), which a resize-on-keystroke handler would
+      // have missed entirely. ~70 chars/row matches this composer's
+      // width/font at 15px; capped at 7 rows to match the existing
+      // max-height:180px (line-height 1.6 * 15px ≈ 24px/row).
+      composerRows: Math.min(7, Math.max(1, (s.input || '').split('\n').reduce(
+        (sum, line) => sum + Math.max(1, Math.ceil(line.length / 70)), 0))),
       overlayOpen: !!s.drawer,
       drawerTransform: s.drawer ? 'translateX(0)' : 'translateX(103%)',
       closeDrawer: this.closeDrawer,
