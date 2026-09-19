@@ -466,7 +466,8 @@ RETRYABLE_ERRORS = (openai.RateLimitError, openai.APIConnectionError, openai.API
 
 def _call_model(client, messages: list, tool_schemas: list[dict],
                 reasoning_effort: str | None = None,
-                timeout: float | None = None) -> "openai.types.chat.ChatCompletion":
+                timeout: float | None = None,
+                deadline: float | None = None) -> "openai.types.chat.ChatCompletion":
     """Model call with exponential backoff on transient errors. A 400
     (bad request - e.g. a malformed tool schema) is NOT retried, since
     retrying an malformed request just fails the same way 3 times slower;
@@ -478,10 +479,18 @@ def _call_model(client, messages: list, tool_schemas: list[dict],
     that rejects the parameter is retried once without it, so a model
     swap cannot take the agent down.
 
-    timeout shortens the client's per-request timeout so one slow call
-    cannot run far past the run deadline."""
-    if timeout is not None and hasattr(client, "with_options"):
-        client = client.with_options(timeout=timeout)
+    timeout is the FIRST attempt's per-request timeout. deadline (an
+    absolute time.monotonic() value, i.e. ask()'s own run deadline) bounds
+    every attempt after that: real incident found live - a broad,
+    catalog-wide question hit an MIA endpoint that was slow/overloaded,
+    and this function retried 3 times at ~timeout seconds each (the SAME
+    ~298s timeout reused unchanged on every attempt, since it was set
+    once via with_options() before the loop) plus backoff, taking ~12-13
+    minutes total against a nominal 5-minute AGENT_RUN_DEADLINE_SEC - the
+    deadline existed but nothing inside this retry loop ever checked it.
+    Recomputing the per-attempt timeout from the remaining deadline (and
+    refusing to start a new attempt once the deadline has passed) keeps
+    the actual worst case close to what AGENT_RUN_DEADLINE_SEC promises."""
     last_exc = None
     effort = MIA_REASONING_EFFORT if reasoning_effort is None else reasoning_effort
     extra = {"reasoning_effort": effort} if effort and effort != "default" else {}
@@ -492,8 +501,22 @@ def _call_model(client, messages: list, tool_schemas: list[dict],
     # completion with no tool-calling machinery involved at all.
     tool_kwargs = {"tools": tool_schemas, "tool_choice": "auto"} if tool_schemas else {}
     for attempt in range(1, MODEL_CALL_MAX_ATTEMPTS + 1):
+        attempt_timeout = timeout
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                logger.warning(
+                    f"_call_model: run deadline already passed before attempt {attempt}/{MODEL_CALL_MAX_ATTEMPTS}, "
+                    f"stopping retries instead of overshooting it"
+                )
+                raise last_exc if last_exc is not None else TimeoutError(
+                    "Run deadline reached before the model could be called."
+                )
+            attempt_timeout = remaining if timeout is None else min(timeout, remaining)
+        attempt_client = client.with_options(timeout=attempt_timeout) \
+            if attempt_timeout is not None and hasattr(client, "with_options") else client
         try:
-            return client.chat.completions.create(
+            return attempt_client.chat.completions.create(
                 model=MIA_CHAT_MODEL,
                 messages=messages,
                 temperature=0.1,
@@ -515,6 +538,9 @@ def _call_model(client, messages: list, tool_schemas: list[dict],
             wait = MODEL_CALL_BACKOFF_BASE_SEC * (2 ** (attempt - 1))
             logger.warning(f"_call_model: attempt {attempt}/{MODEL_CALL_MAX_ATTEMPTS} failed ({type(exc).__name__}: {exc}), retrying in {wait:.1f}s")
             if attempt < MODEL_CALL_MAX_ATTEMPTS:
+                if deadline is not None and time.monotonic() + wait >= deadline:
+                    logger.warning("_call_model: backoff wait would overshoot the run deadline, stopping retries")
+                    break
                 time.sleep(wait)
     logger.error(f"_call_model: all {MODEL_CALL_MAX_ATTEMPTS} attempts failed")
     raise last_exc
@@ -1132,7 +1158,7 @@ def ask(question: str, history: list[dict] | None = None, history_digest: str | 
         start_ms = _ms_since_start()
         t0 = time.monotonic()
         try:
-            response = _call_model(client, repair_messages, [], effort, _model_timeout())
+            response = _call_model(client, repair_messages, [], effort, _model_timeout(), deadline=deadline)
             repaired = response.choices[0].message.content
         except Exception:
             logger.exception("ask: grounding repair call failed, keeping the original answer")
@@ -1214,7 +1240,24 @@ def ask(question: str, history: list[dict] | None = None, history_digest: str | 
         _emit("llm", round=round_no)
         start_ms = _ms_since_start()
         t0 = time.monotonic()
-        response = _call_model(client, messages, [*routed_tool_schemas, REQUEST_TOOLS_SCHEMA], effort, _model_timeout())
+        try:
+            response = _call_model(client, messages, [*routed_tool_schemas, REQUEST_TOOLS_SCHEMA], effort,
+                                    _model_timeout(), deadline=deadline)
+        except RETRYABLE_ERRORS as exc:
+            # Real incident: this used to propagate straight out of ask()
+            # as a raw exception, surfacing to the user as a generic
+            # "Agent yanıt üretemedi" with no useful detail - even though
+            # the exact same "stopped early, summarize what you have"
+            # machinery below (the forced-closure path) already exists
+            # and already degrades gracefully. Routing a model-call
+            # failure into it instead of a bare raise means one real
+            # fallback path handles both "ran out of rounds/time" and
+            # "the model call itself kept failing", rather than the
+            # latter having no fallback at all.
+            stop_reason = "model_error"
+            logger.error(f"ask: round {round_no} model call failed after all retries "
+                         f"({type(exc).__name__}: {exc}); falling back to forced closure")
+            break
         elapsed = time.monotonic() - t0
         usage = getattr(response, "usage", None)
         logger.info(f"ask: round {round_no} model call took {elapsed:.2f}s, tokens={usage}")
@@ -1386,7 +1429,8 @@ def ask(question: str, history: list[dict] | None = None, history_digest: str | 
     # thrown all of that away. One more call, tools disabled so it cannot
     # extend the loop again, forces a text answer from what is already
     # gathered instead. The same applies when the wall-clock deadline hits.
-    limit_text = "Süre limitine" if stop_reason == "deadline" else "Tur limitine"
+    limit_text = {"deadline": "Süre limitine", "model_error": "Modele bağlanmada tekrarlanan bir hataya"}.get(
+        stop_reason, "Tur limitine")
     logger.warning(f"ask: stopped by {stop_reason} (max_rounds={max_rounds}) without a final answer, forcing one")
     messages.append({
         "role": "user",
@@ -1400,6 +1444,13 @@ def ask(question: str, history: list[dict] | None = None, history_digest: str | 
         _emit("llm", round=max_rounds + 1, forced=True)
         start_ms = _ms_since_start()
         t0 = time.monotonic()
+        # No deadline= here deliberately: this call's whole purpose is to
+        # try once more EVEN THOUGH the round/deadline budget is already
+        # spent (see the comment above) - passing the already-exhausted
+        # deadline would make _call_model refuse to even attempt it,
+        # defeating that intent. _model_timeout()'s own
+        # MODEL_CALL_MIN_TIMEOUT_SEC floor (30s) still bounds each retry
+        # here, so the worst case stays ~90s, not unbounded.
         response = _call_model(client, messages, [], effort, _model_timeout())
         elapsed = time.monotonic() - t0
         timeline.append({
@@ -1426,6 +1477,16 @@ def ask(question: str, history: list[dict] | None = None, history_digest: str | 
     # was actually gathered, built from the trace rather than the model.
     tool_names = ", ".join(sorted({t["name"] for t in trace})) or "hiçbiri"
     logger.error(f"ask: falling back to a manual summary; tools attempted: {tool_names}")
+    if stop_reason == "model_error":
+        # An honest, actionable message for the one case with nothing
+        # gathered to summarize (the very first model call already
+        # failing) - "Bu soru için N tur içinde..." would misleadingly
+        # imply a round-limit problem instead of what actually happened.
+        return _finish(
+            "Model şu anda yanıt vermiyor (bağlantı zaman aşımına uğradı, tekrar denendi ama "
+            "başarısız oldu). Bu, MIA endpoint'inin şu anda yoğun/erişilemez olduğu anlamına "
+            "gelir - sorunun kapsamıyla ilgisi yoktur. Birkaç dakika sonra aynı soruyu tekrar sorun."
+        )
     return _finish(
         f"Bu soru için {max_rounds} tur içinde tam bir cevap üretilemedi. "
         f"Denenen araçlar: {tool_names}. Soruyu daraltıp tekrar sormayı deneyin."
