@@ -1707,6 +1707,13 @@ class Component extends DCLogic {
           ...this.state.messages.filter(m => m.turnId).map(m => m.turnId)])].slice(-100) })
     })
       .then(data => {
+        // /api/ask always answers 200 now (see web_app.py's answer_question -
+        // it streams heartbeats over a long-running request, so the HTTP
+        // status is already sent before success/failure is known); a real
+        // agent-side failure rides in this "error" field instead and is
+        // thrown here so it lands in the same .catch() rendering below as
+        // any other failure.
+        if (data && data.error) throw new Error(data.error);
         this.pushAssistantTo(sessionId, {
           routeName: data.route ? data.route.name : 'agent',
           routeReason: data.route ? data.route.reason : '',

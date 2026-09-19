@@ -1,5 +1,6 @@
 """Local browser UI for exercising routing and function calling."""
 
+import json
 import re
 import hashlib
 import secrets
@@ -9,7 +10,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -252,11 +253,23 @@ async def upload_dataset(file: UploadFile = File(...), dataset_name: str | None 
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@app.post("/api/ask")
-def answer_question(request: AskRequest) -> dict:
-    question = request.question.strip()
-    if not question:
-        raise HTTPException(status_code=422, detail="Soru boş olamaz.")
+# A single silent multi-minute POST is exactly what a proxy/tunnel's
+# idle-connection timeout kills - confirmed live: the cloudflared quick
+# tunnel was truncating /api/ask around the 4-minute mark, which the
+# client then surfaced as "SyntaxError: not valid JSON" (see the comment
+# above requestJsonWithRetry's catch in static/design/index.html). Bytes
+# on the wire, not total duration, are what idle timeouts key off, so
+# answer_question streams a newline heartbeat every _ASK_HEARTBEAT_SEC
+# while the real work runs on a background thread, keeping the connection
+# classified as active for as long as the agent needs (comfortably past
+# the ~10 minute worst case in mia_client.REQUEST_TIMEOUT_SEC's own
+# comment). The HTTP status is always 200 because it is already sent by
+# the time a failure could be known; failures ride in the JSON body's
+# "error" field instead, and the client checks that field itself.
+_ASK_HEARTBEAT_SEC = 15
+
+
+def _run_ask(request: AskRequest, question: str) -> dict:
     history = [turn.model_dump(exclude_none=True) for turn in request.history]
     evidence_kwargs = {}
     if request.turn_ids:
@@ -318,3 +331,39 @@ def answer_question(request: AskRequest) -> dict:
         }
     except Exception as exc:
         raise HTTPException(status_code=502, detail="Agent yanıt üretemedi. Sunucu günlüklerini kontrol edin.") from exc
+
+
+@app.post("/api/ask")
+def answer_question(request: AskRequest) -> StreamingResponse:
+    # Cheap, purely local validation stays a real synchronous HTTPException -
+    # no background thread or streaming needed for a request that fails
+    # before any agent work would even start.
+    question = request.question.strip()
+    if not question:
+        raise HTTPException(status_code=422, detail="Soru boş olamaz.")
+
+    box: dict = {}
+
+    def worker():
+        try:
+            box["payload"] = _run_ask(request, question)
+        except HTTPException as exc:
+            box["error"] = exc.detail
+        except Exception as exc:
+            logger.error(f"answer_question: unhandled error in worker thread: {exc}", exc_info=True)
+            box["error"] = "Agent yanıt üretemedi. Sunucu günlüklerini kontrol edin."
+
+    def generate():
+        thread = threading.Thread(target=worker, daemon=True)
+        thread.start()
+        while thread.is_alive():
+            thread.join(timeout=_ASK_HEARTBEAT_SEC)
+            if thread.is_alive():
+                yield b"\n"  # heartbeat - keeps the connection from looking idle
+        # Valid JSON permits insignificant whitespace before the value, so
+        # the heartbeats already written do not corrupt the body - the
+        # client's response.json() parses this exactly as if no heartbeats
+        # had been sent at all.
+        yield json.dumps({"error": box["error"]} if "error" in box else box["payload"]).encode("utf-8")
+
+    return StreamingResponse(generate(), media_type="application/json")
