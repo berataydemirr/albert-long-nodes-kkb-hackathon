@@ -1441,6 +1441,17 @@ def ask(question: str, history: list[dict] | None = None, history_digest: str | 
                     output = _error_output(str(exc), "tool_error", False)
                 _record_call_outcome(name, arguments, call_history, ok=False)
             else:
+                # duration_ms up to here only covers execute_tool() itself
+                # (see _timed_call) - annotate/snapshot/truncate below run
+                # in the main thread AFTER that returns and were previously
+                # invisible in the reported time. snapshot_result() in
+                # particular is real disk I/O (a SQLite write in
+                # evidence.py), not free - a slow snapshot made a tool call
+                # look artificially fast in the UI/logs. Timed and folded
+                # into entry["duration_ms"] so it reflects the full time
+                # this tool call actually held up the round, not just the
+                # fraction _timed_call happened to wrap.
+                post_t0 = time.monotonic()
                 annotated = _annotate_empty_result(name, raw)
                 if not _output_is_error(annotated):
                     try:
@@ -1457,6 +1468,7 @@ def ask(question: str, history: list[dict] | None = None, history_digest: str | 
                 raw_outputs[index] = annotated
                 _record_call_outcome(name, arguments, call_history, ok=not _output_is_error(annotated))
                 output = _truncate_tool_output(annotated, name)
+                entry["duration_ms"] = round(entry["duration_ms"] + (time.monotonic() - post_t0) * 1000.0, 1)
             outputs[index] = output
 
         for index, call in enumerate(calls):
