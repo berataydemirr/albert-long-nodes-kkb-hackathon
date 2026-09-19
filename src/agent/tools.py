@@ -46,12 +46,34 @@ def _db() -> duckdb.DuckDBPyConnection:
     return connect_with_retry(DB_PATH, read_only=True)
 
 
-def lakehouse_schema() -> dict:
+def _fold_tr(value: str) -> str:
+    """Turkish-aware casefold for name matching (same normalization the
+    EVDS/TUIK catalog searches use)."""
+    return str(value).casefold().replace("i̇", "i").translate(str.maketrans("çğıöşü", "cgiosu"))
+
+
+def lakehouse_schema(konu: str | None = None) -> dict:
     """Return tables, columns, and (for gold_fact_long) the actual Seri_Kod
     catalog - a small LLM cannot write a correct WHERE Seri_Kod=... clause
     without seeing the real codes, so this is included by default rather
-    than requiring a second lookup call."""
-    logger.info("lakehouse_schema: start")
+    than requiring a second lookup call.
+
+    konu narrows the dump to tables whose name or column names match those
+    keywords. WHY it exists (measured, not assumed): the unfiltered dump is
+    ~14.8k chars / ~3.7k tokens, which is over orchestrator.py's
+    TOOL_OUTPUT_MAX_CHARS - so an unfiltered call was being TRUNCATED
+    before the model saw it, meaning the model could be shown a schema
+    with the very table it needed cut off the end, then flail and burn
+    more rounds. Note the fix here is about truncation and wasted rounds,
+    NOT about prompt size: a controlled A/B on this endpoint
+    (benchmarks/schema_payload_ab_test.py, benchmarks/mia_latency_profile.py)
+    measured 15,882 prompt tokens answering in 4.7s, i.e. input tokens are
+    effectively free and wall time is dominated by generated reasoning
+    tokens instead. Filtering is done with plain string matching rather
+    than an embedding/RAG lookup on purpose - an embedding round-trip to
+    MIA measured 2.1s, which would ADD more latency than the ~3.7k tokens
+    of prefill it saves."""
+    logger.info(f"lakehouse_schema: start (konu={konu!r})")
     con = _db()
     try:
         tables = con.execute("SHOW TABLES").fetchall()
@@ -59,6 +81,29 @@ def lakehouse_schema() -> dict:
         result = {"tables": {}}
         for (table,) in tables:
             result["tables"][table] = [row[0] for row in con.execute(f'DESCRIBE "{table}"').fetchall()]
+
+        if konu and isinstance(konu, str) and konu.strip():
+            needles = [word for word in _fold_tr(konu).split() if len(word) > 2]
+            if needles:
+                before = len(result["tables"])
+                matched = {
+                    name: columns for name, columns in result["tables"].items()
+                    if any(n in _fold_tr(name) or any(n in _fold_tr(c) for c in columns) for n in needles)
+                }
+                # An over-narrow filter that matches nothing is worse than
+                # no filter: the model would read "no such tables" and give
+                # up. Fall back to the full list and say so.
+                if matched:
+                    result["tables"] = matched
+                    result["filtered_by"] = konu
+                    result["tables_hidden"] = before - len(matched)
+                    logger.info(f"lakehouse_schema: konu={konu!r} kept {len(matched)}/{before} table(s): "
+                                f"{sorted(matched)}")
+                else:
+                    result["filter_note"] = (
+                        f"'{konu}' hiçbir tablo/kolon adıyla eşleşmedi; tam liste döndürüldü."
+                    )
+                    logger.warning(f"lakehouse_schema: konu={konu!r} matched no table, returning all {before}")
 
         if REGISTRY_TABLE in result["tables"]:
             imported = sorted(row[0] for row in con.execute(f"SELECT dataset_name FROM {REGISTRY_TABLE}").fetchall())
@@ -400,7 +445,7 @@ _SCHEMAS = [
     {"type": "function", "function": {"name": "import_url_dataset", "description": "Doğrudan CSV/Excel URL'sinin tam verisini sürümlü DuckDB tablosuna al. Önizleme değildir. Sonuç dataset_name ile sorgulanır; sheet Excel sayfa adı olabilir.", "parameters": {"type": "object", "properties": {"url": {"type": "string"}, "sheet": {"type": "string"}}, "required": ["url"], "additionalProperties": False}}},
     {"type": "function", "function": {"name": "search_evds_series", "description": "TCMB EVDS kataloğunda gerçek veri gruplarını ara; datagroup verilirse gerçek seri kodları ve metadata döner. İhtiyaç kredisini birleşik tüketici kredisiyle karıştırma.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}, "datagroup": {"type": "string"}}, "additionalProperties": False}}},
     {"type": "function", "function": {"name": "fetch_evds_series", "description": "Grubunda doğrulanan EVDS serisini canlı çek, ham veriyi ve aylık veriyi DuckDB'ye kaydet. Oranlar için mean, stok/endeks için last, gerçek akış için sum seç. TÜFE endeksinden aylık enflasyon türetmek için önceki ayı da çek ve SQL ile 100*(endeks/önceki_endeks-1) hesapla; eksik ay üzerinden fark alma.", "parameters": {"type": "object", "properties": {"datagroup": {"type": "string"}, "seri_kod": {"type": "string"}, "start_period": {"type": "string"}, "end_period": {"type": "string"}, "aggregation": {"type": "string", "enum": ["mean", "last", "sum"]}}, "required": ["datagroup", "seri_kod", "start_period", "end_period"], "additionalProperties": False}}},
-    {"type": "function", "function": {"name": "lakehouse_schema", "description": "List tables/columns and (for gold_fact_long) the real Seri_Kod/Seri_Adi/Kaynak/Birim catalog in the local DuckDB gold layer. The Seri_Kod catalog is already in the system prompt, so do not call this just to find a series code - only when you need the column structure of a table the prompt does not describe. Seri_Kod values must never be guessed.", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}}},
+    {"type": "function", "function": {"name": "lakehouse_schema", "description": "List tables/columns and (for gold_fact_long) the real Seri_Kod/Seri_Adi/Kaynak/Birim catalog in the local DuckDB gold layer. The Seri_Kod catalog is already in the system prompt, so do not call this just to find a series code - only when you need the column structure of a table the prompt does not describe. Seri_Kod values must never be guessed. ALWAYS pass 'konu' with the keywords you care about (e.g. 'kredi mevduat'): the unfiltered dump is larger than the tool-output limit and gets TRUNCATED, so the table you need may be silently cut off.", "parameters": {"type": "object", "properties": {"konu": {"type": "string", "description": "Anahtar kelimeler (ör. 'kredi', 'konut faiz', 'mevduat'). Sadece adı veya kolonları eşleşen tablolar döner; eşleşme yoksa tam liste döner."}}, "additionalProperties": False}}},
     {"type": "function", "function": {"name": "lakehouse_query", "description": "Run a single read-only SELECT query against the local DuckDB gold layer. Only tables returned by lakehouse_schema may be referenced. Results are limited to 200 rows.", "parameters": {"type": "object", "properties": {"sql": {"type": "string"}}, "required": ["sql"], "additionalProperties": False}}},
     {"type": "function", "function": {"name": "anomaly_analysis", "description": "Find robust outliers in a time series. PREFERRED: pass seri_kod and the series is read straight from the lakehouse - do NOT run lakehouse_query first and retype the numbers. Pass periods/values only for data that is not in the lakehouse.", "parameters": {"type": "object", "properties": {"seri_kod": {"type": "string", "description": "Seri_Kod from lakehouse_schema. Cheapest and most accurate input."}, "start_period": {"type": "string", "description": "Optional 'YYYY-MM' lower bound."}, "end_period": {"type": "string", "description": "Optional 'YYYY-MM' upper bound."}, "bolge": {"type": "string", "description": "Optional region filter; defaults to every region."}, "periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}, "threshold": {"type": "number", "default": 3.0}}, "additionalProperties": False}}},
     {"type": "function", "function": {"name": "change_detection", "description": "Find the largest period-over-period percentage changes. PREFERRED: pass seri_kod so the series is read from the lakehouse instead of being retyped.", "parameters": {"type": "object", "properties": {"seri_kod": {"type": "string", "description": "Seri_Kod from lakehouse_schema. Cheapest and most accurate input."}, "start_period": {"type": "string"}, "end_period": {"type": "string"}, "bolge": {"type": "string"}, "periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}}, "additionalProperties": False}}},

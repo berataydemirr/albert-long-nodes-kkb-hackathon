@@ -21,9 +21,17 @@ MIA_EMBEDDING_MODEL = os.getenv("MIA_EMBEDDING_MODEL", "kkbhackathon2026/Qwen3-E
 
 # The chat model is a reasoning model, and reasoning is where its wall time
 # actually goes - measured at 18,212 reasoning tokens out of 19,568 for one
-# long answer (93%). The endpoint accepts: none, minimal, low, medium, high,
-# xhigh, max. Set per deployment; see benchmarks/reasoning_effort_benchmark.py
-# for the measured speed/quality trade-off behind the default.
+# long answer (93%).
+#
+# The endpoint accepts exactly: none, low, medium, xhigh (default). It
+# returns HTTP 400 for minimal / high / max - this comment previously
+# listed all seven, which was wrong on three of them, and a rejected value
+# is not harmless: orchestrator._call_model retries without the parameter,
+# which lands on the endpoint default xhigh, the slowest setting of all.
+# Probed directly against the live endpoint, not taken from docs.
+# Measured on one identical request (benchmarks/schema_payload_ab_test.py):
+# none = 23.6s (0 reasoning tokens), low = 99.1s (713), medium = 143.1s (1060).
+# See also benchmarks/reasoning_effort_benchmark.py for the quality side.
 MIA_REASONING_EFFORT = os.getenv("MIA_REASONING_EFFORT", "low")
 # Unset, the router picks the effort per route (a lookup runs lower than a
 # causality chain). Set explicitly, the env value wins for every route.

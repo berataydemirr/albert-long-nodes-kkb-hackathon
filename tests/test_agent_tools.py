@@ -70,6 +70,43 @@ def test_lakehouse_schema_includes_series_catalog():
     assert len(result["gold_fact_long_series_catalog"]) > 0
 
 
+def test_lakehouse_schema_konu_filter_cuts_the_dump_under_the_truncation_limit():
+    """The unfiltered dump measured ~14.8k chars, over orchestrator.py's
+    TOOL_OUTPUT_MAX_CHARS (12k) - so an unfiltered call was reaching the
+    model TRUNCATED, potentially with the very table it needed cut off the
+    end. The filter's job is to get a real answer under that ceiling."""
+    import json
+
+    from src.agent.orchestrator import TOOL_OUTPUT_MAX_CHARS
+
+    full = lakehouse_schema()
+    narrowed = lakehouse_schema("kredi")
+
+    assert len(narrowed["tables"]) < len(full["tables"]), "filter should drop unrelated tables"
+    assert narrowed["filtered_by"] == "kredi"
+    assert narrowed["tables_hidden"] == len(full["tables"]) - len(narrowed["tables"])
+    assert all("kredi" in name.casefold() or any("kredi" in c.casefold() for c in columns)
+               for name, columns in narrowed["tables"].items())
+    assert len(json.dumps(narrowed, ensure_ascii=False)) < TOOL_OUTPUT_MAX_CHARS
+
+
+def test_lakehouse_schema_unmatched_filter_falls_back_instead_of_answering_nothing():
+    """An over-narrow keyword returning an empty schema is worse than no
+    filter - the model would read "there are no such tables" and give up
+    rather than look again."""
+    result = lakehouse_schema("zzzqqq-boyle-bir-sey-yok")
+
+    assert result["tables"], "an unmatched filter must not return an empty schema"
+    assert "filter_note" in result
+    assert "filtered_by" not in result
+
+
+def test_lakehouse_schema_filter_is_turkish_case_insensitive():
+    """'İ'/'I' casefold the wrong way with plain .lower(), which would make
+    a Turkish keyword silently miss a table it should match."""
+    assert lakehouse_schema("KREDİ")["tables"] == lakehouse_schema("kredi")["tables"]
+
+
 def test_lakehouse_schema_serializes_to_valid_json():
     """Found live: at least 3 series have no confirmed Birim (NULL in the
     gold table). catalog.where(catalog.notna(), None) alone is a no-op on

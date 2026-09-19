@@ -194,6 +194,31 @@ def test_the_run_deadline_forces_an_answer(monkeypatch):
     assert "Süre limitine" in client.requests[0]["messages"][-1]["content"]
 
 
+def test_a_degraded_run_logs_one_diagnostic_block_with_route_budget_and_tools(monkeypatch, caplog):
+    """"It blew up, check the server logs" is only useful if the logs
+    actually say what happened. A degraded run must emit ONE structured
+    block naming the route, the budget it was given, each model round's
+    duration and token count, and every tool call with its arguments -
+    rather than leaving a dozen INFO lines to be correlated by timestamp."""
+    client = _ScriptedClient([
+        _FakeMessage(tool_calls=[_call("lakehouse_query", {"sql": "SELECT 1"})]),
+        _FakeMessage(content="kısa cevap"),
+    ])
+    _patch(monkeypatch, client, tool_output='{"row_count": 7, "rows": []}')
+
+    with caplog.at_level("ERROR", logger="orchestrator"):
+        orchestrator.ask(LOOKUP, max_rounds=1)
+
+    blocks = [r.message for r in caplog.records if "ASK FAILURE DIAGNOSTICS" in r.message]
+    assert len(blocks) == 1, "expected exactly one diagnostic block per degraded run"
+    block = blocks[0]
+    assert "stopped by: rounds" in block
+    assert "route" in block and "budget" in block
+    assert "lakehouse_query" in block, "the tool that ran must be named"
+    assert "SELECT 1" in block, "the arguments it ran with must be shown"
+    assert "row_count=7" in block
+
+
 # --- runtime numeric grounding ---------------------------------------------
 
 def test_an_ungrounded_number_triggers_one_repair_round(monkeypatch):

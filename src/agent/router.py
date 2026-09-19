@@ -30,6 +30,7 @@ from src.agent.tools import TOOL_SPECS
 class Route(str, Enum):
     REFUSE = "refuse"
     LOCAL_ANALYTICS = "local_analytics"  # single lookup against the lakehouse
+    DISCOVERY = "discovery"              # "what do we have / classify it" - no deliberation needed
     ANALYSIS = "analysis"                # statistics, trends, multi-hop chains
     REGIONAL = "regional"
     IMPORTS = "imports"
@@ -67,11 +68,34 @@ class RouteSettings:
     max_rounds: int
 
 
-_EFFORT_ORDER = ("minimal", "low", "medium", "high")
+# PROBED against the live endpoint, not copied from docs: it accepts
+# none / low / medium / xhigh and returns HTTP 400 for minimal / high /
+# max. This list used to read ("minimal", "low", "medium", "high") - two
+# of those four are rejected, and a rejection is not harmless: _call_model
+# catches the 400 and retries with NO reasoning_effort at all, which falls
+# back to the endpoint's own default of xhigh, the SLOWEST setting. So a
+# typo'd effort value silently bought the slowest possible run.
+#
+# Ordering is cheapest-first, because _merge_settings() takes max() over
+# this for a chained question. Measured cost of each step on one identical
+# request (~7.3k prompt tokens of schema, see
+# benchmarks/schema_payload_ab_test.py): none = 23.6s / 0 reasoning
+# tokens, low = 99.1s / 713, medium = 143.1s / 1060. Reasoning tokens are
+# generated serially and are what wall time actually tracks - prompt size
+# is close to free by comparison (15,882 prompt tokens answered in 4.7s).
+_EFFORT_ORDER = ("none", "low", "medium", "xhigh")
 
 ROUTE_SETTINGS: dict[Route, RouteSettings] = {
     Route.LOCAL_ANALYTICS: RouteSettings(
         "ROTA: basit sorgu. Tek lakehouse_query genelde yeterli; hemen cevapla.", "low", 4),
+    # effort "none" is measured, not guessed: on one identical request
+    # none=23.6s/0 reasoning tokens vs medium=143.1s/1060, and the answer
+    # here is a re-presentation of a catalog the prompt already carries.
+    Route.DISCOVERY: RouteSettings(
+        "ROTA: katalog/keşif. İstenen liste zaten sistem talimatındaki katalogda var - "
+        "onu oku ve doğrudan yaz. Keşif amaçlı SELECT DISTINCT sorgusu ÇALIŞTIRMA. "
+        "Bir tablonun kolon yapısı gerekiyorsa lakehouse_schema'yı konu parametresiyle çağır.",
+        "none", 4),
     Route.ANALYSIS: RouteSettings(
         "ROTA: analiz. Serileri seri_kod ile analiz araçlarına ver; adımları sırayla tamamla.", "medium", 8),
     Route.REGIONAL: RouteSettings(
@@ -135,20 +159,23 @@ _ANALYSIS_PATTERNS = (
     r"\b(anomal\w*|aykiri\w*|outlier\w*|sapma\w*|degisim\w*|change_detection|threshold\w*|esik\w*|arasindayken)\b",
     r"\b(trend\w*|art(ti|mis|is)\w*|azal\w*|dus(tu|mus|us)\w*|nasil gitmis|nasil degisti|buyume\w*|buyumus|buyuyen|risk\w*)\b",
     r"\b(once|sonra|ardindan|ayrica)\b.{0,160}\b(sonra|ardindan|ayrica|son olarak)\b",
-    # Broad catalog discovery ("tüm/bütün X'i bul", "sınıflandır") - found
-    # live via a real repro: with no signal at all, this kind of question
-    # falls through to LOCAL_ANALYTICS's "single lookup" settings
-    # (reasoning_effort=low, max_rounds=4), the same budget as "en son
-    # değeri kaç?". A genuine multi-table catalog-and-classify request
-    # needs several exploratory queries across gold_fact_long AND
-    # gold_regional_long (and possibly more), which is exactly the
-    # "multi-hop chain" ANALYSIS already exists for (medium effort, 8
-    # rounds) - reusing it here needed no new Route or settings entry.
-    # "tum/butun ... X'i listele" alone is NOT included on purpose: that
-    # would reclassify the existing "local_schema" router_benchmark case
-    # ("Lakehouse'da konut kredisi serilerini listele.") that must stay
-    # LOCAL_ANALYTICS - the quantifier word is required precisely so a
-    # plain listing request (no "tüm/bütün") is unaffected.
+)
+# Broad catalog discovery ("tüm/bütün X'i bul", "sınıflandır"). These used
+# to be folded into _ANALYSIS_PATTERNS, which was measurably the WRONG
+# home: ANALYSIS runs at reasoning_effort=medium, and on one identical
+# request medium cost 143.1s / 1060 reasoning tokens where none cost 23.6s
+# / 0 (benchmarks/schema_payload_ab_test.py). A "list what you already
+# have and group it" question is a formatting job, not a deliberation job
+# - the catalog is already inlined in the system prompt, so extra thinking
+# buys nothing and is the single largest cost on this endpoint. Hence its
+# own route at effort "none".
+#
+# "tum/butun ... X'i listele" alone is NOT included on purpose: that would
+# reclassify the existing "local_schema" router_benchmark case
+# ("Lakehouse'da konut kredisi serilerini listele.") that must stay
+# LOCAL_ANALYTICS - the quantifier word is required precisely so a plain
+# listing request (no "tüm/bütün") is unaffected.
+_DISCOVERY_PATTERNS = (
     r"\b(tum|butun|hepsini|hepsi)\b.{0,60}\b(gosterge\w*|seri\w*|metrik\w*|kolon\w*|veri\w*)\b",
     r"\b(siniflandir\w*|kategorize\w*)\b",
 )
@@ -195,6 +222,13 @@ _SIGNAL_PRECEDENCE = (
     ("regional", "regional", Route.REGIONAL),
     ("web", "web", Route.WEB_SEARCH),
     ("analysis", "analysis", Route.ANALYSIS),
+    # Last on purpose: every entry above describes something the question
+    # needs DONE, which outranks merely describing what it asks ABOUT. A
+    # question that is both ("tüm illerin kredi metriklerini sınıflandır")
+    # still routes regional and, through _merge_settings, keeps the higher
+    # of the two efforts - discovery's "none" never drags a real analysis
+    # down, it only helps when discovery is all there is.
+    ("discovery", "core", Route.DISCOVERY),
 )
 _GROUP_TO_SIGNAL = {"web": "web", "live_fetch": "live_fetch", "imports": "imports",
                     "regional": "regional", "analysis": "analysis"}
@@ -241,6 +275,8 @@ def detect_signals(question: str) -> set[str]:
             signals.add(_GROUP_TO_SIGNAL[group])
     if _any(_WEB_PATTERNS, normalized):
         signals.add("web")
+    if _any(_DISCOVERY_PATTERNS, normalized):
+        signals.add("discovery")
     if _any(_ANALYSIS_PATTERNS, normalized):
         signals.add("analysis")
     if _any(_IMPORT_PATTERNS, normalized):

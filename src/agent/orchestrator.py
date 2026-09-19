@@ -1124,6 +1124,54 @@ def ask(question: str, history: list[dict] | None = None, history_digest: str | 
     def _model_timeout() -> float:
         return max(_remaining(), MODEL_CALL_MIN_TIMEOUT_SEC)
 
+    def _log_failure_diagnostics(stop_reason_text: str) -> None:
+        """One structured block covering everything needed to explain a
+        degraded run, so "it blew up, check the logs" is actually
+        actionable: which route/budget it got, how long each model round
+        took and how many of those tokens were REASONING (the thing that
+        actually costs wall time - see benchmarks/mia_latency_profile.py),
+        how the context grew, and every tool call with its arguments and
+        outcome. Without this, diagnosing one of these meant correlating
+        a dozen separate INFO lines by timestamp by hand."""
+        rounds = [entry for entry in timeline if entry.get("kind") == "llm"]
+        lines = [
+            "=" * 78,
+            f"ASK FAILURE DIAGNOSTICS - stopped by: {stop_reason_text}",
+            "=" * 78,
+            f"  question      : {question[:300]!r}",
+            f"  route         : {decision.route.value} (groups={list(decision.tool_groups)})",
+            f"  budget        : max_rounds={max_rounds}, reasoning_effort={effort or MIA_REASONING_EFFORT}, "
+            f"deadline={deadline - run_t0:.0f}s (remaining={_remaining():.0f}s)",
+            f"  elapsed       : {_ms_since_start() / 1000:.1f}s",
+            f"  model rounds  : {len(rounds)}",
+        ]
+        for entry in rounds:
+            lines.append(
+                f"    round {entry.get('round')}: {entry.get('duration_ms', 0) / 1000:6.1f}s  "
+                f"context_in={entry.get('est_context_tokens')}  total_tokens={entry.get('tokens')}"
+                + (f"  ERROR={entry['error']}" if entry.get("error") else "")
+            )
+        lines.append(f"  tool calls    : {len(trace)}")
+        for entry in trace:
+            args = str(entry.get("arguments", ""))[:200].replace("\n", " ")
+            outcome = "BLOCKED" if entry.get("blocked") else (f"ERROR: {entry['error']}" if entry.get("error") else "ok")
+            payload = entry.get("output_json")
+            rows = payload.get("row_count") if isinstance(payload, dict) else None
+            lines.append(
+                f"    [r{entry.get('round')}] {entry.get('name')} ({entry.get('duration_ms', 0):.0f}ms) "
+                f"-> {outcome}" + (f", row_count={rows}" if rows is not None else "")
+            )
+            lines.append(f"           args: {args}")
+        if compaction_log:
+            lines.append(f"  compaction    : {compaction_log}")
+        lines.append(
+            "  NOTE: wall time on this endpoint is dominated by generated reasoning tokens, "
+            "not by prompt size - compare round durations against total_tokens above before "
+            "assuming the context is too large."
+        )
+        lines.append("=" * 78)
+        logger.error("\n".join(lines))
+
     def _finish(answer: str):
         """Single exit point so every return path carries the same shape."""
         summary = _timing_summary(timeline, _ms_since_start(), compaction_log, grounding_info)
@@ -1449,6 +1497,7 @@ def ask(question: str, history: list[dict] | None = None, history_digest: str | 
     limit_text = {"deadline": "Süre limitine", "model_error": "Modele bağlanmada tekrarlanan bir hataya"}.get(
         stop_reason, "Tur limitine")
     logger.warning(f"ask: stopped by {stop_reason} (max_rounds={max_rounds}) without a final answer, forcing one")
+    _log_failure_diagnostics(stop_reason)
     messages.append({
         "role": "user",
         "content": (

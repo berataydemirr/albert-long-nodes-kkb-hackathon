@@ -12,16 +12,19 @@ from src.agent.tools import TOOL_SCHEMAS
         ("Lakehouse'da hangi tablolar var?", Route.LOCAL_ANALYTICS, {"core"}),
         ("Konut kredisi serilerini listele.", Route.LOCAL_ANALYTICS, {"core"}),
         ("Ocak 2026 ayındaki konut kredisi faizini söyle.", Route.LOCAL_ANALYTICS, {"core"}),
-        # Broad catalog discovery ("tüm/bütün X'i bul", "sınıflandır") -
-        # found live to need ANALYSIS's bigger budget (medium effort, 8
-        # rounds), not LOCAL_ANALYTICS's "single lookup" defaults (low, 4):
-        # a real repro of the exact question below took 2+ minutes per
-        # round and multiple exploratory lakehouse_query calls across
-        # gold_fact_long AND gold_regional_long before running out of rounds.
+        # Broad catalog discovery ("tüm/bütün X'i bul", "sınıflandır").
+        # These briefly routed to ANALYSIS, which measurement then showed
+        # was the wrong home: ANALYSIS runs at reasoning_effort=medium,
+        # and on one identical request medium cost 143.1s / 1060 reasoning
+        # tokens where "none" cost 23.6s / 0
+        # (benchmarks/schema_payload_ab_test.py). Listing and grouping a
+        # catalog the system prompt already carries is a formatting job,
+        # so it gets its own route at effort "none" and only the core
+        # tool group.
         ("Lakehouse'ta hanehalkının kredi kullanımını açıklamak için kullanabileceğim bütün BDDK ve "
          "TCMB göstergelerini bul. Göstergeleri konu, frekans, birim ve kaynak açısından sınıflandır.",
-         Route.ANALYSIS, {"core", "analysis"}),
-        ("Elimdeki tüm faiz serilerini kategorize et.", Route.ANALYSIS, {"core", "analysis"}),
+         Route.DISCOVERY, {"core"}),
+        ("Elimdeki tüm faiz serilerini kategorize et.", Route.DISCOVERY, {"core"}),
         ("2021-2026 arasında konut kredisi faizi nasıl değişti?", Route.ANALYSIS, {"core", "analysis"}),
         ("Faizdeki en büyük aylık değişimleri bul.", Route.ANALYSIS, {"core", "analysis"}),
         ("Faiz ile kredi hacmi arasında korelasyon var mı?", Route.ANALYSIS, {"core", "analysis"}),
@@ -158,3 +161,22 @@ def test_karsilastir_is_not_read_as_kars():
     decision = route_question("Konut kredisi ile mevduatı karşılaştır.", TOOL_SCHEMAS)
 
     assert "regional" not in decision.tool_groups
+
+
+def test_discovery_effort_never_drags_down_a_real_analysis():
+    """A question that is BOTH discovery and analysis must keep the higher
+    effort. _merge_settings takes max() over _EFFORT_ORDER, so this only
+    holds while "none" sorts below "low"/"medium" in that tuple - and that
+    tuple is also what guards against sending the endpoint a value it
+    rejects (it 400s on minimal/high/max, and a 400 silently falls back to
+    its own xhigh default, the slowest setting)."""
+    from src.agent.router import _EFFORT_ORDER
+
+    assert _EFFORT_ORDER == ("none", "low", "medium", "xhigh"), \
+        "only these four are accepted by the endpoint; order is cheapest-first for max()"
+
+    decision = route_question(
+        "Tüm illerin kredi metriklerini sınıflandır ve aralarındaki korelasyonu bul.", TOOL_SCHEMAS)
+
+    assert decision.settings.reasoning_effort != "none", \
+        "a real analysis in the same question must not inherit discovery's zero-reasoning budget"
