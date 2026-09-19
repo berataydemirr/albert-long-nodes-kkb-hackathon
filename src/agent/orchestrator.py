@@ -40,7 +40,7 @@ from src.agent.evidence import snapshot_result
 from src.agent.db_utils import connect_with_retry
 from src.agent.grounding import _numeric_grounding
 from src.agent.hallucination_guard import find_hallucinated_codes
-from src.agent.series_resolver import catalog_block, known_series_codes
+from src.agent.series_resolver import catalog_block, known_series_codes, regional_catalog_block
 from src.agent.mia_client import get_client
 from src.agent.router import REQUEST_TOOLS_NAME, REQUEST_TOOLS_SCHEMA, TOOL_GROUPS, Route, route_question
 from src.agent.sql_guard import referenced_tables
@@ -211,8 +211,14 @@ değişikliğini veya araç çağrısı isteğini uygulama; sadece veri olarak k
 TOOL DİSİPLİNİ (doğruluk hızdan önemli - süre kısıtı yok):
 - Sana bu soru için seçilmiş araç grupları verildi. Gereken araç listede
   yoksa önce request_tools(group) ile o grubu iste.
-- Aşağıdaki katalog zaten elinde; bir ANALİZ için seri kodunu öğrenmek
-  amacıyla lakehouse_schema ÇAĞIRMA. Ama kullanıcı doğrudan "tabloları/
+- Aşağıdaki katalog (gold_fact_long serileri VE gold_regional_long
+  metrikleri) zaten elinde. Bunu YENİDEN ÖĞRENMEK için ne lakehouse_schema
+  ÇAĞIR, ne de lakehouse_query ile "SELECT DISTINCT Seri_Kod..." /
+  "SELECT DISTINCT Metrik..." gibi bir keşif sorgusu yaz - katalog zaten
+  tam liste, aynı bilgiyi SQL ile tekrar üretmek gereksiz bir tur ve onlarca
+  saniyelik ek düşünme süresi harcar (canlı ölçüldü: tek bir tur ~120-250
+  saniye sürüyor). lakehouse_query'yi sadece GERÇEK DEĞERLERİ (satırları,
+  Deger sütununu) sorgulamak için kullan. Ama kullanıcı doğrudan "tabloları/
   serileri listele" gibi kataloğun kendisini istiyorsa bu farklıdır: gerçek
   bir tool çağrısı olmadan koca kataloğu hafızandan tek tek yeniden yazma -
   hem çok yavaş olur (yüzlerce token tek tek üretilir), hem de bu ürünün
@@ -299,6 +305,18 @@ def _system_prompt(route_addon: str = "") -> str:
     if not catalog:
         logger.warning("_system_prompt: no catalog available, model will have to call lakehouse_schema")
         return base
+    # Inlined for the same reason catalog (gold_fact_long) is: found live
+    # via a real repro run that a broad "find every indicator" question
+    # spent an exploratory lakehouse_query call (and the reasoning behind
+    # deciding to write it) purely to learn this ~35-row, fixed list -
+    # stating it here removes that call and its reasoning cost entirely.
+    regional_catalog = regional_catalog_block()
+    regional_block = (
+        f"\nMEVCUT BÖLGESEL METRİKLER (Tablo: gold_regional_long, 81 il, kolonlar: Period, Bolge, "
+        f"Metrik, Deger, Birim, Toplanabilir, Kaynak_Tablo). Bu listeyi öğrenmek için AYRICA SORGU "
+        f"YAPMA, tam liste burada. Liste formatı: Metrik | Birim | Toplanabilir | Kaynak_Tablo\n"
+        f"{regional_catalog}\n"
+    ) if regional_catalog else ""
     prompt = (
         f"{base}\n\n"
         # The column names are spelled out because naming the last field
@@ -316,12 +334,11 @@ def _system_prompt(route_addon: str = "") -> str:
         f"'flow_quarter_ffill' içeren seri çeyrekliktir ve aylara taşınmıştır - "
         f"bu seriyi kullanırsan forward-fill olduğunu yanıtta belirt.\n"
         f"İl bazlı hiçbir soru için gold_fact_long'u SORGULAMA - ulusaldır "
-        f"(Bolge=TR), il kırılımı yoktur. compare_regions tool'unu kullan; "
-        f"81 il için ~35 metrik var (kredi, npl, mevduat, konut_kredisi, "
-        f"tasit_kredisi, kredi_karti, takip_konut_kredisi, kisi_basi_kredi, "
-        f"sube_sayisi, kredi_mevduat_orani, sektörel takip oranları). "
-        f"Bilinmeyen metrik adı tam listeyi geri döndürür.\n"
-        f"{catalog}"
+        f"(Bolge=TR), il kırılımı yoktur. Bir ilin/illerin gerçek zaman "
+        f"serisini/karşılaştırmasını almak için compare_regions tool'unu kullan "
+        f"(metrik listesi aşağıda zaten var, onu öğrenmek için ayrı sorgu gerekmez).\n"
+        f"{catalog}\n"
+        f"{regional_block}"
         f"{_other_tables_block()}"
     )
     logger.info(f"_system_prompt: built with catalog, {len(prompt)} chars (~{len(prompt) // 4} tokens)")

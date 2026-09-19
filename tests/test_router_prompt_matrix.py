@@ -12,6 +12,16 @@ from src.agent.tools import TOOL_SCHEMAS
         ("Lakehouse'da hangi tablolar var?", Route.LOCAL_ANALYTICS, {"core"}),
         ("Konut kredisi serilerini listele.", Route.LOCAL_ANALYTICS, {"core"}),
         ("Ocak 2026 ayındaki konut kredisi faizini söyle.", Route.LOCAL_ANALYTICS, {"core"}),
+        # Broad catalog discovery ("tüm/bütün X'i bul", "sınıflandır") -
+        # found live to need ANALYSIS's bigger budget (medium effort, 8
+        # rounds), not LOCAL_ANALYTICS's "single lookup" defaults (low, 4):
+        # a real repro of the exact question below took 2+ minutes per
+        # round and multiple exploratory lakehouse_query calls across
+        # gold_fact_long AND gold_regional_long before running out of rounds.
+        ("Lakehouse'ta hanehalkının kredi kullanımını açıklamak için kullanabileceğim bütün BDDK ve "
+         "TCMB göstergelerini bul. Göstergeleri konu, frekans, birim ve kaynak açısından sınıflandır.",
+         Route.ANALYSIS, {"core", "analysis"}),
+        ("Elimdeki tüm faiz serilerini kategorize et.", Route.ANALYSIS, {"core", "analysis"}),
         ("2021-2026 arasında konut kredisi faizi nasıl değişti?", Route.ANALYSIS, {"core", "analysis"}),
         ("Faizdeki en büyük aylık değişimleri bul.", Route.ANALYSIS, {"core", "analysis"}),
         ("Faiz ile kredi hacmi arasında korelasyon var mı?", Route.ANALYSIS, {"core", "analysis"}),

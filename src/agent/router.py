@@ -135,6 +135,22 @@ _ANALYSIS_PATTERNS = (
     r"\b(anomal\w*|aykiri\w*|outlier\w*|sapma\w*|degisim\w*|change_detection|threshold\w*|esik\w*|arasindayken)\b",
     r"\b(trend\w*|art(ti|mis|is)\w*|azal\w*|dus(tu|mus|us)\w*|nasil gitmis|nasil degisti|buyume\w*|buyumus|buyuyen|risk\w*)\b",
     r"\b(once|sonra|ardindan|ayrica)\b.{0,160}\b(sonra|ardindan|ayrica|son olarak)\b",
+    # Broad catalog discovery ("tüm/bütün X'i bul", "sınıflandır") - found
+    # live via a real repro: with no signal at all, this kind of question
+    # falls through to LOCAL_ANALYTICS's "single lookup" settings
+    # (reasoning_effort=low, max_rounds=4), the same budget as "en son
+    # değeri kaç?". A genuine multi-table catalog-and-classify request
+    # needs several exploratory queries across gold_fact_long AND
+    # gold_regional_long (and possibly more), which is exactly the
+    # "multi-hop chain" ANALYSIS already exists for (medium effort, 8
+    # rounds) - reusing it here needed no new Route or settings entry.
+    # "tum/butun ... X'i listele" alone is NOT included on purpose: that
+    # would reclassify the existing "local_schema" router_benchmark case
+    # ("Lakehouse'da konut kredisi serilerini listele.") that must stay
+    # LOCAL_ANALYTICS - the quantifier word is required precisely so a
+    # plain listing request (no "tüm/bütün") is unaffected.
+    r"\b(tum|butun|hepsini|hepsi)\b.{0,60}\b(gosterge\w*|seri\w*|metrik\w*|kolon\w*|veri\w*)\b",
+    r"\b(siniflandir\w*|kategorize\w*)\b",
 )
 _IMPORT_PATTERNS = (
     r"\b(yukle\w*|yuklu\w*|upload\w*|dataset\w*|veri ?set\w*|import\w*|dosya\w*|excel\w*|csv|pdf)\b",

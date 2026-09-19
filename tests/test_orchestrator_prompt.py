@@ -10,7 +10,7 @@ import openai
 import pytest
 
 from src.agent import orchestrator
-from src.agent.series_resolver import DB_PATH, catalog_block, known_series_codes
+from src.agent.series_resolver import DB_PATH, catalog_block, known_series_codes, regional_catalog_block
 
 needs_db = pytest.mark.skipif(
     not DB_PATH.exists(), reason="gold database not built; run `python -m src.gold.build_gold`"
@@ -184,3 +184,51 @@ def test_catalog_lists_each_series_once_even_with_mixed_tip():
     assert mixed, "expected at least one series with mixed Tip values"
     codes = [line.split("|")[0].strip() for line in lines]
     assert len(codes) == len(set(codes))
+
+
+@needs_db
+def test_regional_catalog_block_lists_every_metric_once():
+    """Same discipline as catalog_block(): found live that a broad
+    discovery question always spent an exploratory lakehouse_query call
+    on exactly this DISTINCT Metrik query, so the system prompt now
+    states the answer instead - lock in that it stays complete and
+    duplicate-free."""
+    block = regional_catalog_block(refresh=True)
+    lines = [line for line in block.splitlines() if line.strip()]
+    metrics = [line.split("|")[0].strip() for line in lines]
+
+    assert metrics, "expected at least one regional metric when the database exists"
+    assert len(metrics) == len(set(metrics))
+    # 4 columns: Metrik | Birim | Toplanabilir | Kaynak_Tablo
+    assert all(len(line.split("|")) == 4 for line in lines)
+
+
+@needs_db
+def test_system_prompt_inlines_the_regional_catalog_so_no_query_is_needed():
+    """Real repro found live: without this block, a broad "find every
+    indicator" question always issued `SELECT DISTINCT Metrik, Birim,
+    Toplanabilir, Kaynak_Tablo FROM gold_regional_long` as one of its
+    first tool calls, burning a whole round + the reasoning to write it,
+    for a fixed ~35-row answer the prompt can simply state."""
+    prompt = orchestrator._system_prompt()
+    block = regional_catalog_block(refresh=True)
+
+    assert "MEVCUT BÖLGESEL METRİKLER" in prompt
+    assert "gold_regional_long" in prompt
+    # At least one real metric line must actually be present verbatim,
+    # not just the header - a truncated/empty block would still pass a
+    # substring check on the header alone.
+    first_metric_line = next(line for line in block.splitlines() if line.strip())
+    assert first_metric_line in prompt
+
+
+def test_system_prompt_omits_the_regional_block_cleanly_without_it(monkeypatch):
+    """Mirrors test_system_prompt_falls_back_cleanly_without_a_database
+    for the regional half - an empty regional_catalog_block() (e.g. the
+    table doesn't exist yet) must not corrupt the prompt with a dangling
+    header and no rows."""
+    monkeypatch.setattr(orchestrator, "regional_catalog_block", lambda: "")
+
+    prompt = orchestrator._system_prompt()
+
+    assert "MEVCUT BÖLGESEL METRİKLER" not in prompt

@@ -30,7 +30,16 @@ MIA_REASONING_EFFORT = os.getenv("MIA_REASONING_EFFORT", "low")
 MIA_REASONING_EFFORT_EXPLICIT = "MIA_REASONING_EFFORT" in os.environ
 # Wall-clock budget for one ask() run, alongside the round limit. A single
 # model call may take up to 240s, so rounds alone do not bound the worst case.
-AGENT_RUN_DEADLINE_SEC = float(os.getenv("AGENT_RUN_DEADLINE_SEC", "300"))
+# Raised from 300 to 600: live evidence on a broad multi-table discovery
+# question showed individual rounds regularly taking 200-250s+ under normal
+# shared-endpoint load - at 300s, a route with max_rounds=8 (e.g. ANALYSIS)
+# could never actually reach more than ~1 round before the deadline cut it
+# off, making the round budget meaningless. Safe to raise now that two
+# earlier fixes exist: web_app.py streams heartbeats on /api/ask so no
+# proxy/tunnel truncates a long-running request regardless of duration, and
+# _call_model's own retries are deadline-aware so they never waste time
+# past whatever budget is set here.
+AGENT_RUN_DEADLINE_SEC = float(os.getenv("AGENT_RUN_DEADLINE_SEC", "600"))
 # Extra model call when an answer states numbers no tool returned. Off by
 # default: the heuristic flags legitimate arithmetic (a sum of two shares)
 # and one repair call measured 50-85s on the shared endpoint. The check

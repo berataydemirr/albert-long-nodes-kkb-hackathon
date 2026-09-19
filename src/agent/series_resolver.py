@@ -166,6 +166,60 @@ def catalog_block(refresh: bool = False) -> str:
         con.close()
 
 
+REGIONAL_TABLE = "gold_regional_long"
+_REGIONAL_CATALOG_BLOCK_CACHE: str | None = None
+
+
+def regional_catalog_block(refresh: bool = False) -> str:
+    """One compact line per gold_regional_long metric (Metrik | Birim |
+    Toplanabilir | Kaynak_Tablo), for the same reason catalog_block()
+    exists for gold_fact_long: found live via a real repro run that a
+    broad "find every indicator" question spent one of its exploratory
+    lakehouse_query calls (and the reasoning to write it) on exactly
+    `SELECT DISTINCT Metrik, Birim, Toplanabilir, Kaynak_Tablo FROM
+    gold_regional_long ORDER BY Metrik` - a query with a fixed, cheap
+    answer (~35 rows) that the system prompt can simply state instead of
+    making the model ask for it. gold_fact_long's ~25 series were already
+    handled this way; the regional metrics were the one gap.
+
+    Cached per process, same as catalog_block(). Returns "" when the
+    database is missing so the agent still starts."""
+    global _REGIONAL_CATALOG_BLOCK_CACHE
+    if _REGIONAL_CATALOG_BLOCK_CACHE is not None and not refresh:
+        logger.debug("regional_catalog_block: served from cache")
+        return _REGIONAL_CATALOG_BLOCK_CACHE
+
+    logger.info("regional_catalog_block: building")
+    try:
+        con = _db()
+    except FileNotFoundError:
+        logger.warning("regional_catalog_block: gold database missing, returning empty block")
+        _REGIONAL_CATALOG_BLOCK_CACHE = ""
+        return _REGIONAL_CATALOG_BLOCK_CACHE
+
+    try:
+        rows = con.execute(
+            f'SELECT DISTINCT Metrik, Birim, Toplanabilir, Kaynak_Tablo '
+            f'FROM "{REGIONAL_TABLE}" ORDER BY Metrik'
+        ).fetchall()
+        lines = [
+            f"{metrik} | {birim or 'birim yok'} | {'toplanabilir' if toplanabilir else 'toplanamaz'} | {kaynak}"
+            for metrik, birim, toplanabilir, kaynak in rows
+        ]
+        _REGIONAL_CATALOG_BLOCK_CACHE = "\n".join(lines)
+        logger.info(
+            f"regional_catalog_block: built {len(lines)} line(s), {len(_REGIONAL_CATALOG_BLOCK_CACHE)} chars "
+            f"(~{len(_REGIONAL_CATALOG_BLOCK_CACHE) // 4} tokens)"
+        )
+        return _REGIONAL_CATALOG_BLOCK_CACHE
+    except Exception:
+        logger.exception("regional_catalog_block: failed, falling back to an empty block")
+        _REGIONAL_CATALOG_BLOCK_CACHE = ""
+        return _REGIONAL_CATALOG_BLOCK_CACHE
+    finally:
+        con.close()
+
+
 def known_series_codes(refresh: bool = False) -> set[str]:
     """The real Seri_Kod universe, for checking a claim against reality
     rather than trusting it. Parses catalog_block() instead of a fresh
