@@ -22,17 +22,39 @@ import pandas as pd
 NONDECREASING_TOLERANCE = -0.005  # allow -0.5% relative noise/rounding, still counts as "non-decreasing"
 RESET_DROP_THRESHOLD = 0.5        # next Jan must fall below 50% of last Dec to count as a reset
 
+# BDDK Monthly's tablo_2 ("Kar Zarar") is the income statement: every
+# line in it - revenue AND expense/loss lines alike - accumulates from
+# the start of the calendar year by Turkish accounting convention. That
+# is true by definition, not something the monotonic-increase test below
+# can safely decide: a net/loss line (e.g. "Kambiyo Karlari Zararlari
+# Net") legitimately falls within a year whenever the bank posts a loss
+# that month, so the monotonic test alone misreads it as "not
+# cumulative" - confirmed live, monotonic_ratio ~0.60 for that exact
+# line despite it being YTD-cumulative by construction. Table membership
+# is ground truth here and overrides the math instead of being outvoted
+# by it.
+INCOME_STATEMENT_TABLES = {"tablo_2"}
 
-def detect_cumulative(df: pd.DataFrame, period_col: str = "Period", value_col: str = "Value") -> dict:
+
+def detect_cumulative(df: pd.DataFrame, period_col: str = "Period", value_col: str = "Value",
+                       table: str | None = None) -> dict:
     """Runs the two-part heuristic on a single (already sorted-by-period)
     series and returns a diagnostic dict - never a silent True/False,
-    so a human can sanity-check borderline cases before trusting it."""
+    so a human can sanity-check borderline cases before trusting it.
+    is_cumulative is True/False/None - None ("uncertain") means the data
+    itself cannot answer the question (see the boundaries==0 case below),
+    which is a different, weaker claim than a confident False and must
+    not be treated as one.
+
+    table, when given (e.g. "tablo_2"), lets the income-statement rule
+    above override the math for a line item the accounting rule already
+    settles - see INCOME_STATEMENT_TABLES."""
     work = df[[period_col, value_col]].dropna().copy()
     work["_year"] = work[period_col].str.slice(0, 4).astype(int)
     work = work.sort_values(period_col)
 
     if len(work) < 3:
-        return {"is_cumulative": False, "reason": "insufficient_data", "n_obs": len(work)}
+        return {"is_cumulative": False, "status": "not_cumulative", "reason": "insufficient_data", "n_obs": len(work)}
 
     # Part 1: within-year monotonic non-decreasing?
     within_year_drops = 0
@@ -63,15 +85,30 @@ def detect_cumulative(df: pd.DataFrame, period_col: str = "Period", value_col: s
             resets += 1
 
     reset_ratio = resets / boundaries if boundaries else 0
-    is_cumulative = monotonic_ratio >= 0.9 and reset_ratio >= 0.5 and boundaries > 0
+
+    if table in INCOME_STATEMENT_TABLES:
+        is_cumulative, status, reason = True, "cumulative", "income_statement_rule"
+    elif boundaries == 0:
+        # No year boundary was ever observed (a short series, e.g. only
+        # 5 months on record) - the reset test literally cannot run, so
+        # this is NOT the same claim as "tested and failed". Reporting a
+        # confident False here previously threw away real cumulative
+        # candidates (e.g. "Kredi Riskine Esas Tutar") purely because
+        # they hadn't lived through a January yet.
+        is_cumulative, status, reason = None, "uncertain_short_series", "no_year_boundary_observed"
+    else:
+        is_cumulative = monotonic_ratio >= 0.9 and reset_ratio >= 0.5
+        status = "cumulative" if is_cumulative else "not_cumulative"
+        reason = "monotonic+resets" if is_cumulative else "fails_monotonic_or_reset_test"
 
     return {
         "is_cumulative": is_cumulative,
+        "status": status,
         "monotonic_ratio": round(monotonic_ratio, 3),
         "reset_ratio": round(reset_ratio, 3),
         "n_obs": len(work),
         "year_boundaries_checked": boundaries,
-        "reason": "monotonic+resets" if is_cumulative else "fails_monotonic_or_reset_test",
+        "reason": reason,
     }
 
 

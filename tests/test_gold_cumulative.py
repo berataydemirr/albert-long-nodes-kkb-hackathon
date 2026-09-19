@@ -43,6 +43,7 @@ def _stock_series() -> pd.DataFrame:
 def test_detect_cumulative_flags_a_ytd_resetting_series():
     result = detect_cumulative(_cumulative_series())
     assert result["is_cumulative"] is True
+    assert result["status"] == "cumulative"
     assert result["monotonic_ratio"] >= 0.9
     assert result["reset_ratio"] >= 0.5
 
@@ -50,6 +51,7 @@ def test_detect_cumulative_flags_a_ytd_resetting_series():
 def test_detect_cumulative_does_not_flag_a_growing_stock():
     result = detect_cumulative(_stock_series())
     assert result["is_cumulative"] is False
+    assert result["status"] == "not_cumulative"
 
 
 def test_detect_cumulative_reports_insufficient_data_instead_of_guessing():
@@ -57,6 +59,50 @@ def test_detect_cumulative_reports_insufficient_data_instead_of_guessing():
     result = detect_cumulative(tiny)
     assert result["is_cumulative"] is False
     assert result["reason"] == "insufficient_data"
+
+
+def _income_statement_net_loss_series() -> pd.DataFrame:
+    """A YTD-cumulative income-statement line that legitimately dips
+    within a year because the bank posted a loss that month - the exact
+    shape of tablo_2's 'Kambiyo Karlari Zararlari Net': cumulative FX
+    gain/loss can fall as well as rise, so it fails the plain monotonic
+    test (~0.6 ratio) despite being cumulative by accounting convention.
+    Two years (so a real year-boundary exists) - each January resets,
+    exactly like a real YTD line - but the plain math still calls it
+    "not cumulative" because within-year drops push monotonic_ratio
+    below the 0.9 bar."""
+    values_one_year = [10, 25, 15, 30, 20, 40, 10, -5, 5, 30, 15, 50]
+    return pd.DataFrame({
+        "Period": [f"{y}-{m:02d}" for y in (2022, 2023) for m in range(1, 13)],
+        "Value": values_one_year + values_one_year,
+    })
+
+
+def test_income_statement_table_overrides_the_monotonic_test():
+    series = _income_statement_net_loss_series()
+    plain = detect_cumulative(series)
+    assert plain["monotonic_ratio"] < 0.9  # the math alone would call this "not cumulative"
+    assert plain["is_cumulative"] is False
+
+    ruled = detect_cumulative(series, table="tablo_2")
+    assert ruled["is_cumulative"] is True
+    assert ruled["status"] == "cumulative"
+    assert ruled["reason"] == "income_statement_rule"
+
+
+def test_short_series_with_no_year_boundary_is_uncertain_not_false():
+    # Only 5 months on record, all in one calendar year - like BDDK
+    # Monthly's "Kredi Riskine Esas Tutar". The reset test cannot run at
+    # all here, so the verdict must be "uncertain", not a confident
+    # "not cumulative".
+    short = pd.DataFrame({
+        "Period": [f"2024-{m:02d}" for m in range(1, 6)],
+        "Value": [10, 25, 40, 55, 70],
+    })
+    result = detect_cumulative(short)
+    assert result["is_cumulative"] is None
+    assert result["status"] == "uncertain_short_series"
+    assert result["year_boundaries_checked"] == 0
 
 
 def test_decumulate_recovers_the_original_monthly_flow():

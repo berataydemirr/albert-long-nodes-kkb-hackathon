@@ -70,25 +70,35 @@ def run() -> pd.DataFrame:
         if long_df.empty:
             continue
 
+        tablo_name = f"tablo_{tablo_no}"
         for item, grp in long_df.groupby("Item"):
-            diag = detect_cumulative(grp, period_col="Period", value_col="Value")
-            results.append({"tablo": f"tablo_{tablo_no}", "item": item, **diag})
+            diag = detect_cumulative(grp, period_col="Period", value_col="Value", table=tablo_name)
+            results.append({"tablo": tablo_name, "item": item, **diag})
 
     report = pd.DataFrame(results)
     out_path = GOLD_DIR / "cumulative_scan_report.csv"
     report.to_csv(out_path, index=False, encoding="utf-8")
 
-    n_cumulative = int(report["is_cumulative"].sum()) if not report.empty else 0
+    # is_cumulative is now True/False/None ("uncertain") - an object-dtype
+    # column with None in it can't be summed directly, so compare against
+    # True explicitly instead of relying on truthiness/.sum().
+    n_cumulative = int((report["status"] == "cumulative").sum()) if not report.empty else 0
+    n_uncertain = int((report["status"] == "uncertain_short_series").sum()) if not report.empty else 0
     logger.info("=" * 50)
     logger.info("CUMULATIVE SCAN SUMMARY (bddk_monthly)")
     logger.info(f"Line items scanned : {len(report)}")
     logger.info(f"Flagged cumulative : {n_cumulative}")
+    logger.info(f"Uncertain (short series, no year boundary yet): {n_uncertain}")
     logger.info(f"Report written to  : {out_path}")
     logger.info("=" * 50)
     if n_cumulative:
-        flagged = report[report["is_cumulative"]][["tablo", "item", "monotonic_ratio", "reset_ratio"]]
+        flagged = report[report["status"] == "cumulative"][["tablo", "item", "monotonic_ratio", "reset_ratio", "reason"]]
         for _, row in flagged.iterrows():
-            logger.info(f"  CUMULATIVE: {row['tablo']} / {row['item']}")
+            logger.info(f"  CUMULATIVE ({row['reason']}): {row['tablo']} / {row['item']}")
+    if n_uncertain:
+        uncertain = report[report["status"] == "uncertain_short_series"][["tablo", "item", "n_obs"]]
+        for _, row in uncertain.iterrows():
+            logger.info(f"  UNCERTAIN (n_obs={row['n_obs']}): {row['tablo']} / {row['item']}")
 
     return report
 
