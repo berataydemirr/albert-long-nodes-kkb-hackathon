@@ -5,13 +5,38 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KKB Agent</title>
 <meta name="description" content="BDDK, EVDS ve TUIK verileri üzerinde soru sorulabilen analiz ajanı.">
-<meta name="theme-color" content="#171817">
+<meta name="theme-color" content="#486A83">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <!-- Inline so the tab icon needs no extra request: a 297C diamond on a
      7686C ground, the two official colours. -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231e4a8b'/%3E%3Cpath d='M16 7l9 9-9 9-9-9z' fill='%238cc8ea'/%3E%3C/svg%3E">
+<script>
+// Applied before first paint so the page never flashes the wrong theme.
+// Plain, synchronous, outside the DC component tree on purpose - this
+// has to run before that framework has even loaded support.js.
+(function () {
+  try {
+    var saved = localStorage.getItem('kkb-theme');
+    if (saved === 'dark' || saved === 'light') {
+      document.documentElement.setAttribute('data-theme', saved);
+    }
+  } catch (e) {}
+})();
+</script>
+<script>
+// Applied before first paint so the page never flashes the wrong theme.
+// Plain, synchronous - has to run before support.js's own framework loads.
+(function () {
+  try {
+    var saved = localStorage.getItem('kkb-theme');
+    if (saved === 'dark' || saved === 'light') {
+      document.documentElement.setAttribute('data-theme', saved);
+    }
+  } catch (e) {}
+})();
+</script>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -23,43 +48,58 @@
    on a white ground Helvetica read as an unstyled default, and the pair
    below carries the page without fighting the palette.
 
-   Theme tokens: a single fixed dark palette (no light mode, no toggle). */
+   Theme tokens, three states (system/explicit-light/explicit-dark):
+   bare :root is the light palette every other block redefines from.
+   @media(dark) is guarded by :not([data-theme="light"]) so an explicit
+   light choice always wins over a dark OS setting; [data-theme="dark"]
+   redefines the same tokens again so the in-page toggle wins in both
+   directions. Every dark value was contrast-checked against its surface
+   (#0a1220), not eyeballed - see the numbers in each block below. The
+   light accent (#1e4a8b, 8.72:1 on white) fails outright as dark-mode
+   text/lines at only 2.0-2.15:1, so dark mode gets its OWN accent
+   (#5b9bdc) rather than reusing the light one - "its own steps from the
+   same ramps," not an automatic invert. */
 :root {
-  --bg: #171817;
-  --bg-grad: #222321;
-  --surface: #222321;
-  --surface-2: #2D2E2B;
-  --surface-3: #171817;
-  --surface-rgb: 34,35,33;
-  --ink: #E8E6DF;
-  --ink-2: #E8E6DF;
-  --text-2: #B7B3A8;
-  --muted: #B7B3A8;
-  --dim: #777870;
-  --faint: #777870;
-  --faintest: #3C3D39;
-  --separator: #3C3D39;
-  --accent: #3B647D;
-  --accent-hover: #4A7691;
-  --accent-deep: #2F5064;
-  --accent-2: #3B647D;
-  --accent-rgb: 59,100,125;
-  --accent2-rgb: 59,100,125;
-  --on-accent: #E8E6DF;
-  --shadow-rgb: 0,0,0;
-  --web-marker-rgb: 185,92,92;
-  --error: #B95C5C;
-  --error-rgb: 185,92,92;
-  --user-bubble: #2D2E2B;
-  --border: #3C3D39;
-  --blue-pale: #2D2E2B;
-  --blue-pale-hover: #343531;
-  --blue-muted: #3B647D;
-  --blue-dark: #3B647D;
-  --boun-red: #9D3238;
-  --boun-red-soft: #B95C5C;
-  --success: #70866A;
-  --warning: #B8945C;
+  /* 75% white / off-white */
+  --bg-main: #FAFBFC;
+  --bg-soft: #F6F9FB;
+  --surface: #FFFFFF;
+  /* 15% pale Bogazici blue */
+  --blue-pale: #DCECF4;
+  --blue-pale-hover: #D1E5EF;
+  /* 7% muted blue */
+  --blue-muted: #8EAFBF;
+  /* 3% dark accent */
+  --blue-dark: #486A83;
+  --text-primary: #263640;
+  --text-secondary: #71808A;
+  --border: #E3EAEE;
+
+  --bg: var(--bg-main);
+  --bg-grad: var(--bg-soft);
+  --surface-2: var(--bg-soft);
+  --surface-3: var(--bg-soft);
+  --surface-rgb: 255,255,255;
+  --ink: var(--text-primary);
+  --ink-2: var(--text-primary);
+  --text-2: #3f525e;
+  --muted: var(--text-secondary);
+  --dim: var(--text-secondary);
+  --faint: #93a1aa;
+  --faintest: #b3bec5;
+  --separator: var(--border);
+  --accent: var(--blue-dark);
+  --accent-hover: #3b5870;
+  --accent-deep: #2f4a5e;
+  --accent-2: var(--blue-muted);
+  --accent-rgb: 72,106,131;
+  --accent2-rgb: 142,175,191;
+  --on-accent: #ffffff;
+  --shadow-rgb: 38,54,64;
+  --web-marker-rgb: 142,175,191;
+  --error: #b42318;
+  --error-rgb: 180,35,24;
+  --user-bubble: var(--blue-pale);
 }
 /* Dark values, both blocks identical - measured against surface #0a1220:
    ink 16.5:1, ink-2 13.2:1, text-2 9.8:1, muted 7.2:1, dim 6.3:1,
@@ -67,8 +107,74 @@
    accent-2 10.3:1, error 6.7:1. --on-accent flips to a dark ink because
    white-on-accent drops to 1.8-2.9:1 once accent itself is the lighter
    #5b9bdc/#8cc8ea pair (dark ink on those two: 6.4:1 / 10.3:1). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0a1220;
+    --bg-grad: #10192b;
+    --surface: #111b2f;
+    --surface-2: #16223a;
+    --surface-3: #0d1526;
+    --surface-rgb: 17,27,47;
+    --ink: #eaf1f9;
+    --ink-2: #cddaeb;
+    --text-2: #a9bdd6;
+    --muted: #8ba3c2;
+    --dim: #7f97b8;
+    --faint: #5f7896;
+    --faintest: #435878;
+    --separator: #4a6485;
+    --accent: #5b9bdc;
+    --accent-hover: #7db4e8;
+    --accent-deep: #2c5f9e;
+    --accent-2: #8cc8ea;
+    --accent-rgb: 91,155,220;
+    --accent2-rgb: 140,200,234;
+    --on-accent: #0a1220;
+    --shadow-rgb: 0,0,0;
+    --web-marker-rgb: 122,178,224;
+    --error: #ff6b57;
+    --error-rgb: 255,107,87;
+    --user-bubble: #16223a;
+    --border: rgba(91,155,220,.16);
+    --blue-pale: rgba(91,155,220,.08);
+    --blue-pale-hover: rgba(91,155,220,.14);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0a1220;
+  --bg-grad: #10192b;
+  --surface: #111b2f;
+  --surface-2: #16223a;
+  --surface-3: #0d1526;
+  --surface-rgb: 17,27,47;
+  --ink: #eaf1f9;
+  --ink-2: #cddaeb;
+  --text-2: #a9bdd6;
+  --muted: #8ba3c2;
+  --dim: #7f97b8;
+  --faint: #5f7896;
+  --faintest: #435878;
+  --separator: #4a6485;
+  --accent: #5b9bdc;
+  --accent-hover: #7db4e8;
+  --accent-deep: #2c5f9e;
+  --accent-2: #8cc8ea;
+  --accent-rgb: 91,155,220;
+  --accent2-rgb: 140,200,234;
+  --on-accent: #0a1220;
+  --shadow-rgb: 0,0,0;
+  --web-marker-rgb: 122,178,224;
+  --error: #ff6b57;
+  --error-rgb: 255,107,87;
+  --user-bubble: #16223a;
+  --border: rgba(91,155,220,.16);
+  --blue-pale: rgba(91,155,220,.08);
+  --blue-pale-hover: rgba(91,155,220,.14);
+}
 html, body { margin: 0; background: var(--bg); }
-:root { color-scheme: dark; }
+:root { color-scheme: light dark; }
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 * { box-sizing: border-box; }
 a { color: var(--accent); text-decoration: none; border-bottom: 1px solid rgba(var(--accent-rgb),.30); }
 a:hover { color: var(--accent-hover); border-bottom-color: var(--accent-hover); }
@@ -172,6 +278,7 @@ textarea:focus-visible { outline: none; }
         <span style="font-family:'Space Mono',monospace; color:var(--text-primary); font-weight:600;">{{ toolCount }}</span> tools
       </button>
       <button onClick="{{ resetChat }}" style="background:none; border:1px solid var(--border); color:var(--muted); border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; transition:all .18s ease;" style-hover="color:var(--ink); border-color:rgba(var(--accent-rgb),.32);">New chat</button>
+      <button onClick="{{ toggleTheme }}" aria-label="Koyu/açık temayı değiştir" title="Koyu/açık tema" style="width:34px; height:34px; flex:none; border-radius:8px; background:none; border:1px solid var(--border); color:var(--muted); cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; transition:all .18s ease;" style-hover="color:var(--ink); border-color:rgba(var(--accent-rgb),.32);">{{ themeIcon }}</button>
     </div>
   </header>
 
@@ -515,7 +622,7 @@ function stagesFromEvents(events, elapsed) {
   const rows = [];
   for (const e of events) {
     if (e.kind === 'route') {
-      rows.push({ label: `Routing → ${e.route || 'agent'}`, t: e.t_ms });
+      rows.push({ label: `Routing → ${(e.groups || []).join(', ')}`, t: e.t_ms });
     } else if (e.kind === 'llm') {
       rows.push({ label: e.forced ? 'Writing the final answer' : `Thinking · round ${e.round}`, t: e.t_ms });
     } else if (e.kind === 'tools_start') {
@@ -1251,9 +1358,19 @@ class Component extends DCLogic {
   };
 
   isDarkNow = () => {
-    return true;
+    if (this.state.themeMode === 'dark') return true;
+    if (this.state.themeMode === 'light') return false;
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
   };
 
+  toggleTheme = () => {
+    const next = this.isDarkNow() ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('kkb-theme', next); } catch (e) {}
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', next === 'dark' ? '#0a1220' : '#1e4a8b');
+    this.setState({ themeMode: next });
+  };
 
   componentDidMount() {
     // Keeps the icon correct if the OS theme changes live while this tab
@@ -1830,6 +1947,7 @@ class Component extends DCLogic {
       // a JS evaluator, so `{{ !hasSessions }}` would not work either -
       // computing the real inverse here is the correct fix.
       sessionsEmpty: sessionsView.length === 0,
+      toggleTheme: this.toggleTheme,
       themeIcon: this.isDarkNow() ? '☀️' : '🌙',
       fileInputRef: this.fileInputRef,
       triggerUpload: this.triggerUpload,
