@@ -63,9 +63,20 @@ def compact_context(messages: list[dict], tool_schemas: list[dict]) -> tuple[lis
 
     Capacity is a deployment setting, not an assertion about the provider's
     model limit. Include schemas and reserve output space in the estimate.
+
+    The defaults used to be 16,384/2,048, which left almost nothing for the
+    conversation: the system prompt alone is ~4,700 estimated tokens and the
+    22 tool schemas another ~4,400, so 80% of the 14,336 usable tokens was
+    already spent before the first tool result arrived and compaction fired
+    on nearly every multi-round question. The MIA endpoint reports
+    max_model_len=262,144 for Qwen3.8-27B (its own 400 names the number), so
+    the old value was ~16x under what the server allows. 65,536 is still a
+    deliberate fraction of that - prefill time grows with the prompt, and a
+    hackathon endpoint is shared - but it leaves ~40k tokens of real room
+    for tool output, which is more than the longest measured 8-round chain.
     """
-    capacity = int(os.getenv("AGENT_CONTEXT_TOKENS", "16384"))
-    reserve = int(os.getenv("AGENT_OUTPUT_RESERVE_TOKENS", "2048"))
+    capacity = int(os.getenv("AGENT_CONTEXT_TOKENS", "65536"))
+    reserve = int(os.getenv("AGENT_OUTPUT_RESERVE_TOKENS", "8192"))
     if capacity <= reserve or reserve < 0:
         raise ValueError("Context capacity must exceed the nonnegative output reserve.")
     overhead = len(json.dumps(tool_schemas, ensure_ascii=False)) // CHARS_PER_TOKEN

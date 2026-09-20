@@ -927,10 +927,19 @@ def _timing_summary(timeline: list[dict], total_ms: float, compaction_log: list[
 # OWN chart caption (see _history_messages / chartCaptionsFor in
 # static/design/index.html) is what a follow-up about "the chart" needs
 # most, so it has to survive truncation more often than it used to.
-HISTORY_MAX_TURNS = 6
-HISTORY_QUESTION_MAX_CHARS = 500
-HISTORY_ANSWER_MAX_CHARS = 1500
-HISTORY_NOTE_MAX_CHARS = 300
+# Raised from 6/500/1500/300 once AGENT_CONTEXT_TOKENS went to 65,536 (see
+# compact_context): the old caps were sized for a 16,384-token ceiling that
+# the system prompt and tool schemas had already nearly filled, so a
+# follow-up got a truncated paraphrase of its own previous answer. At these
+# values the worst case - 12 full turns at 6,000 chars each - is ~18,000
+# estimated tokens, which with the ~4,700-token system prompt and the
+# ~4,400-token schemas still leaves ~14,000 tokens of the compaction budget
+# free for this round's tool output. Bounded on purpose, not unlimited: a
+# runaway session must still not be able to push tool results out.
+HISTORY_MAX_TURNS = 12
+HISTORY_QUESTION_MAX_CHARS = 1500
+HISTORY_ANSWER_MAX_CHARS = 6000
+HISTORY_NOTE_MAX_CHARS = 600
 
 # Turns older than HISTORY_MAX_TURNS are dropped in full, but the client
 # still carries their summarize_turn() notes (tools/series/tables/params)
@@ -940,7 +949,7 @@ HISTORY_NOTE_MAX_CHARS = 300
 # HISTORY_MAX_TURNS still knows it was working with a given seri_kod or
 # table without re-paying for the full Q&A text of every turn on every
 # request.
-HISTORY_DIGEST_MAX_CHARS = 500
+HISTORY_DIGEST_MAX_CHARS = 1500
 
 _SQL_SERIES_RE = re.compile(r"seri_kod\"?\s*(?:=|\bin\b)\s*\(?\s*((?:'[^']+'\s*,?\s*)+)", re.IGNORECASE)
 _NOTE_ARG_KEYS = ("metric", "period", "compare_to_period", "ticker", "dataset_name", "start_period", "end_period", "url", "query")

@@ -1715,7 +1715,7 @@ class Component extends DCLogic {
     // raised together after feedback that follow-ups were losing the specific
     // numbers/periods they needed; the server still truncates defensively to
     // these same caps even if this copy ever drifts.
-    const HISTORY_MAX_TURNS = 6, ANSWER_MAX_CHARS = 1500, DIGEST_MAX_CHARS = 500;
+    const HISTORY_MAX_TURNS = 12, ANSWER_MAX_CHARS = 6000, DIGEST_MAX_CHARS = 1500;
     const messages = this.state.messages;
     const turns = [];
     for (let i = 0; i < messages.length - 1; i++) {
