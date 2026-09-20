@@ -45,6 +45,7 @@ important for a domain-agnostic tool, since a user's file has no unit or
 type metadata the way the vetted BDDK/EVDS tables do.
 """
 
+import csv
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -132,11 +133,28 @@ def _read_table(path: Path, sheet: str | int | None) -> pd.DataFrame:
     if suffix == ".csv":
         logger.debug(f"_read_table: reading CSV {path}")
         try:
+            # Real repro: a TUIK/EVDS SDMX export uses ';' as the field
+            # separator (since ',' is the Turkish decimal separator, used
+            # inside quoted numeric cells like "0,55") - read_csv's comma
+            # default silently "worked" (wrong column count, one giant
+            # column) until the first category name containing an actual
+            # comma (e.g. "Konut, su, elektrik, gaz ve diğer yakıtlar")
+            # produced an inconsistent field count and raised
+            # ParserError. Sniffing the real delimiter from a sample up
+            # front, instead of hardcoding ',', fixes this without
+            # guessing file-by-file; plain comma CSVs (the common case,
+            # no semicolons in the sample) are unaffected.
+            with open(path, "r", encoding="utf-8-sig", newline="") as fh:
+                sample = fh.read(8192)
+            try:
+                sep = csv.Sniffer().sniff(sample, delimiters=",;\t|").delimiter
+            except csv.Error:
+                sep = ","
             # encoding='utf-8-sig' quietly handles a leading BOM (common
             # from Excel's own "CSV UTF-8" export) that would otherwise
             # land inside the first column's name and make it
             # un-referenceable by SQL.
-            return pd.read_csv(path, encoding="utf-8-sig")
+            return pd.read_csv(path, encoding="utf-8-sig", sep=sep)
         except pd.errors.EmptyDataError as exc:
             logger.warning(f"_read_table: {path} has no parseable content")
             raise ValueError(f"'{path.name}' is empty or has no columns.") from exc

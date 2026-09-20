@@ -325,6 +325,11 @@ def _system_prompt(route_addon: str = "") -> str:
         f"\nMEVCUT BÖLGESEL METRİKLER (Tablo: gold_regional_long, 81 il, kolonlar: Period, Bolge, "
         f"Metrik, Deger, Birim, Toplanabilir, Kaynak_Tablo). Bu listeyi öğrenmek için AYRICA SORGU "
         f"YAPMA, tam liste burada. Liste formatı: Metrik | Birim | Toplanabilir | Kaynak_Tablo\n"
+        f"Bolge kolonu büyük harf Türkçe yazımda (ör. 'İSTANBUL', noktalı büyük İ - U+0130), "
+        f"ASCII 'ISTANBUL' değil. İl adıyla filtrelerken Bolge = 'X' KULLANMA - Türkçe "
+        f"büyük/küçük harf (İ/I/ı) farkı yüzünden sessizce 0 satır döner; bunun yerine "
+        f"Bolge ILIKE 'X' kullan (DuckDB ILIKE büyük/küçük harf ve İ/I farkını göz ardı eder, "
+        f"tek denemede eşleşir).\n"
         f"{regional_catalog}\n"
     ) if regional_catalog else ""
     prompt = (

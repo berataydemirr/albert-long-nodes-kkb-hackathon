@@ -405,8 +405,18 @@ textarea:focus-visible { outline: none; }
     </div>
 
     <div style="padding:10px 0 26px; position:sticky; bottom:0; background:linear-gradient(to top, var(--bg) 42%, transparent); flex:none;">
+      <sc-if value="{{ hasPendingFiles }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex; flex-wrap:wrap; gap:6px; padding:0 4px 8px;">
+          <sc-for list="{{ pendingFileChips }}" as="pf">
+            <span style="display:inline-flex; align-items:center; gap:6px; max-width:220px; background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:5px 6px 5px 10px; font-size:12.5px; color:var(--ink);">
+              <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ pf.name }}</span>
+              <button onClick="{{ pf.remove }}" aria-label="Kaldır" title="Kaldır" style="flex:none; background:none; border:0; color:var(--muted); cursor:pointer; font-size:14px; line-height:1; padding:2px 3px; border-radius:5px;" style-hover="color:var(--ink); background:var(--bg-grad);">×</button>
+            </span>
+          </sc-for>
+        </div>
+      </sc-if>
       <div style="display:flex; align-items:flex-end; gap:10px; background:var(--surface); border:1px solid {{ composerBorder }}; border-radius:16px; padding:10px 10px 10px 10px; transition:border-color .25s ease, box-shadow .25s ease; box-shadow:{{ composerShadow }};">
-        <input ref="{{ fileInputRef }}" type="file" accept=".csv,.xlsx,.xls,.pdf" onChange="{{ onFileSelected }}" style="display:none;" />
+        <input ref="{{ fileInputRef }}" type="file" accept=".csv,.xlsx,.xls,.pdf" multiple onChange="{{ onFileSelected }}" style="display:none;" />
         <button onClick="{{ triggerUpload }}" disabled="{{ uploading }}" aria-label="CSV, Excel veya PDF dosyası yükle" title="CSV, Excel veya PDF dosyası yükle" style="flex:none; width:38px; height:38px; border-radius:11px; background:none; border:1px solid var(--border); color:var(--muted); cursor:{{ uploadCursor }}; font-size:17px; display:flex; align-items:center; justify-content:center; transition:all .18s ease;" style-hover="color:var(--ink); border-color:rgba(var(--accent-rgb),.32);">
           <sc-if value="{{ uploading }}" hint-placeholder-val="{{ false }}">
             <span class="premium-spinner"></span>
@@ -419,7 +429,7 @@ textarea:focus-visible { outline: none; }
         <button onClick="{{ send }}" disabled="{{ sendDisabled }}" style="flex:none; width:38px; height:38px; border-radius:11px; border:0; background:{{ sendBg }}; color:var(--on-accent); font-size:16px; cursor:{{ sendCursor }}; display:flex; align-items:center; justify-content:center; transition:all .2s ease;" style-hover="filter:brightness(1.08);">↑</button>
       </div>
       <div style="display:flex; justify-content:space-between; gap:12px; margin-top:9px; padding:0 4px;">
-        <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:var(--faint);">Enter ile gönder · Shift+Enter satır · + ile CSV/Excel/PDF yükle</span>
+        <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:var(--faint);">Enter ile gönder · Shift+Enter satır · + ile dosya ekle (birden fazla olabilir, gönderince yüklenir)</span>
         <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:var(--faint);">{{ charLabel }}</span>
       </div>
     </div>
@@ -1341,6 +1351,7 @@ class Component extends DCLogic {
     // so this just reads back what is already on the document.
     themeMode: (document.documentElement.getAttribute('data-theme') || null),
     uploading: false,
+    pendingFiles: [],          // staged in the composer, not yet uploaded - {file, key}[]
     isDragOver: false,
     activeSessionId: newSessionId(),
     sessions: [],              // past chat sessions, sidebar list (persisted, see syncActiveSession)
@@ -1511,10 +1522,35 @@ class Component extends DCLogic {
   triggerUpload = () => { if (!this.state.uploading && this.fileInputEl) this.fileInputEl.click(); };
 
   onFileSelected = (e) => {
-    const file = e.target.files && e.target.files[0];
+    const files = e.target.files ? Array.from(e.target.files) : [];
     e.target.value = ''; // lets the same file be picked again after an error
-    if (!file) return;
-    this.uploadFile(file);
+    if (!files.length) return;
+    this.stageFiles(files);
+  };
+
+  // Files land here first, not on the network - the user may want to add
+  // a second/third file, or type a question to go with them, before any
+  // of it is sent. Nothing is uploaded until send() actually fires.
+  stageFiles = (files) => {
+    const valid = files.filter(f => /\.(csv|xlsx|xls|pdf)$/i.test(f.name));
+    const invalid = files.filter(f => !/\.(csv|xlsx|xls|pdf)$/i.test(f.name));
+    if (invalid.length) {
+      this.pushAssistantTo(this.state.activeSessionId, {
+        routeName: 'data_import', routeReason: 'Desteklenmeyen dosya türü.',
+        md: `**Yüklenemedi: ${invalid.map(f => f.name).join(', ')}**\n\nSadece CSV, Excel (.xlsx/.xls) veya PDF dosyaları kabul ediliyor.`,
+        trace: [], timing: null,
+      });
+    }
+    if (!valid.length) return;
+    this.setState(s => ({
+      pendingFiles: [...s.pendingFiles, ...valid.map(f => ({
+        file: f, key: `${f.name}_${f.size}_${f.lastModified}_${Math.random().toString(36).slice(2, 7)}`
+      }))]
+    }));
+  };
+
+  removePendingFile = (key) => {
+    this.setState(s => ({ pendingFiles: s.pendingFiles.filter(pf => pf.key !== key) }));
   };
 
   // dragCounter (not state) tracks nested enter/leave pairs, since a
@@ -1539,21 +1575,16 @@ class Component extends DCLogic {
     e.preventDefault();
     this.dragCounter = 0;
     this.setState({ isDragOver: false });
-    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-    if (!file || this.state.uploading) return;
-    if (!/\.(csv|xlsx|xls|pdf)$/i.test(file.name)) {
-      this.pushAssistantTo(this.state.activeSessionId, {
-        routeName: 'data_import', routeReason: 'Desteklenmeyen dosya türü.',
-        md: `**Yükleme başarısız oldu.**\n\nSadece CSV, Excel (.xlsx/.xls) veya PDF dosyaları kabul ediliyor.`,
-        trace: [], timing: null,
-      });
-      return;
-    }
-    this.uploadFile(file);
+    const files = e.dataTransfer && e.dataTransfer.files ? Array.from(e.dataTransfer.files) : [];
+    if (!files.length) return;
+    this.stageFiles(files);
   };
 
-  uploadFile = (file) => {
-    const sessionId = this.state.activeSessionId;
+  // Called from send() once the user actually sends, one file at a time
+  // (send() chains these) - each still gets its own "Dataset yükleniyor"
+  // message in-place, same as before, just deferred to send time.
+  uploadFile = (file, sessionId) => {
+    const sid = sessionId || this.state.activeSessionId;
     this.setState(s => ({
       messages: [...s.messages, { id: s.nextId, role: 'user', text: `Dataset yükleniyor: ${file.name}` }],
       uploading: true, nextId: s.nextId + 1
@@ -1562,10 +1593,10 @@ class Component extends DCLogic {
     const form = new FormData();
     form.append('file', file);
 
-    fetch('/api/upload', { method: 'POST', body: form })
+    return fetch('/api/upload', { method: 'POST', body: form })
       .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail || 'Yükleme başarısız oldu.'); return d; })
       .then(result => {
-        this.pushAssistantTo(sessionId, {
+        this.pushAssistantTo(sid, {
           routeName: 'data_import', routeReason: `'${result.file_name}' içe aktarıldı.`,
           md: formatUploadSummary(result), trace: [], timing: null,
           turnId: result.turn_id, artifacts: result.artifacts || [],
@@ -1573,7 +1604,7 @@ class Component extends DCLogic {
         });
       })
       .catch(err => {
-        this.pushAssistantTo(sessionId, {
+        this.pushAssistantTo(sid, {
           routeName: 'data_import', routeReason: 'Yükleme başarısız.',
           md: `**Yükleme başarısız oldu.**\n\n${err.message}`, trace: [], timing: null,
         });
@@ -1692,11 +1723,22 @@ class Component extends DCLogic {
   send = (override) => {
     const text = (override !== undefined ? override : this.state.input).trim();
     const sessionId = this.state.activeSessionId;
-    if (!text || this.state.pending[sessionId]) return;
+    const files = this.state.pendingFiles.map(pf => pf.file);
+    if ((!text && !files.length) || this.state.pending[sessionId]) return;
+    this.setState({ input: '', pendingFiles: [] });
+    if (!files.length) { this.sendText(text, sessionId); return; }
+    // Uploads run one at a time (not Promise.all) so each dataset's
+    // import summary lands in the chat in the order the user added them,
+    // instead of racing.
+    files.reduce((chain, file) => chain.then(() => this.uploadFile(file, sessionId)), Promise.resolve())
+      .then(() => { if (text) this.sendText(text, sessionId); });
+  };
+
+  sendText = (text, sessionId) => {
     const { turns: history, digest: historyDigest } = this.historyForRequest();
     this.setState(s => ({
       messages: [...s.messages, { id: s.nextId, role: 'user', text }],
-      input: '', nextId: s.nextId + 1
+      nextId: s.nextId + 1
     }), () => { this.scrollEnd(); this.syncActiveSession(); });
     const requestId = `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
     this.markPending(sessionId, requestId);
@@ -1916,7 +1958,7 @@ class Component extends DCLogic {
       timing: `${fmtMs(pt.duration_ms)} · ${pctOf(pt.duration_ms, total)}`
     }));
 
-    const canSend = s.input.trim().length > 0 && !thinking;
+    const canSend = (s.input.trim().length > 0 || s.pendingFiles.length > 0) && !thinking;
 
     return {
       modeLabel: s.live ? 'live' : 'preview',
@@ -1951,6 +1993,11 @@ class Component extends DCLogic {
       uploadIdle: !s.uploading,
       uploadLabel: '+',
       uploadCursor: s.uploading ? 'default' : 'pointer',
+      hasPendingFiles: s.pendingFiles.length > 0,
+      pendingFileChips: s.pendingFiles.map(pf => ({
+        key: pf.key, name: pf.file.name,
+        remove: () => this.removePendingFile(pf.key)
+      })),
       isEmpty: s.messages.length === 0 && !thinking,
       examples: EXAMPLES.map(ex => ({
         label: ex.label, tag: ex.tag,
