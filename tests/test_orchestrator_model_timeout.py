@@ -17,7 +17,10 @@ round/deadline-limit case.
 """
 import time
 
-import httpx
+try:
+    import httpx
+except ModuleNotFoundError:  # Python 3.14 compatibility fork used by this environment
+    import httpx2 as httpx
 import openai
 import pytest
 
@@ -97,16 +100,15 @@ def test_per_attempt_timeout_shrinks_to_the_remaining_deadline_budget():
     )
 
 
-def test_a_deadline_of_none_keeps_the_old_fixed_timeout_behavior():
-    """Backward compatibility: the two call sites that don't pass a
-    deadline (or omit it) must behave exactly as before - a single
-    unchanging timeout across all attempts."""
+def test_a_full_read_timeout_is_not_replayed_even_without_a_deadline():
+    """A timeout already spent the whole call budget; retrying the same
+    large request is the failure amplification this guard prevents."""
     client = _RetryFakeClient(_timeout_error())
 
     with pytest.raises(openai.APITimeoutError):
         orchestrator._call_model(client, [{"role": "user", "content": "x"}], [], timeout=12.0)
 
-    assert client.timeouts_used == [12.0, 12.0, 12.0]
+    assert client.timeouts_used == [12.0]
 
 
 # --- ask()-level: a persistently failing model call must degrade to a
@@ -132,11 +134,16 @@ def test_ask_never_raises_when_the_model_call_keeps_failing(monkeypatch):
 
     # A tight deadline keeps this test fast (no multi-minute real sleep)
     # while still exercising the exact same code path as the live incident.
-    answer = orchestrator.ask("test sorusu", deadline_sec=2.0)
+    answer, _, timing = orchestrator.ask(
+        "test sorusu", deadline_sec=2.0, return_trace=True, return_timing=True)
 
-    assert "yanıt vermiyor" in answer.lower() or "zaman aşımı" in answer.lower()
+    assert "süre içinde yanıt vermedi" in answer.lower()
     assert "check server logs" not in answer.lower()
     assert "günlüklerini kontrol edin" not in answer.lower()  # the old generic message must not appear
+    assert timing["summary"]["llm_ms"] > 0
+    assert timing["summary"]["llm_errors"] == 1
+    assert timing["timeline"][0]["error"], "failed model wait must be visible in the UI timeline"
+    assert "başarısız" in timing["timeline"][0]["name"]
 
 
 def test_ask_with_no_model_error_still_answers_normally(monkeypatch):
