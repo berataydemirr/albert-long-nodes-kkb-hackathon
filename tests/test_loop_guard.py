@@ -582,11 +582,11 @@ def test_web_search_keeps_the_tight_default():
     assert "web_search" not in MAX_CALLS_PER_TOOL_PER_RUN_OVERRIDES
 
 
-def test_lakehouse_query_keeps_the_tight_default():
-    """A model rerunning slightly different SQL over and over is the
-    SQL-shaped version of the same confusion the tight cap exists to
-    catch, so this one is deliberately not in the override list either."""
-    assert _tool_call_limit("lakehouse_query") == DEFAULT_MAX_CALLS_PER_TOOL_PER_RUN
+def test_lakehouse_query_allows_a_real_multi_series_batch():
+    """A four-series comparison must not lose its fourth distinct SELECT.
+    Exact duplicate SQL is independently blocked by the signature guard."""
+    assert _tool_call_limit("lakehouse_query") == 8
+    assert "lakehouse_query" in MAX_CALLS_PER_TOOL_PER_RUN_OVERRIDES
 
 
 def test_a_six_series_batch_no_longer_gets_truncated():

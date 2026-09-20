@@ -182,16 +182,14 @@ def test_duckdb_writers_are_serialized(monkeypatch):
     assert peak[0] == 1
 
 
-def test_the_run_deadline_forces_an_answer(monkeypatch):
+def test_the_run_deadline_does_not_start_an_overtime_model_call(monkeypatch):
     client = _ScriptedClient([_FakeMessage(content="süre doldu, kısa cevap")])
     _patch(monkeypatch, client)
 
     answer = orchestrator.ask(LOOKUP, deadline_sec=0)
 
-    assert answer == "süre doldu, kısa cevap"
-    assert len(client.requests) == 1
-    assert "tools" not in client.requests[0]
-    assert "Süre limitine" in client.requests[0]["messages"][-1]["content"]
+    assert "süre içinde yanıt vermedi" in answer
+    assert len(client.requests) == 0
 
 
 def test_a_degraded_run_logs_one_diagnostic_block_with_route_budget_and_tools(monkeypatch, caplog):

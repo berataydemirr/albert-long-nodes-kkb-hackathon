@@ -1907,7 +1907,7 @@ class Component extends DCLogic {
 
     const drawerStats = summary ? [
       { label: 'total', value: fmtMs(summary.total_ms), sub: 'wall clock', color: 'var(--ink)' },
-      { label: 'model', value: fmtMs(summary.llm_ms), sub: `${summary.llm_calls} rounds · ${pctOf(summary.llm_ms, total)}`, color: 'rgba(var(--web-marker-rgb),.95)' },
+      { label: 'model', value: fmtMs(summary.llm_ms), sub: `${summary.llm_calls} rounds${summary.llm_errors ? ` · ${summary.llm_errors} err` : ''} · ${pctOf(summary.llm_ms, total)}`, color: 'rgba(var(--web-marker-rgb),.95)' },
       { label: 'tools', value: fmtMs(summary.tool_ms), sub: `${summary.tool_calls} calls · ${pctOf(summary.tool_ms, total)}`, color: ACC }
     ] : [];
 

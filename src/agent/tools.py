@@ -6,6 +6,7 @@ queries and calculations against the local DuckDB gold layer.
 
 from dataclasses import dataclass
 import json
+import re
 from typing import Callable
 
 import duckdb
@@ -438,6 +439,174 @@ def threshold_filter_compare(filter_periods: list[str] | None = None, filter_val
     return result
 
 
+def _period_number(value: str) -> int:
+    """Normalize both YYYY-M and YYYY-MM without relying on string order."""
+    match = re.fullmatch(r"(\d{4})-(\d{1,2})", str(value).strip())
+    if not match:
+        raise ValueError(f"Unsupported period {value!r}; expected YYYY-MM.")
+    year, month = int(match.group(1)), int(match.group(2))
+    if not 1 <= month <= 12:
+        raise ValueError(f"Unsupported month in period {value!r}.")
+    return year * 12 + month
+
+
+def credit_elasticity_analysis(
+    start_period: str = "2023-01",
+    end_period: str = "2024-12",
+    housing_seri_kod: str = "tablo_4.konut_kredisi",
+    vehicle_metric: str = "tasit_kredisi",
+    policy_seri_kod: str = "TP.BISPOLFAIZ.TUR",
+    cpi_seri_kod: str = "TP.GENENDEKS.T1",
+) -> dict:
+    """Compare CPI-deflated housing and vehicle credit sensitivity to policy rates.
+
+    Housing, CPI and policy-rate observations are monthly national series in
+    ``gold_fact_long``. Vehicle credit is a national sum of province-level,
+    quarterly observations in ``gold_regional_long``. The calculation uses
+    only periods shared by all inputs, so frequency alignment, inflation
+    adjustment and elasticity never depend on model arithmetic.
+    """
+    start_no, end_no = _period_number(start_period), _period_number(end_period)
+    if start_no >= end_no:
+        raise ValueError("start_period must be earlier than end_period.")
+
+    con = _db()
+    try:
+        fact_rows = con.execute(
+            """
+            SELECT Period, Seri_Kod, Deger
+            FROM gold_fact_long
+            WHERE Seri_Kod IN (?, ?, ?)
+            ORDER BY Period
+            """,
+            [housing_seri_kod, policy_seri_kod, cpi_seri_kod],
+        ).fetchall()
+        vehicle_rows = con.execute(
+            """
+            SELECT Period, SUM(Deger) AS Deger
+            FROM gold_regional_long
+            WHERE Metrik = ?
+            GROUP BY Period
+            ORDER BY Period
+            """,
+            [vehicle_metric],
+        ).fetchall()
+    finally:
+        con.close()
+
+    by_code: dict[str, dict[int, tuple[str, float]]] = {
+        housing_seri_kod: {}, policy_seri_kod: {}, cpi_seri_kod: {}
+    }
+    for period, code, value in fact_rows:
+        if value is not None:
+            by_code[code][_period_number(period)] = (str(period), float(value))
+    vehicles = {
+        _period_number(period): (str(period), float(value))
+        for period, value in vehicle_rows if value is not None
+    }
+
+    missing = [code for code, values in by_code.items() if not values]
+    if not vehicles:
+        missing.append(f"gold_regional_long.Metrik={vehicle_metric}")
+    if missing:
+        raise ValueError("Required series has no observations: " + ", ".join(missing))
+
+    shared = set(vehicles)
+    for values in by_code.values():
+        shared &= set(values)
+    usable = sorted(period for period in shared if start_no <= period <= end_no)
+    if len(usable) < 2:
+        raise ValueError(
+            f"Need at least two shared quarterly periods in {start_period}..{end_period}; got {len(usable)}."
+        )
+
+    first, last = usable[0], usable[-1]
+    months = last - first
+    if months <= 0:
+        raise ValueError("Effective comparison period must span at least one month.")
+
+    policy_start = by_code[policy_seri_kod][first][1]
+    policy_end = by_code[policy_seri_kod][last][1]
+    policy_values = [by_code[policy_seri_kod][period][1] for period in usable]
+    cpi_start = by_code[cpi_seri_kod][first][1]
+    cpi_end = by_code[cpi_seri_kod][last][1]
+    if policy_start == 0 or cpi_start <= 0 or cpi_end <= 0:
+        raise ValueError("Policy-rate start and CPI endpoint values must be positive.")
+
+    rate_pp = policy_end - policy_start
+    rate_relative_pct = (policy_end / policy_start - 1.0) * 100.0
+
+    def metrics(label: str, start_value: float, end_value: float, source: dict) -> dict:
+        if start_value <= 0 or end_value <= 0:
+            raise ValueError(f"{label} endpoint values must be positive.")
+        nominal_pct = (end_value / start_value - 1.0) * 100.0
+        real_start = start_value / cpi_start
+        real_end = end_value / cpi_end
+        real_pct = (real_end / real_start - 1.0) * 100.0
+        annualized_real_pct = ((real_end / real_start) ** (12.0 / months) - 1.0) * 100.0
+        return {
+            "label": label,
+            "nominal_start": round(start_value, 4),
+            "nominal_end": round(end_value, 4),
+            "nominal_change_pct": round(nominal_pct, 4),
+            "real_change_pct": round(real_pct, 4),
+            "annualized_real_change_pct": round(annualized_real_pct, 4),
+            "elasticity_vs_policy_rate_relative_change": (
+                round(real_pct / rate_relative_pct, 6) if rate_relative_pct else None
+            ),
+            "semi_elasticity_real_pct_per_policy_pp": (
+                round(real_pct / rate_pp, 6) if rate_pp else None
+            ),
+            "source": source,
+        }
+
+    housing = metrics(
+        "konut_kredisi",
+        by_code[housing_seri_kod][first][1],
+        by_code[housing_seri_kod][last][1],
+        {"table": "gold_fact_long", "seri_kod": housing_seri_kod, "frequency": "monthly"},
+    )
+    vehicle = metrics(
+        "tasit_kredisi",
+        vehicles[first][1],
+        vehicles[last][1],
+        {"table": "gold_regional_long", "metric": vehicle_metric,
+         "aggregation": "SUM(Deger)", "frequency": "quarterly"},
+    )
+    more_sensitive = max(
+        (housing, vehicle),
+        key=lambda item: abs(item["elasticity_vs_policy_rate_relative_change"] or 0.0),
+    )["label"]
+
+    first_label = f"{first // 12:04d}-{first % 12:02d}" if first % 12 else f"{first // 12 - 1:04d}-12"
+    last_label = f"{last // 12:04d}-{last % 12:02d}" if last % 12 else f"{last // 12 - 1:04d}-12"
+    return {
+        "requested_period": {"start": start_period, "end": end_period},
+        "effective_shared_period": {"start": first_label, "end": last_label, "months": months},
+        "shared_observations": len(usable),
+        "policy_rate": {
+            "seri_kod": policy_seri_kod,
+            "start": round(policy_start, 4),
+            "end": round(policy_end, 4),
+            "peak_in_shared_periods": round(max(policy_values), 4),
+            "change_pp": round(rate_pp, 4),
+            "relative_change_pct": round(rate_relative_pct, 4),
+        },
+        "cpi": {"seri_kod": cpi_seri_kod, "start": round(cpi_start, 4), "end": round(cpi_end, 4)},
+        "credits": [housing, vehicle],
+        "more_rate_sensitive_by_absolute_elasticity": more_sensitive,
+        "method": (
+            "National credit stocks are compared at shared quarter-end periods. Real credit = nominal credit / CPI. "
+            "Elasticity = real credit percent change / policy-rate relative percent change; semi-elasticity is "
+            "real credit percent change per policy-rate percentage-point change."
+        ),
+        "warning": (
+            "Descriptive endpoint sensitivity, not a causal estimate. Housing is a monthly national series; "
+            "vehicle credit is a quarterly national sum of regional observations."
+        ),
+    }
+
+
 _SCHEMAS = [
     {"type": "function", "function": {"name": "recall_turn", "description": "Geçmiş soru kimliğiyle tam soru, yanıt ve değişmez evidence_id kayıtlarını getir. Eski sorunun verisi bağlamda yoksa kullan; özetten sayı tahmin etme.", "parameters": {"type": "object", "properties": {"turn_id": {"type": "string"}}, "required": ["turn_id"], "additionalProperties": False}}},
     {"type": "function", "function": {"name": "evidence_correlation", "description": "İlk sorudaki ve sonraki sorudaki değişmez aylık veri kayıtlarını doğrula, ay bazında hizala ve DuckDB Pearson korelasyonu hesapla. Çelişkili ayları reddeder, eksik ayları raporlar. y bir TÜFE endeksiyse monthly_pct_change seç; aylık enflasyon oranıysa none. Sütun adlarını kayıt çıktısından al.", "parameters": {"type": "object", "properties": {"x_id": {"type": "string"}, "y_id": {"type": "string"}, "x_period": {"type": "string"}, "y_period": {"type": "string"}, "x_value": {"type": "string"}, "y_value": {"type": "string"}, "y_transform": {"type": "string", "enum": ["none", "monthly_pct_change"]}}, "required": ["x_id", "y_id"], "additionalProperties": False}}},
@@ -451,6 +620,7 @@ _SCHEMAS = [
     {"type": "function", "function": {"name": "change_detection", "description": "Find the largest period-over-period percentage changes. PREFERRED: pass seri_kod so the series is read from the lakehouse instead of being retyped.", "parameters": {"type": "object", "properties": {"seri_kod": {"type": "string", "description": "Seri_Kod from lakehouse_schema. Cheapest and most accurate input."}, "start_period": {"type": "string"}, "end_period": {"type": "string"}, "bolge": {"type": "string"}, "periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}}, "additionalProperties": False}}},
     {"type": "function", "function": {"name": "correlation_analysis", "description": "Aligned Pearson correlation between two series; never call it causation. PREFERRED: pass x_seri_kod and y_seri_kod - both series are read from the lakehouse, no need to query and retype them.", "parameters": {"type": "object", "properties": {"x_seri_kod": {"type": "string", "description": "Seri_Kod of the first series."}, "y_seri_kod": {"type": "string", "description": "Seri_Kod of the second series."}, "start_period": {"type": "string"}, "end_period": {"type": "string"}, "x_periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "x_values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}, "y_periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "y_values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}}, "additionalProperties": False}}},
     {"type": "function", "function": {"name": "causality_analysis", "description": "Test whether series x is a statistically useful predictor of series y: best-aligned lag correlation plus a Granger causality test (p-values per lag). Not proof of true causation. PREFERRED: pass x_seri_kod and y_seri_kod - both series are read from the lakehouse directly, which is far cheaper and avoids transcription errors.", "parameters": {"type": "object", "properties": {"x_seri_kod": {"type": "string", "description": "Seri_Kod of the candidate predictor series."}, "y_seri_kod": {"type": "string", "description": "Seri_Kod of the target series."}, "start_period": {"type": "string"}, "end_period": {"type": "string"}, "x_periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "x_values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}, "y_periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "y_values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}, "max_lag": {"type": "integer", "default": 6, "description": "Needs max_lag*2+5 shared periods; the error says which lag fits if this one does not."}}, "additionalProperties": False}}},
+    {"type": "function", "function": {"name": "credit_elasticity_analysis", "description": "Deterministically compare CPI-deflated housing and vehicle credit contraction and sensitivity to the policy rate. Use this directly for reel daralma / faize duyarlilik / elastikiyet questions instead of separate lakehouse queries or mental arithmetic. It aligns monthly national housing/CPI/rate series with the quarterly national sum of regional vehicle credit, and returns endpoint real changes, annualized real changes, elasticity and semi-elasticity.", "parameters": {"type": "object", "properties": {"start_period": {"type": "string", "default": "2023-01"}, "end_period": {"type": "string", "default": "2024-12"}, "housing_seri_kod": {"type": "string", "default": "tablo_4.konut_kredisi"}, "vehicle_metric": {"type": "string", "default": "tasit_kredisi"}, "policy_seri_kod": {"type": "string", "default": "TP.BISPOLFAIZ.TUR"}, "cpi_seri_kod": {"type": "string", "default": "TP.GENENDEKS.T1"}}, "additionalProperties": False}}},
     {"type": "function", "function": {"name": "threshold_filter_compare", "description": "Filter periods where the filter series falls in [low, high] (e.g. an interest rate range), then compare the average period-over-period change of the compare series inside vs outside that window. Matches the demo's 'faiz X ile Y arasindayken kredi nasil degisti' pattern. PREFERRED: pass filter_seri_kod and compare_seri_kod.", "parameters": {"type": "object", "properties": {"filter_seri_kod": {"type": "string", "description": "Seri_Kod of the series the [low, high] window applies to."}, "compare_seri_kod": {"type": "string", "description": "Seri_Kod of the series whose change is compared."}, "low": {"type": "number"}, "high": {"type": "number"}, "start_period": {"type": "string"}, "end_period": {"type": "string"}, "filter_periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "filter_values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}, "compare_periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "compare_values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}}, "required": ["low", "high"], "additionalProperties": False}}},
     {"type": "function", "function": {"name": "compare_regions", "description": "Rank Turkish provinces by any of ~35 metrics (lending, deposits, consumer credit by product, per-capita figures, branch counts, NPL and sector default ratios) for one quarter, optionally with growth against an earlier quarter. This is the ONLY way to reach province-level data - gold_fact_long is national (Bolge='TR') and has no regional breakdown. Returns a ranked head plus totals, not all 82 rows. 'YURT DISI' is not a province and is excluded from the ranking by default.", "parameters": {"type": "object", "properties": {"period": {"type": "string", "description": "Quarter as 'YYYY-MM' with the month in 03/06/09/12, e.g. '2026-06'. The unpadded '2026-6' spelling is also accepted. Defaults to the latest available quarter."}, "metric": {"type": "string", "default": "kredi", "description": "One of ~35 province-level metrics. Common: kredi (total cash loans), npl (non-performing ratio %), mevduat (deposits), konut_kredisi, tasit_kredisi, kredi_karti, takip_konut_kredisi, kisi_basi_kredi, kisi_basi_mevduat, sube_sayisi, kredi_mevduat_orani, konut_takip_orani, insaat_takip_orani. An unknown name returns the full list."}, "top_n": {"type": "integer", "default": 10, "description": "How many provinces to return, capped at 25."}, "order": {"type": "string", "enum": ["desc", "asc"], "default": "desc"}, "compare_to_period": {"type": "string", "description": "An earlier quarter; adds growth_pct per province."}, "include_non_provinces": {"type": "boolean", "default": False, "description": "Keep 'YURT DISI' in the ranking. Leave false for a province ranking."}}, "additionalProperties": False}}},
     {"type": "function", "function": {"name": "list_imported_datasets", "description": "List every dataset a user has uploaded (CSV/Excel/PDF) or the agent has fetched live (fetch_bist_stock, refresh_tuik_series), with their columns. Call this before query_imported_dataset if you are not sure a dataset exists or what it is called - lakehouse_schema also lists these tables (they live in the same database) but this gives upload/fetch provenance lakehouse_schema does not.", "parameters": {"type": "object", "properties": {}, "additionalProperties": False}}},
@@ -493,10 +663,9 @@ class ToolSpec:
 #
 # Call limits: web search has no legitimate reason to run more than a few
 # times per answer (a blocked provider once got rephrased 4 times in 5
-# rounds), and lakehouse_query stays tight because rerunning slightly
-# different SQL is the same confusion - loosening the default across the
-# board would silently reintroduce that exact measured loop, so it stays
-# scoped to the tools below. Local analysis tools get a loose limit: a
+# rounds). lakehouse_query allows eight DISTINCT reads because legitimate
+# comparisons can need four or more inputs; identical SQL is independently
+# rejected by the signature guard. Local analysis tools get a loose limit: a
 # 6-series anomaly batch is a normal request and was cut in half under a
 # global cap of 3; raised further still (product decision: correctness/
 # thoroughness over speed) to give a checkpointed run real headroom past
@@ -511,11 +680,16 @@ _SPEC_TABLE = {
     "search_evds_series": (search_evds_series, "live_fetch", 8, 60.0, True),
     "fetch_evds_series": (fetch_evds_series, "live_fetch", 4, 120.0, False),
     "lakehouse_schema": (lakehouse_schema, "core", DEFAULT_CALL_LIMIT, 30.0, True),
-    "lakehouse_query": (lakehouse_query, "core", DEFAULT_CALL_LIMIT, 60.0, True),
+    # Exact repeats are still blocked by orchestrator._loop_guard. Eight
+    # distinct reads lets a legitimate multi-series comparison complete;
+    # the old global limit of three blocked the fourth query in the very
+    # first round before the model had seen all required inputs.
+    "lakehouse_query": (lakehouse_query, "core", 8, 60.0, True),
     "anomaly_analysis": (anomaly_analysis, "analysis", 20, 60.0, True),
     "change_detection": (change_detection, "analysis", 20, 60.0, True),
     "correlation_analysis": (correlation_analysis, "analysis", 20, 60.0, True),
     "causality_analysis": (causality_analysis, "analysis", 16, 90.0, True),
+    "credit_elasticity_analysis": (credit_elasticity_analysis, "analysis", 2, 60.0, True),
     "threshold_filter_compare": (threshold_filter_compare, "analysis", DEFAULT_CALL_LIMIT, 60.0, True),
     "compare_regions": (compare_regions, "regional", 16, 60.0, True),
     "list_imported_datasets": (list_imported_datasets, "imports", DEFAULT_CALL_LIMIT, 30.0, True),

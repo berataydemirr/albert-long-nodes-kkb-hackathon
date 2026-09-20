@@ -63,8 +63,8 @@ def test_a_chained_question_unions_groups_and_takes_the_bigger_budget():
     )
 
     assert {"core", "analysis", "regional", "web"} <= set(decision.tool_groups)
-    assert decision.settings.reasoning_effort == "medium"
-    assert decision.settings.max_rounds > 8
+    assert decision.settings.reasoning_effort == "low"
+    assert decision.settings.max_rounds > 4
 
 
 def test_a_single_lookup_gets_a_small_budget_and_low_effort():
@@ -197,5 +197,6 @@ def test_elasticity_and_contraction_wording_routes_to_analysis():
     )
 
     assert decision.route is Route.ANALYSIS
-    assert decision.settings.reasoning_effort == "medium"
-    assert decision.settings.max_rounds == 8
+    assert decision.settings.reasoning_effort == "low"
+    assert decision.settings.max_rounds == 4
+    assert "credit_elasticity_analysis" in decision.allowed_tool_names

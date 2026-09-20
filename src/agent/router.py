@@ -104,7 +104,9 @@ ROUTE_SETTINGS: dict[Route, RouteSettings] = {
         "Gösterge | Konu | Frekans | Birim | Kaynak); gösterge başına paragraf yazma.",
         "none", 8),
     Route.ANALYSIS: RouteSettings(
-        "ROTA: analiz. Serileri seri_kod ile analiz araçlarına ver; adımları sırayla tamamla.", "medium", 8),
+        "ROTA: analiz. Serileri seri_kod ile analiz araçlarına ver; adımları sırayla tamamla. "
+        "Reel kredi daralması/faiz elastikiyeti sorularında credit_elasticity_analysis aracını "
+        "doğrudan çağır; ham serileri ayrı ayrı sorgulayıp hesabı zihninden yapma.", "low", 4),
     Route.REGIONAL: RouteSettings(
         "ROTA: il bazlı. compare_regions kullan; gold_fact_long ulusaldır.", "low", 5),
     Route.IMPORTS: RouteSettings(

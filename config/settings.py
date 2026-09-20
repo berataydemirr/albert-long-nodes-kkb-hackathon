@@ -36,18 +36,19 @@ MIA_REASONING_EFFORT = os.getenv("MIA_REASONING_EFFORT", "low")
 # Unset, the router picks the effort per route (a lookup runs lower than a
 # causality chain). Set explicitly, the env value wins for every route.
 MIA_REASONING_EFFORT_EXPLICIT = "MIA_REASONING_EFFORT" in os.environ
-# Wall-clock budget for one ask() run, alongside the round limit. A single
-# model call may take up to 240s, so rounds alone do not bound the worst case.
-# Raised from 300 to 600: live evidence on a broad multi-table discovery
-# question showed individual rounds regularly taking 200-250s+ under normal
-# shared-endpoint load - at 300s, a route with max_rounds=8 (e.g. ANALYSIS)
-# could never actually reach more than ~1 round before the deadline cut it
-# off, making the round budget meaningless. Safe to raise now that two
-# earlier fixes exist: web_app.py streams heartbeats on /api/ask so no
-# proxy/tunnel truncates a long-running request regardless of duration, and
-# _call_model's own retries are deadline-aware so they never waste time
-# past whatever budget is set here.
-AGENT_RUN_DEADLINE_SEC = float(os.getenv("AGENT_RUN_DEADLINE_SEC", "600"))
+# End-to-end wall-clock budget. This is deliberately shorter than four full
+# 120s model rounds: a degraded endpoint should return a deterministic
+# fallback within five minutes rather than keeping the browser waiting for
+# every theoretical round.
+AGENT_RUN_DEADLINE_SEC = float(os.getenv("AGENT_RUN_DEADLINE_SEC", "300"))
+# A single completion should not be allowed to consume the whole run budget.
+# The shared MIA endpoint occasionally accepts a request but produces no bytes
+# for several minutes. 120s leaves enough room for normal reasoning while
+# preserving budget for a useful fallback or another model round.
+MODEL_CALL_TIMEOUT_SEC = float(os.getenv("MODEL_CALL_TIMEOUT_SEC", "120"))
+# One retry is enough to recover a transient connection failure. Three long
+# attempts amplified endpoint incidents into 10+ minute user-visible hangs.
+MODEL_CALL_MAX_ATTEMPTS = max(1, int(os.getenv("MODEL_CALL_MAX_ATTEMPTS", "2")))
 # Extra model call when an answer states numbers no tool returned. Off by
 # default: the heuristic flags legitimate arithmetic (a sum of two shares)
 # and one repair call measured 50-85s on the shared endpoint. The check
