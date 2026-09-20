@@ -1,0 +1,36 @@
+[
+  {
+    "arm": "A_no_schema_effort_low",
+    "ok": true,
+    "seconds": 67.0,
+    "reasoning_effort": "low",
+    "prompt_tokens": 96,
+    "completion_tokens": 479,
+    "reasoning_tokens": 303
+  },
+  {
+    "arm": "B_full_schema_effort_low",
+    "ok": true,
+    "seconds": 99.1,
+    "reasoning_effort": "low",
+    "prompt_tokens": 7329,
+    "completion_tokens": 915,
+    "reasoning_tokens": 713
+  },
+  {
+    "arm": "C_full_schema_effort_minimal",
+    "ok": false,
+    "seconds": 0.1,
+    "reasoning_effort": "minimal",
+    "error": "BadRequestError: Error code: 400 - {'error': {'message': 'Unexpected reasoning effort minimal. Supported types are xhigh (default), medium, and low.', 'type': 'invalid_request_error'}}"
+  },
+  {
+    "arm": "D_full_schema_effort_medium",
+    "ok": true,
+    "seconds": 143.1,
+    "reasoning_effort": "medium",
+    "prompt_tokens": 7299,
+    "completion_tokens": 1352,
+    "reasoning_tokens": 1060
+  }
+]

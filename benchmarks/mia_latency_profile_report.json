@@ -1,0 +1,76 @@
+[
+  {
+    "case": "1_tiny_in_tiny_out",
+    "ok": true,
+    "seconds": 7.7,
+    "reasoning_effort": null,
+    "tool_schemas_sent": 0,
+    "prompt_tokens": 66,
+    "completion_tokens": 34,
+    "reasoning_tokens": 30,
+    "ms_per_prompt_token": 116.955,
+    "ms_per_completion_token": 227.0
+  },
+  {
+    "case": "2_big_prompt_tiny_out",
+    "ok": true,
+    "seconds": 6.6,
+    "reasoning_effort": null,
+    "tool_schemas_sent": 0,
+    "prompt_tokens": 11050,
+    "completion_tokens": 44,
+    "reasoning_tokens": 40,
+    "ms_per_prompt_token": 0.597,
+    "ms_per_completion_token": 149.9
+  },
+  {
+    "case": "3_big_prompt_all_tools_tiny_out",
+    "ok": true,
+    "seconds": 4.7,
+    "reasoning_effort": null,
+    "tool_schemas_sent": 22,
+    "prompt_tokens": 15882,
+    "completion_tokens": 20,
+    "reasoning_tokens": 16,
+    "ms_per_prompt_token": 0.294,
+    "ms_per_completion_token": 233.6
+  },
+  {
+    "case": "4_tiny_in_long_reasoning",
+    "ok": false,
+    "seconds": 480.5,
+    "error": "APITimeoutError: Request timed out.",
+    "reasoning_effort": "medium"
+  },
+  {
+    "case": "5_real_shape_effort_minimal",
+    "ok": false,
+    "seconds": 0.2,
+    "error": "BadRequestError: Error code: 400 - {'error': {'message': 'Unexpected reasoning effort minimal. Supported types are xhigh (default), medium, and low.', 'type': 'invalid_request_error'}}",
+    "reasoning_effort": "minimal"
+  },
+  {
+    "case": "5_real_shape_effort_low",
+    "ok": true,
+    "seconds": 110.0,
+    "reasoning_effort": "low",
+    "tool_schemas_sent": 22,
+    "prompt_tokens": 15888,
+    "completion_tokens": 890,
+    "reasoning_tokens": 872,
+    "ms_per_prompt_token": 6.922,
+    "ms_per_completion_token": 123.6
+  },
+  {
+    "case": "5_real_shape_effort_medium",
+    "ok": true,
+    "seconds": 322.4,
+    "reasoning_effort": "medium",
+    "tool_schemas_sent": 22,
+    "prompt_tokens": 15862,
+    "completion_tokens": 893,
+    "reasoning_tokens": 875,
+    "ms_per_prompt_token": 20.324,
+    "ms_per_completion_token": 361.0
+  }
+]
