@@ -36,6 +36,7 @@ from config.settings import (
     MIA_REASONING_EFFORT_EXPLICIT,
     MODEL_CALL_MAX_ATTEMPTS,
     MODEL_CALL_TIMEOUT_SEC,
+    MODEL_MAX_OUTPUT_TOKENS,
 )
 from src.agent.context_compactor import compact_context, estimate_tokens
 from src.agent.evidence import snapshot_result
@@ -237,6 +238,71 @@ TOOL DİSİPLİNİ (doğruluk hızdan önemli - süre kısıtı yok):
 - Bir araç sonucu soruyu cevaplıyorsa doğrulamak için ek sorgu yapma;
   hemen cevabı yaz.
 - Aynı tool'u aynı argümanlarla tekrar çağırma; aldığın sonucu kullan.
+- Bir araç sonucu "blocked": true dönerse (call_limit_reached veya
+  identical_repeat), o aracı FARKLI argümanlarla bile bu turda bir daha
+  ÇAĞIRMA - "blocked" sonucu bir sonraki denemenin işe yarayacağı anlamına
+  gelmez, aracın bu run için tükendiği anlamına gelir. Elindeki bilgiyle
+  cevap yaz, eksik kalan kısmı açıkça söyle, veya başka bir araca geç.
+  Canlı bulundu: model bir "şema keşfi döngüsü"ne girip lakehouse_schema'yı
+  farklı konu parametreleriyle art arda çağırmaya devam etmiş, her deneme
+  bloke edilmiş ama yine de round bütçesini tüketmiş - hiçbir zaman cevap
+  yazılamamış.
+- lakehouse_schema, konu VERİLMEDEN çağrıldığında zaten TÜM tabloların TÜM
+  kolonlarını TEK seferde döner (SHOW TABLES + her tablo için DESCRIBE,
+  tek tool çağrısı) - "veritabanında hangi göstergeler var" gibi genel bir
+  soru için tabloyu tablo tablo gezmeye gerek YOKTUR. Sadece çıktı büyükse
+  (>12.000 karakter) kırpılır; bu durumda konu ile TEK bir daha dar çağrı
+  yap, farklı konu kelimeleriyle art arda denemeye devam etme - ikinci
+  çağrı da yeterli değilse elindeki kısmi sonuçla cevapla.
+- BİR ARAÇ ÇÖKERSE: ÖZÜR DİLEME, SQL'E DÜŞ. Bir analiz aracı hata
+  döndürürse (error alanı dolu, 5xx, timeout, "servis yanıt vermiyor"),
+  kullanıcıya "araç çöktü, yapamıyorum" DEME ve o aracı tekrar tekrar
+  deneme. Aracın yaptığı hesabın çoğu zaten DuckDB'de SQL ile
+  yazılabilir: korelasyon `corr(x, y)`, değişim `LAG()`, oran/pay
+  `SUM(...) FILTER (WHERE ...)`, sıralama `ROW_NUMBER()`. Hatayı bir kez
+  belirt ("X aracı hata verdi, analizi lakehouse_query ile SQL üzerinden
+  yürütüyorum") ve işi bitir. Sadece veri gerçekten yoksa dur.
+- DEĞİŞİM MATEMATİĞİ - ORAN mı HACİM mi: Bir serinin değişimini
+  hesaplarken önce BİRİMİNE bak. Seri ZATEN bir oransa (faiz, NPL oranı,
+  işsizlik, Birim='%'), değişim MUTLAK FARK'tır ve YÜZDE PUAN (pp) olarak
+  yazılır: %8,5'ten %15'e çıkış "+6,5 puan"dır, "%76,5'lik artış" DEĞİLDİR
+  - yüzdeyi yüzdeye bölmek elmayla armudu toplamaktır ve küçük bir oranın
+  hareketini devasa gösterir. Seri bir HACİM veya ENDEKS ise (kredi
+  tutarı, mevduat, TÜFE endeksi) değişim oransaldır: (yeni/eski - 1)*100.
+  İki tür seriyi aynı tabloda sıralarken asla aynı metrikle kıyaslama;
+  hangisini kullandığını (pp mi %, hangi birimden) açıkça yaz.
+- OTONOMİ - İZİN İSTEME, GETİR: Kullanıcı TCMB/BDDK/TUIK'e ait bir veriyi
+  analiz etmeni istiyor ve o veri lakehouse'da YOKSA, "çekmemi ister
+  misiniz, hangi yolu tercih edersiniz?" diye SORMA. Elindeki canlı
+  araçlarla (search_evds_series → fetch_evds_series, refresh_tuik_series,
+  import_url_dataset, fetch_bist_stock) veriyi kendin çek, lakehouse'a
+  yaz ve analize kesintisiz devam et. Kullanıcı zaten analizi istedi;
+  onu bir ara adım için tekrar beklatmak işi yarım bırakmaktır. Sadece
+  şu iki durumda dur ve söyle: (1) canlı araç da veriyi bulamadı/hata
+  verdi, (2) hangi serinin istendiği gerçekten belirsiz ve yanlış seri
+  seçmek sonucu bozar. Çektiğin verinin kaynağını ve canlı çekildiğini
+  cevabında belirt.
+- SIFIR = EKSİK VERİ TUZAĞI: Fiyat, endeks, kur veya faiz gibi fiziksel
+  olarak sıfır OLAMAYAN bir sütunda 0 görüyorsan bu gerçek bir değer
+  değil, eksik/bozuk kayıttır. Bu sütunlarda MIN(), AVG() veya bir
+  BÖLME işlemi yaparken NULLIF(sutun, 0) kullan (ör.
+  MIN(NULLIF(fiyat, 0)), a / NULLIF(b, 0)) - aksi halde "en düşük fiyat
+  0 TL" gibi anlamsız bir sonucu gerçek gibi raporlarsın. AMA bunu her
+  sayısal sütuna körü körüne UYGULAMA: bakiye, hacim, takipteki alacak
+  veya işlem adedi gibi sütunlarda 0 GERÇEK bir değerdir (o ilde takip
+  yok, o gün işlem olmamış) ve NULLIF ile atılırsa ortalama yukarı
+  kayar, sayım eksilir. Kural: "0 bu sütunda fiziksel olarak mümkün mü?"
+  Mümkün değilse NULLIF, mümkünse dokunma. Hangisini yaptığını ve kaç
+  satırın elendiğini cevabında belirt.
+- Oran/rasyo hesaplamaları (ör. kredi/mevduat oranı) veya "en yüksek/en
+  düşük/belirli bir ay" türü sorularda TÜM ayları çekip tek tek modelin
+  kendi çıktısında listeleme veya elle bölme - SQL'in SELECT kısmında
+  oranı hesapla (ör. Deger_A/Deger_B) ve istenen tek satırı ORDER BY ...
+  LIMIT 1 ile getir. Kullanıcı açıkça "ay ay tüm liste" istemedikçe
+  aylık bir tabloyu komple ekrana basma. Canlı ölçüldü: 93ms'de dönen bir
+  sorgu sonucunu 24 aylık bir tabloya dönüştürüp yazmaya çalışan bir
+  cevap üretimi 140 saniye sürüp model'in kendi zaman aşımına takıldı -
+  veri çekmek ucuzdu, darboğaz cevabı YAZMAKTI.
 - Her adımdan sonra kendine sor: "bu soruyu tam ve kanıtlı cevaplamak için
   bir adım daha gerekiyor mu?" Gerekiyorsa (farklı bir seri, çapraz
   doğrulama, eksik bir dönem, doğrulanmamış bir iddia) durmadan devam et -
@@ -367,6 +433,10 @@ MODEL_CALL_BACKOFF_BASE_SEC = 2.0
 # spent - a shorter timeout would only turn a slow answer into no answer.
 MODEL_CALL_MIN_TIMEOUT_SEC = 30.0
 TOOL_OUTPUT_MAX_CHARS = 12_000
+# Most a single model response may fan out to. The prompt encourages
+# independent calls in the same round (2-4 is normal and cheap); 8 leaves
+# real headroom while stopping the 54-call storm one live run produced.
+MAX_TOOL_CALLS_PER_ROUND = 8
 # Per-tool limits live on ToolSpec (src/agent/tools.py), with the reasons -
 # including why web_search/lakehouse_query stay tight while analysis tools
 # (anomaly/change/correlation/causality/compare_regions) got raised further
@@ -531,6 +601,10 @@ def _call_model(client, messages: list, tool_schemas: list[dict],
     attempts = MODEL_CALL_MAX_ATTEMPTS if max_attempts is None else max(1, max_attempts)
     effort = MIA_REASONING_EFFORT if reasoning_effort is None else reasoning_effort
     extra = {"reasoning_effort": effort} if effort and effort != "default" else {}
+    # The generation-bloat hard stop. Without it a completion is unbounded
+    # on the output side, and no input-side limit can reach it: the model
+    # simply keeps emitting rows until the request times out.
+    extra["max_tokens"] = MODEL_MAX_OUTPUT_TOKENS
     # An empty tool_schemas means "force a plain text answer" (used when the
     # round budget is exhausted). tools=[] with tool_choice="auto" is
     # rejected as a bad request by some backends, so both keys are omitted
@@ -600,6 +674,14 @@ def _dump(obj) -> str:
     return json.dumps(obj, ensure_ascii=False, default=str)
 
 
+def _OMITTED_MARKER(count: int) -> dict:
+    """An explicit hole in a truncated row list. Without it the model reads
+    a head slice and a tail slice as if they were adjacent and reports a
+    'jump' between two periods that are not actually neighbours."""
+    return {"_atlanan_satir_sayisi": count,
+            "_not": "Ortadaki satirlar cikti limiti nedeniyle atlandi; gerekirse daha dar bir SQL sorgusu yaz."}
+
+
 def _truncate_tool_output(output: str, tool_name: str) -> str:
     """Shrink an oversized result while keeping it valid JSON.
 
@@ -621,9 +703,26 @@ def _truncate_tool_output(output: str, tool_name: str) -> str:
             key = max(lists, key=lambda k: len(_dump(data[k])))
             items = data[key]
 
+            def window(n: int) -> list:
+                """Keep the first ~2/3 and the LAST ~1/3 of what fits, not
+                just a leading slice. A monthly series is almost always
+                ORDER BY Period, so a head-only cut silently drops exactly
+                the recent periods most questions are about - the model
+                then answered from the oldest rows it happened to be
+                shown. Middle rows are the ones that can be spared."""
+                if n >= len(items):
+                    return list(items)
+                head_n = max(1, (n * 2) // 3)
+                tail_n = n - head_n
+                if tail_n <= 0:
+                    return list(items[:n])
+                return [*items[:head_n], _OMITTED_MARKER(len(items) - n), *items[-tail_n:]]
+
             def shrunk(n: int) -> str:
-                return _dump({**data, key: items[:n], "truncated": True,
-                              f"{key}_total": len(items), f"{key}_shown": n, "note": _TRUNCATION_NOTE})
+                return _dump({**data, key: window(n), "truncated": True,
+                              f"{key}_total": len(items), f"{key}_shown": n,
+                              f"{key}_window": "ilk ve son satirlar; ortadakiler atlandi",
+                              "note": _TRUNCATION_NOTE})
 
             low, high = 0, len(items)
             while low < high:
@@ -784,7 +883,15 @@ def _loop_guard(name: str, arguments: str, history: dict) -> str | None:
     limit = _tool_call_limit(name)
     if per_tool.get(name, 0) >= limit:
         per_tool[name] = per_tool.get(name, 0) + 1
-        logger.warning(f"_loop_guard: {name} exceeded {limit} calls in one run")
+        # [DEBUG - Loop Guard] full per-tool call tally, not just this one
+        # tool - a "schema exploration loop" shows as lakehouse_schema
+        # AND lakehouse_query both climbing across rounds with the same
+        # underlying goal (discover structure), which is invisible if only
+        # the tool that just got blocked is logged.
+        logger.warning(
+            f"_loop_guard: {name} exceeded {limit} calls in one run "
+            f"(full per-tool tally this run: {dict(per_tool)})"
+        )
         return json.dumps({
             "blocked": True,
             "reason": "call_limit_reached",
@@ -942,20 +1049,33 @@ def _deterministic_fallback(trace: list[dict], stop_reason: str) -> str:
         housing, vehicle = credits.get("konut_kredisi"), credits.get("tasit_kredisi")
         if not housing or not vehicle:
             continue
-        period = payload.get("effective_shared_period", {})
+        period = payload.get("compared_period", {})
         rate = payload.get("policy_rate", {})
         winner = payload.get("more_rate_sensitive_by_absolute_elasticity", "belirlenemedi")
         winner_tr = {"konut_kredisi": "Konut kredisi", "tasit_kredisi": "Taşıt kredisi"}.get(winner, winner)
+        context = payload.get("consumer_rate_context")
+        context_sentence = ""
+        if context:
+            h = context["housing_consumer_rate"]
+            c = context["combined_consumer_rate_incl_vehicle"]
+            context_sentence = (
+                f" Politika faizi {context.get('policy_rate_change_pp')}puan artarken, konutun kendi "
+                f"tüketici faizi %{h.get('start')}’ten %{h.get('end')}’e (+{h.get('change_pp')}puan) çıktı; "
+                f"taşıt için ayrı bir tüketici faiz serisi yok, en yakın vekil olan birleşik "
+                f"ihtiyaç+taşıt+konut oranı %{c.get('start')}’ten %{c.get('end')}’e (+{c.get('change_pp')}puan) "
+                f"çıktı - bankanın müşteriye yansıttığı faiz, politika faizinin aynısı değil."
+            )
         return (
             f"Model yanıtı zamanında tamamlayamadı; deterministik araç sonucundan özet: "
-            f"{period.get('start')}–{period.get('end')} ortak çeyrek uçlarında politika faizi "
-            f"%{rate.get('start')}’ten %{rate.get('end')}’e çıktı (ortak dönemlerde tepe %{rate.get('peak_in_shared_periods')}). "
+            f"{period.get('start')}–{period.get('end')} arasında politika faizi "
+            f"%{rate.get('start')}’ten %{rate.get('end')}’e çıktı (aralıktaki tepe %{rate.get('peak_in_range')}). "
             f"Konut kredisinin reel değişimi %{housing.get('real_change_pct')} "
             f"(yıllıklandırılmış %{housing.get('annualized_real_change_pct')}), taşıt kredisinin reel değişimi "
             f"%{vehicle.get('real_change_pct')} (yıllıklandırılmış %{vehicle.get('annualized_real_change_pct')}). "
             f"Mutlak elastikiyete göre daha faize duyarlı seri: {winner_tr}. "
             f"Elastikiyetler sırasıyla konut {housing.get('elasticity_vs_policy_rate_relative_change')}, "
-            f"taşıt {vehicle.get('elasticity_vs_policy_rate_relative_change')}. "
+            f"taşıt {vehicle.get('elasticity_vs_policy_rate_relative_change')}."
+            f"{context_sentence} "
             "Bu, TÜFE ile reelleştirilmiş uç-değer duyarlılığıdır; nedensellik tahmini değildir."
         )
 
@@ -1384,6 +1504,16 @@ def ask(question: str, history: list[dict] | None = None, history_digest: str | 
             f"ask: round {round_no}/{max_rounds}, calling model={MIA_CHAT_MODEL}, "
             f"messages={len(messages)}, est_context_tokens={context_tokens}"
         )
+        # [DEBUG - Model Call Start] logged BEFORE the call blocks, not
+        # after - if this round hangs past MODEL_CALL_TIMEOUT_SEC (usually
+        # generation, not prefill: the tool result was already cheap), this
+        # line plus the timestamp gap to the NEXT log line is what shows
+        # exactly where the wall time went.
+        remaining = None if deadline is None else round(deadline - time.monotonic(), 1)
+        logger.debug(
+            f"ask: round {round_no} model call starting, reasoning_effort={effort}, "
+            f"timeout={_model_timeout()}s, run_deadline_remaining={remaining}s"
+        )
         _emit("llm", round=round_no)
         start_ms = _ms_since_start()
         t0 = time.monotonic()
@@ -1431,9 +1561,34 @@ def ask(question: str, history: list[dict] | None = None, history_digest: str | 
         })
 
         message = response.choices[0].message
-        messages.append(message.model_dump(exclude_none=True) if hasattr(message, "model_dump") else message)
+        dumped = message.model_dump(exclude_none=True) if hasattr(message, "model_dump") else message
+        calls = list(message.tool_calls or [])
 
-        if not message.tool_calls:
+        # HARD CAP on fan-out inside ONE response. Found live on a
+        # "list every table and column" question: the model emitted 54
+        # lakehouse_query calls in a single round, all within 4ms of each
+        # other. _loop_guard blocked each one individually, but it is a
+        # PER-CALL guard - it cannot stop a storm that is already fully
+        # formed, and every blocked call still costs a tool message in the
+        # history (that round left messages=75, est_context=16k). The
+        # prompt rule "stop once you get blocked" cannot help either: the
+        # model never saw a single result before emitting the rest.
+        # Trimming the stored assistant message too keeps the protocol
+        # valid - every tool_call that remains listed still gets a result.
+        if len(calls) > MAX_TOOL_CALLS_PER_ROUND:
+            dropped = len(calls) - MAX_TOOL_CALLS_PER_ROUND
+            logger.warning(
+                f"ask: round {round_no} - model emitted {len(calls)} tool calls in ONE response; "
+                f"capping at {MAX_TOOL_CALLS_PER_ROUND}, dropping {dropped} "
+                f"(names: {sorted({c.function.name for c in calls})})"
+            )
+            calls = calls[:MAX_TOOL_CALLS_PER_ROUND]
+            if isinstance(dumped, dict) and isinstance(dumped.get("tool_calls"), list):
+                dumped["tool_calls"] = dumped["tool_calls"][:MAX_TOOL_CALLS_PER_ROUND]
+
+        messages.append(dumped)
+
+        if not calls:
             if not message.content:
                 return _finish("Model boş yanıt döndürdü.")
             content = message.content
@@ -1465,7 +1620,6 @@ def ask(question: str, history: list[dict] | None = None, history_digest: str | 
             messages.pop()  # the repair round re-adds the answer itself
             return _finish(_grounded(content, round_no))
 
-        calls = message.tool_calls
         logger.info(f"ask: round {round_no} - {len(calls)} tool call(s): {[c.function.name for c in calls]}")
         round_empty_flags: list[bool] = []
         entries: list[dict] = []
@@ -1616,7 +1770,22 @@ def ask(question: str, history: list[dict] | None = None, history_digest: str | 
         _emit("llm", round=max_rounds + 1, forced=True)
         start_ms = _ms_since_start()
         t0 = time.monotonic()
-        response = _call_model(client, messages, [], effort, min(_model_timeout(), 30.0),
+        # This is the most valuable call of the run and it used to get the
+        # smallest budget: a hardcoded 30s, while an ordinary round on
+        # these routes measures 18-30s AND this call has the most context
+        # to read (every tool result) and the most prose to write. Found
+        # live twice: "forced final call itself failed" with 140s of the
+        # deadline still unused, throwing away 14 successful tool results
+        # and shipping "try the same question again".
+        #
+        # effort="none" for the same reason: closing out is a WRITING job,
+        # not a thinking one. Reasoning tokens are billed inside the same
+        # completion budget on this endpoint, so spending them here is how
+        # the call returns empty content after burning its whole window.
+        closing_timeout = min(_model_timeout(), max(30.0, _remaining() - 10.0))
+        logger.info(f"ask: forced closure call, timeout={closing_timeout:.0f}s, "
+                    f"remaining={_remaining():.0f}s, effort=none")
+        response = _call_model(client, messages, [], "none", closing_timeout,
                                deadline=deadline, max_attempts=1)
         elapsed = time.monotonic() - t0
         timeline.append({

@@ -48,14 +48,34 @@ def test_seri_kod_and_arrays_give_identical_anomaly_results():
     assert by_code["anomalies"] == by_arrays["anomalies"]
 
 
-def test_seri_kod_and_arrays_give_identical_change_results():
+def test_seri_kod_and_arrays_agree_on_the_data_even_when_the_metric_differs():
+    """The two paths must never disagree about WHAT changed, only about
+    which metric is the right one to name it with.
+
+    The seri_kod path reads the series' Birim from the lakehouse, so for a
+    rate series it reports percentage points; the explicit-array path has
+    no unit to read and falls back to relative percent. That divergence is
+    deliberate - the informed path is the correct finance (8.5 -> 15 is
+    +6.5pp, not a 76.5% shock) - so the invariant worth holding is the
+    underlying period/absolute_change data, not the label or the ranking.
+    """
     seri_kod, _ = _two_long_series()
     resolved = resolve_series(seri_kod)
 
     by_code = change_detection(seri_kod=seri_kod)
     by_arrays = change_detection(periods=resolved["periods"], values=resolved["values"])
 
-    assert by_code["largest_changes"] == by_arrays["largest_changes"]
+    code_data = {c["period"]: c["absolute_change"] for c in by_code["largest_changes"]}
+    array_data = {c["period"]: c["absolute_change"] for c in by_arrays["largest_changes"]}
+    shared = set(code_data) & set(array_data)
+
+    assert shared, "the two paths must still surface overlapping periods"
+    for period in shared:
+        assert code_data[period] == array_data[period]
+
+    # The array path can never claim percentage points: it was given bare
+    # numbers with no unit, so relative percent is the only honest default.
+    assert by_arrays["change_metric"] == "percent"
 
 
 def test_seri_kod_and_arrays_give_identical_correlation():

@@ -198,5 +198,11 @@ def test_elasticity_and_contraction_wording_routes_to_analysis():
 
     assert decision.route is Route.ANALYSIS
     assert decision.settings.reasoning_effort == "low"
-    assert decision.settings.max_rounds == 4
+    # 8, raised from 4 once the autonomy rule made "the series is not in
+    # the lakehouse, go fetch it" a normal path: request_tools ->
+    # search_evds_series -> fetch_evds_series burns three rounds before
+    # the analysis starts. Two live REER runs measured it: at 4 rounds it
+    # stopped right after fetching, at 6 it reached lakehouse_query and
+    # still had no answer written.
+    assert decision.settings.max_rounds == 8
     assert "credit_elasticity_analysis" in decision.allowed_tool_names

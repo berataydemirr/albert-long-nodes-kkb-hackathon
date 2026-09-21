@@ -49,6 +49,32 @@ MODEL_CALL_TIMEOUT_SEC = float(os.getenv("MODEL_CALL_TIMEOUT_SEC", "120"))
 # One retry is enough to recover a transient connection failure. Three long
 # attempts amplified endpoint incidents into 10+ minute user-visible hangs.
 MODEL_CALL_MAX_ATTEMPTS = max(1, int(os.getenv("MODEL_CALL_MAX_ATTEMPTS", "2")))
+# HARD CAP on one completion's generated tokens - the only real defence
+# against "generation bloat", where the tool result was cheap (a 93ms query)
+# but the model then spent 140s writing every month of it out as a table and
+# died on MODEL_CALL_TIMEOUT_SEC. Input-side truncation (sql_guard's 200-row
+# cap, _truncate_tool_output's 12k chars) cannot help there: nothing was
+# wrong with the input, the OUTPUT ran away.
+#
+# Measured, not guessed, and retuned once on live evidence.
+#
+# It cannot go low: reasoning tokens are billed inside the same completion
+# budget on this endpoint, so a max_tokens of 50 came back with
+# reasoning_tokens=50 and content='' - an empty answer.
+#
+# 4096 was the first value and it was too tight. A deposit-maturity run
+# measured the failure exactly: round 5 stopped at completion_tokens=4096
+# (dead on the cap) with 2757 of those spent on reasoning, leaving ~1339
+# for prose. The answer was cut mid-write, which is not a usable answer,
+# so the loop paid for another round - and that one timed out and killed
+# the whole run.
+#
+# 6144 is bounded by something else anyway: that same round generated 4096
+# tokens in 99.81s, i.e. ~41 tokens/s, so MODEL_CALL_TIMEOUT_SEC (120s)
+# already stops generation at roughly 4900 tokens. Time is the real
+# ceiling; this cap only has to stop a pathological runaway, not do the
+# pacing.
+MODEL_MAX_OUTPUT_TOKENS = max(512, int(os.getenv("MODEL_MAX_OUTPUT_TOKENS", "6144")))
 # Extra model call when an answer states numbers no tool returned. Off by
 # default: the heuristic flags legitimate arithmetic (a sum of two shares)
 # and one repair call measured 50-85s on the shared endpoint. The check

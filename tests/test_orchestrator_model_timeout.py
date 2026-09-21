@@ -38,6 +38,14 @@ class _AlwaysFailingCompletions:
 
     def create(self, **kwargs):
         self.calls.append(kwargs)
+        # Cost more than one clock tick. time.monotonic() on Windows moves
+        # in ~15.6ms steps, so a call that raises in microseconds is timed
+        # as exactly 0.0ms - measured here across repeated runs: two
+        # trials reported 0.0 and one reported 16.0 for identical work.
+        # That, not machine speed, is what made
+        # test_ask_never_raises_...'s `llm_ms > 0` assertion flaky. 25ms
+        # clears the tick with margin and still costs the suite nothing.
+        time.sleep(0.025)
         raise self._exc
 
 
@@ -132,10 +140,17 @@ def test_ask_never_raises_when_the_model_call_keeps_failing(monkeypatch):
     monkeypatch.setattr(orchestrator, "get_client", lambda: client)
     monkeypatch.setattr(orchestrator, "known_series_codes", lambda: {"TP.BKR.TRY.18"})
 
-    # A tight deadline keeps this test fast (no multi-minute real sleep)
-    # while still exercising the exact same code path as the live incident.
+    # The deadline only has to be short enough to keep the test fast - the
+    # fake client fails instantly, so nothing here actually waits. It used
+    # to be 2.0s, which made this test flaky for a reason that had nothing
+    # to do with what it checks: building the system prompt reads the
+    # series catalog out of DuckDB, and on a cold cache that alone could
+    # outlast 2s. _call_model then refused to start any attempt at all
+    # ("deadline already passed"), so no model call was ever timed, llm_ms
+    # came back 0.0, and the assertion below failed on a slow machine
+    # while passing on a warm one.
     answer, _, timing = orchestrator.ask(
-        "test sorusu", deadline_sec=2.0, return_trace=True, return_timing=True)
+        "test sorusu", deadline_sec=30.0, return_trace=True, return_timing=True)
 
     assert "süre içinde yanıt vermedi" in answer.lower()
     assert "check server logs" not in answer.lower()

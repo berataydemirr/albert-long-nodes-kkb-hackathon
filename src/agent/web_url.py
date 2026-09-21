@@ -20,6 +20,10 @@ from pypdf import PdfReader
 from PIL import Image
 import pytesseract
 
+from src.common.logging_setup import get_logger
+
+logger = get_logger("web_url")
+
 MAX_DOWNLOAD_BYTES = 10 * 1024 * 1024
 MAX_REDIRECTS = 3
 MAX_TEXT_CHARS = 12_000
@@ -28,7 +32,51 @@ MAX_SHEETS = 10
 MAX_ROWS_PER_SHEET = 50
 MAX_COLUMNS_PER_SHEET = 30
 REQUEST_TIMEOUT_SECONDS = 15
-USER_AGENT = "KKB-Agentic-URL-Reader/1.0 (+https://github.com/berataydemirr/albert-long-nodes-kkb-hackathon)"
+# A self-identifying bot UA was being served 403/404 by WAF-fronted public
+# data hosts (found live: an httpstat.us probe came back 404 instead of the
+# status it was asked for). These are public statistical files that a person
+# can open in a browser, so the request is shaped like a browser's. Accept
+# is sent too: some hosts content-negotiate a CSV endpoint into HTML when
+# the client claims no preference.
+BROWSER_HEADERS = {
+    "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                   "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"),
+    "Accept": "text/csv,application/json,*/*;q=0.9",
+}
+USER_AGENT = BROWSER_HEADERS["User-Agent"]
+
+# github.com/<o>/<r>/blob/<ref>/<path> serves an HTML *page*, not the file -
+# an agent handed that link downloads markup, fails to parse it as CSV, and
+# reports "404/not a CSV" as if the data did not exist. The raw host serves
+# the bytes. /raw/ and media.githubusercontent.com/media/ (Git LFS) are the
+# same story, so all three are normalized to one working form.
+_GITHUB_BLOB_RE = re.compile(
+    r"^https?://(?:www\.)?github\.com/([^/]+)/([^/]+)/(?:blob|raw)/(.+)$", re.IGNORECASE)
+_GITHUB_MEDIA_RE = re.compile(
+    r"^https?://media\.githubusercontent\.com/media/(.+)$", re.IGNORECASE)
+
+
+def sanitize_url(url: str) -> tuple[str, str | None]:
+    """Rewrite a known 'looks like a file but serves a web page' URL into the
+    one that actually serves bytes. Returns (url, note) where note is None
+    when nothing was rewritten, so the caller can tell the user what it
+    changed instead of silently fetching a different address."""
+    if not isinstance(url, str):
+        return url, None
+    candidate = url.strip()
+
+    blob = _GITHUB_BLOB_RE.match(candidate)
+    if blob:
+        owner, repo, rest = blob.groups()
+        fixed = f"https://raw.githubusercontent.com/{owner}/{repo}/{rest}"
+        return fixed, f"GitHub sayfa linki ham dosya linkine cevrildi: {candidate} -> {fixed}"
+
+    media = _GITHUB_MEDIA_RE.match(candidate)
+    if media:
+        fixed = f"https://raw.githubusercontent.com/{media.group(1)}"
+        return fixed, f"GitHub LFS linki ham dosya linkine cevrildi: {candidate} -> {fixed}"
+
+    return candidate, None
 
 
 def _validate_public_url(url: str) -> str:
@@ -49,12 +97,19 @@ def _validate_public_url(url: str) -> str:
 
 
 def _download(url: str) -> tuple[str, str, bytes]:
-    """Download a public URL, validating every redirect and enforcing a cap."""
-    current = _validate_public_url(url)
+    """Download a public URL, validating every redirect and enforcing a cap.
+
+    The URL is sanitized first (see sanitize_url): a GitHub page link is
+    rewritten to the raw host before the request, so a recoverable
+    "wrong form of the right URL" never surfaces as a dead end."""
+    fixed, note = sanitize_url(url)
+    if note:
+        logger.info(f"_download: {note}")
+    current = _validate_public_url(fixed)
     for _ in range(MAX_REDIRECTS + 1):
         try:
             response = requests.get(
-                current, headers={"User-Agent": USER_AGENT}, timeout=REQUEST_TIMEOUT_SECONDS,
+                current, headers=BROWSER_HEADERS, timeout=REQUEST_TIMEOUT_SECONDS,
                 stream=True, allow_redirects=False,
             )
         except requests.RequestException as exc:

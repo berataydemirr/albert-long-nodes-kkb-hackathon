@@ -24,6 +24,111 @@ CLI equivalent:
 .venv/bin/python agent.py "Konut kredisi faizi ile hacmi arasındaki ilişki nedir?"
 ```
 
+## Architecture
+
+### System overview
+
+![System architecture](docs/architecture.png)
+
+Public data from BDDK, TCMB EVDS and TUIK is cleaned into a bronze, silver
+and gold DuckDB lakehouse. An MIA model plans the work; Python runs every
+tool call and keeps the actual data processing local. Every number the
+agent states in an answer can be traced back to a table and a period, it is
+never just asserted from the model's own memory. A full Turkish walkthrough
+of the flow is in [docs/agent_architecture.md](docs/agent_architecture.md).
+
+### Modular code structure
+
+The codebase is split into independent modules. Each one has its own file
+and its own test file, so a change in one stage does not require touching
+the others:
+
+```text
+src/
+  collectors/     source downloads (BDDK, EVDS, TUIK)
+  processing/     bronze to silver conversion
+  gold/           silver to DuckDB build
+  agent/
+    router.py         question classification and per-route settings
+    orchestrator.py    the model loop, one tool call at a time
+    tools.py           lakehouse query and analysis tool implementations
+    data_import.py     CSV/Excel reading and schema detection
+    pdf_import.py      PDF table extraction
+    bist_import.py     live BIST stock price fetch
+    series_resolver.py series catalog and lookup by code
+    charts.py          chart data built from tool results
+web_app.py        FastAPI app, /api/ask and /api/upload
+static/design/    browser UI
+tests/            one test file per module above
+docs/             architecture, schema and routing reference docs
+```
+
+The gold build step is network free, it only reads the checked in silver
+files. Collectors need their own source keys in `.env` and are only run
+when refreshing the data.
+
+### Document reading approach
+
+A document can enter the system two ways, and both end up in the same
+lakehouse so the rest of the pipeline never needs to know which one was
+used:
+
+1. **Batch sources** (BDDK, EVDS, TUIK). A collector in `src/collectors/`
+   downloads the raw file, `src/processing/` cleans it into a silver CSV,
+   and `src/gold/build_gold.py` loads it into `gold_*` tables.
+2. **Runtime uploads** (CSV, Excel, PDF, up to 25 MB). `data_import.py`
+   reads a CSV or Excel file and detects its schema; `pdf_import.py` uses
+   `pdfplumber` to find tables from ruling lines or aligned text. A broken
+   extraction (blank or duplicate header) is rejected instead of guessed
+   at, and a table split across pages is stitched back together.
+
+Both paths share one cleaning step (`data_cleaning.py`) before the data is
+written: Turkish and international decimal notation, mixed null markers,
+mixed date formats, subtotal rows, merged Excel headers and mangled text
+encoding are all normalized, and every change is reported in a
+`data_quality` field rather than applied silently.
+
+The same design is used internally for the agent's own working memory: the
+`src/agent/` package reads a question, extracts what it needs (series
+codes, periods, regions) and only then hands the rest to the model, so the
+model is reasoning over structured facts, not raw document text.
+
+### Agentic decision-making and task processing
+
+Every question goes through the same loop:
+
+```text
+Question
+   -> Router (classify, pick tool groups and a reasoning budget)
+   -> Model call (plans the next step, may call zero or more tools)
+   -> Tool execution (Python, not the model)
+   -> Result goes back to the model
+   -> Model calls another tool, or writes the final answer
+```
+
+`src/agent/router.py` decides three things before any model call happens:
+
+- which **tool groups** are exposed (`core` is always on; `analysis`,
+  `regional`, `imports`, `live_fetch` and `web` are added when the
+  question's wording signals a need for them, and the model itself can
+  request a missing group with `request_tools`)
+- a per-route **prompt add-on**, **reasoning effort** and **round budget**
+  (a single lookup gets a small, cheap budget; a multi-series comparison
+  gets more rounds and a matching reasoning budget)
+- **policy**: a write statement (`DROP`, `DELETE`, `UPDATE`, ...) is
+  refused outright, and prompt-injection-looking phrasing is flagged in
+  the prompt rather than blocked, since the real safety boundary is the
+  read-only connection and the SQL guard, not a keyword match
+
+`src/agent/orchestrator.py::ask()` then runs the loop: it calls the model,
+executes whatever tool calls come back, feeds the results back in, and
+repeats until the model returns a final answer or the round or time budget
+runs out. If the budget runs out first, one last call is made with tools
+disabled, forcing a text answer from whatever evidence was already
+gathered instead of failing silently. The full routing matrix (every
+tested question and the route it takes) is in
+[docs/router_prompt_matrix.md](docs/router_prompt_matrix.md).
+
 ## Tools
 
 The router exposes every registered tool for a safe request, so one answer

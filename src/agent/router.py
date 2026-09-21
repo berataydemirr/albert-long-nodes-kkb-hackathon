@@ -106,7 +106,24 @@ ROUTE_SETTINGS: dict[Route, RouteSettings] = {
     Route.ANALYSIS: RouteSettings(
         "ROTA: analiz. Serileri seri_kod ile analiz araçlarına ver; adımları sırayla tamamla. "
         "Reel kredi daralması/faiz elastikiyeti sorularında credit_elasticity_analysis aracını "
-        "doğrudan çağır; ham serileri ayrı ayrı sorgulayıp hesabı zihninden yapma.", "low", 4),
+        "doğrudan çağır; ham serileri ayrı ayrı sorgulayıp hesabı zihninden yapma. Kullanıcı belirli "
+        "faiz değerleri adıyla bir dönem tanımlıyorsa (ör. 'faiz %9'dan %50'ye çıktığında'), önce "
+        "TEK bir lakehouse_query ile TP.BISPOLFAIZ.TUR'un o değerlere GERÇEKTEN eşit olduğu ayları "
+        "bul, sonra start_period/end_period'a o tam ayları ver - aracın kendi varsayılan aralığını "
+        "veya genel bir yıl aralığını kullanma; araç hedef faizi kendisi aramaz. İstenen seri "
+        "lakehouse'da yoksa kullanıcıya sorma: ÖNCE request_tools('live_fetch') ile canlı grubu al, "
+        "sonra search_evds_series → fetch_evds_series ile çek ve analize devam et.",
+        # 8, derived rather than guessed. An analysis question whose series
+        # is missing does two jobs, not one: fetch (request_tools ->
+        # search_evds_series -> fetch_evds_series = 3 rounds) THEN the
+        # analysis itself (2-3 queries) THEN writing the answer. Measured
+        # on two live REER runs: at 4 rounds it stopped right after
+        # fetching, at 6 it got as far as lakehouse_query and still had
+        # nothing written. Both shipped the deterministic fallback with the
+        # real data already in hand, which is the worst outcome - paid for
+        # the work, threw away the answer. At the measured ~18s per round
+        # on this route, 8 rounds is ~145s against a 300s deadline.
+        "low", 8),
     Route.REGIONAL: RouteSettings(
         "ROTA: il bazlı. compare_regions kullan; gold_fact_long ulusaldır.", "low", 5),
     Route.IMPORTS: RouteSettings(
@@ -165,7 +182,16 @@ _WEB_PATTERNS = (
 )
 _ANALYSIS_PATTERNS = (
     r"\b(korelasyon\w*|correlation\w*|iliski\w*|nedensel\w*|causal\w*|granger|etkile\w*)\b",
-    r"\b(anomal\w*|aykiri\w*|outlier\w*|sapma\w*|degisim\w*|change_detection|threshold\w*|esik\w*|arasindayken)\b",
+    # "anormal" is NOT covered by "anomal\w*" - they are two different
+    # Turkish words for the same idea (anomali / anormal) and only the
+    # first was listed. Found live: "ihtiyaç kredisi hacminde şüpheli/
+    # anormal bir patlama yaşandı mı" raised no analysis signal at all,
+    # so a multi-series anomaly hunt was routed to LOCAL_ANALYTICS's
+    # 4-round budget, fetched its data, and ran out of rounds with 14
+    # successful tool results and nothing written. "supheli",
+    # "olagandisi" and "beklenmedik" are the same failure waiting to
+    # happen, so they go in now rather than one live incident at a time.
+    r"\b(anomal\w*|anormal\w*|olagandisi\w*|beklenmedik\w*|supheli\w*|aykiri\w*|outlier\w*|sapma\w*|degisim\w*|change_detection|threshold\w*|esik\w*|arasindayken)\b",
     r"\b(trend\w*|art(ti|mis|is)\w*|azal\w*|dus(tu|mus|us)\w*|nasil gitmis|nasil degisti|buyume\w*|buyumus|buyuyen|risk\w*)\b",
     r"\b(once|sonra|ardindan|ayrica)\b.{0,160}\b(sonra|ardindan|ayrica|son olarak)\b",
     # Found live via a real repro: "reel daralma hizlarini karsilastir...

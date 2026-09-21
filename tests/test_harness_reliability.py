@@ -74,8 +74,52 @@ def test_truncation_keeps_valid_json_and_leading_rows():
     assert data["truncated"] is True
     assert data["row_count"] == 400
     assert data["rows_total"] == 400
-    assert 0 < data["rows_shown"] == len(data["rows"]) < 400
+    assert 0 < data["rows_shown"] < 400
     assert data["rows"][0] == rows[0]
+
+
+def test_truncation_keeps_the_newest_rows_too_not_just_the_oldest():
+    """A monthly series is ordered by Period, so a head-only cut drops
+    exactly the recent periods a question is usually about. The window
+    must carry the tail as well, with an explicit marker for the hole so
+    the model cannot read the two slices as adjacent months."""
+    rows = [{"Period": f"{2000 + i // 12}-{i % 12 + 1:02d}", "Deger": i, "pad": "x" * 200}
+            for i in range(300)]
+    output = json.dumps({"rows": rows, "row_count": 300})
+
+    data = json.loads(orchestrator._truncate_tool_output(output, "lakehouse_query"))
+    markers = [r for r in data["rows"] if "_atlanan_satir_sayisi" in r]
+
+    assert data["rows"][0] == rows[0], "oldest row still anchors the window"
+    assert data["rows"][-1] == rows[-1], "newest row must survive truncation"
+    assert len(markers) == 1, "the gap between the two slices must be explicit"
+    assert markers[0]["_atlanan_satir_sayisi"] == 300 - data["rows_shown"]
+
+
+def test_every_completion_is_capped_so_generation_cannot_run_away():
+    """The generation-bloat root cause: a cheap 93ms tool result followed
+    by 140s of the model writing every month out as a table, dying on the
+    per-call timeout. Input-side limits cannot reach that; only a
+    max_tokens cap on the completion itself can."""
+    captured = {}
+
+    class _Completions:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            return type("R", (), {"choices": [type("C", (), {
+                "message": type("M", (), {"content": "ok", "tool_calls": None})()})()], "usage": None})()
+
+    class _Client:
+        def __init__(self):
+            self.chat = type("Chat", (), {"completions": _Completions()})()
+
+        def with_options(self, timeout=None):
+            return self
+
+    orchestrator._call_model(_Client(), [{"role": "user", "content": "x"}], [], timeout=30.0)
+
+    assert captured["max_tokens"] == orchestrator.MODEL_MAX_OUTPUT_TOKENS
+    assert captured["max_tokens"] >= 512, "too low a cap returns reasoning-only, empty-content answers"
 
 
 def test_truncation_of_output_without_a_list_is_still_json():

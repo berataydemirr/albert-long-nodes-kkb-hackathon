@@ -736,59 +736,16 @@ const LONG_WAIT_STAGES = [
 ];
 const LONG_WAIT_CYCLE_MS = 9000;
 
-const DEMO_TRACE = [
-  { name: 'web_search', round: 1, duration_ms: 1840, start_ms: 620,
-    arguments: '{"query":"TCMB politika faizi güncel","max_results":5}',
-    output_preview: '{"results":[{"title":"TCMB - Politika Faizi","url":"https://www.tcmb.gov.tr/...","snippet":"Bir hafta vadeli repo ihale faiz oranı %..."}],"provider":"duckduckgo"}' },
-  { name: 'web_url_extract', round: 2, duration_ms: 2410, start_ms: 3120,
-    arguments: '{"url":"https://www.tcmb.gov.tr/wps/wcm/connect/TR/TCMB+TR/Main+Menu/Temel+Faaliyetler/Para+Politikasi"}',
-    output_preview: '{"content_type":"text/html","chars":18422,"title":"Para Politikası","text":"Para Politikası Kurulu kararları ..."}' },
-  { name: 'lakehouse_query', round: 3, duration_ms: 96, start_ms: 6890,
-    arguments: '{"sql":"select period, value from gold_series where series_code = \'konut_kredi_faiz\' order by period desc limit 12"}',
-    output_preview: '{"rows":12,"columns":["period","value"],"data":[["2026-08",2.94],["2026-07",3.01],["2026-06",3.18]]}' },
-  { name: 'correlation_analysis', round: 3, duration_ms: 212, start_ms: 7010,
-    arguments: '{"series_a":"konut_kredi_faiz","series_b":"konut_kredi_hacim","method":"pearson"}',
-    output_preview: '{"r":-0.71,"p_value":0.004,"n":36,"lag_months":0,"note":"negative, significant"}' }
-];
-
-const DEMO_ANSWER = `TCMB'nin açıkladığı politika faizi ile yerel konut kredisi serisi aynı yönde hareket ediyor, ama hacim tarafında gecikme var.
-
-**Bulgular**
-
-- Politika faizi kaynak sayfada haftalık repo oranı olarak yayınlanıyor; en güncel değeri \`web_url_extract\` ile doğruladım.
-- Konut kredisi faizi son 3 dönemde 3.18 → 2.94 bandına indi.
-- Faiz ile hacim arasındaki korelasyon **-0.71** (p = 0.004, n = 36): faiz düştükçe hacim artıyor.
-
-| Dönem | Faiz | Yön |
-| --- | --- | --- |
-| 2026-06 | 3.18 | — |
-| 2026-07 | 3.01 | düşüş |
-| 2026-08 | 2.94 | düşüş |
-
-İlişki tek başına nedensellik değil; \`causality_analysis\` ile gecikmeli etkiyi de kontrol etmek gerekir.`;
-
-const DEMO_TIMING = {
-  summary: {
-    total_ms: 13820, llm_ms: 8940, tool_ms: 4558, overhead_ms: 322,
-    llm_calls: 4, tool_calls: 4,
-    per_tool: [
-      { name: 'web_url_extract', calls: 1, duration_ms: 2410, errors: 0 },
-      { name: 'web_search', calls: 1, duration_ms: 1840, errors: 0 },
-      { name: 'correlation_analysis', calls: 1, duration_ms: 212, errors: 0 },
-      { name: 'lakehouse_query', calls: 1, duration_ms: 96, errors: 0 }
-    ]
-  },
-  timeline: [
-    { kind: 'llm', name: 'model round 1', round: 1, start_ms: 0, duration_ms: 610 },
-    { kind: 'tool', name: 'web_search', round: 1, start_ms: 620, duration_ms: 1840 },
-    { kind: 'llm', name: 'model round 2', round: 2, start_ms: 2470, duration_ms: 640 },
-    { kind: 'tool', name: 'web_url_extract', round: 2, start_ms: 3120, duration_ms: 2410 },
-    { kind: 'llm', name: 'model round 3', round: 3, start_ms: 5540, duration_ms: 1340 },
-    { kind: 'tool', name: 'lakehouse_query', round: 3, start_ms: 6890, duration_ms: 96 },
-    { kind: 'tool', name: 'correlation_analysis', round: 3, start_ms: 7010, duration_ms: 212 },
-    { kind: 'llm', name: 'model round 4', round: 4, start_ms: 7240, duration_ms: 6350 }
-  ]
-};
+// DELETED: DEMO_TRACE / DEMO_ANSWER / DEMO_TIMING.
+// They were a layout sample that stated invented financial results -
+// a -0.71 correlation with p=0.004 and n=36, and rate levels of
+// 3.18 -> 2.94 - none of which were computed from anything. Rendered
+// whenever fetch() could not reach the backend, they were read as a
+// real tool result ('analytics_web') by a real user, who filed a bug
+// against a backend service that does not exist. Two unrelated
+// questions came back word for word identical, and an artificial
+// 13.8s delay made it look like work had happened. A page that cannot
+// reach its backend now says so and shows no numbers at all.
 
 const DEMO_TOOLS = [
   { name: 'lakehouse_schema', desc: 'Gold veritabanındaki tabloları, kolonları ve mevcut seri kodlarını döner.' },
@@ -1824,6 +1781,12 @@ class Component extends DCLogic {
         // response is ever received. Everything else (a non-OK status, a
         // non-JSON response after both attempts, an agent-side error)
         // surfaces as a real, visible error instead.
+        //
+        // How long the request actually ran before it died is part of the
+        // diagnosis: a 40ms failure is "nothing is listening", a 300s one
+        // is a timeout, and the two need completely different fixes.
+        const startedAt = (this.state.pending[sessionId] || {}).startedAt;
+        const elapsedMs = () => (startedAt ? Date.now() - startedAt : 0);
         const backendUnreachable = err instanceof TypeError;
         if (!backendUnreachable) {
           // A SyntaxError here means requestJsonWithRetry got a response
@@ -1834,26 +1797,39 @@ class Component extends DCLogic {
           const detail = err instanceof SyntaxError
             ? 'Sunucudan geçerli bir yanıt alınamadı - bağlantı (tünel/ağ) yanıt tamamlanmadan kesilmiş olabilir.'
             : (err && err.message ? err.message : 'Sunucudan geçerli bir yanıt alınamadı.');
+          console.error('[ASK FAILED]', { kind: err && err.name, status: err && err.status,
+                                          elapsedMs: elapsedMs(), detail, error: err });
           this.pushAssistantTo(sessionId, {
             routeName: 'error', routeReason: 'İstek başarısız oldu.',
-            md: `**Bir hata oluştu, cevap üretilemedi.**\n\n${detail}\n\nLütfen tekrar dener misin?`,
+            md: `🚨 **[İSTEK HATASI] Cevap üretilemedi.**\n\n`
+              + `- **Hata tipi:** \`${(err && err.name) || 'Error'}\`\n`
+              + (err && err.status ? `- **HTTP durumu:** \`${err.status}\`\n` : '')
+              + `- **Kök neden:** ${detail}\n`
+              + `- **Süre:** ${elapsedMs()} ms\n\n`
+              + `Lütfen tekrar dener misin?`,
             trace: [], timing: null,
           });
           return;
         }
-        const startedAt = (this.state.pending[sessionId] || {}).startedAt || Date.now();
-        const wait = Math.max(0, 13800 - (Date.now() - startedAt));
-        setTimeout(() => this.pushAssistantTo(sessionId, {
-          routeName: 'analytics_web',
-          routeReason: '[ÖNİZLEME] Backend bu ortamda çalışmıyor - bu gerçek bir analiz değil, arayüz önizlemesi için örnek bir yanıttır.',
-          md: `_Not: backend'e ulaşılamadı. Aşağıdaki içerik gerçek bir analiz değil, sadece arayüzün nasıl göründüğünü gösteren bir örnektir._\n\n${DEMO_ANSWER}`,
-          trace: DEMO_TRACE.map(tc => ({
-            name: tc.name, round: tc.round, durationMs: tc.duration_ms,
-            args: prettyJson(tc.arguments), sql: extractSql(tc.name, tc.arguments),
-            result: prettyJson(tc.output_preview), error: false
-          })),
-          timing: DEMO_TIMING
-        }), wait);
+        // fetch() threw a plain network error: the page never reached the
+        // API at all. There is no response, no status code and no tool
+        // result to show - so it says exactly that. It used to render a
+        // canned "analytics_web" analysis here instead, complete with an
+        // invented correlation and a fake 13.8s delay; that content is
+        // deleted (see the note where DEMO_* used to be defined).
+        console.error('[BACKEND UNREACHABLE]', { kind: err && err.name,
+                                                 elapsedMs: elapsedMs(), error: err });
+        this.pushAssistantTo(sessionId, {
+          routeName: 'error',
+          routeReason: 'Backend erişilemez.',
+          md: `🚨 **[BACKEND ERİŞİM HATASI] Sunucuya hiç bağlanılamadı.**\n\n`
+            + `- **Hata tipi:** \`${(err && err.name) || 'TypeError'}\` (ağ seviyesi - yanıt alınamadı)\n`
+            + `- **Kök neden:** ${(err && err.message) || 'fetch() bağlantı kuramadı'}\n`
+            + `- **Süre:** ${elapsedMs()} ms\n\n`
+            + `Sunucu kapalı olabilir: \`uvicorn web_app:app --reload\` ile başlatıp sayfayı yenileyin.\n\n`
+            + `_Bu bir analiz sonucu değildir; gerçek olmayan hiçbir sayı gösterilmemiştir._`,
+          trace: [], timing: null,
+        });
       });
   };
 
