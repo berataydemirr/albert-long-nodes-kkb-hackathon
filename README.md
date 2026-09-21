@@ -28,7 +28,81 @@ CLI equivalent:
 
 ### System overview
 
-![System architecture](docs/architecture.png)
+```mermaid
+graph LR
+  classDef src     fill:#ffffff,stroke:#8cc8ea,stroke-width:2px,color:#20303f
+  classDef flowlyr fill:#eef7fc,stroke:#8cc8ea,stroke-width:1.5px,color:#20303f
+  classDef core    fill:#1e4a8b,stroke:#1e4a8b,stroke-width:0px,color:#ffffff
+  classDef guard   fill:#ffffff,stroke:#1e4a8b,stroke-width:2px,color:#1e4a8b
+  classDef app     fill:#ffffff,stroke:#1e4a8b,stroke-width:2px,color:#20303f
+  classDef lane    fill:#fafbfc,stroke:#d8dee6,stroke-width:1px,color:#5b6b7c
+
+  subgraph SRC["1 · DATA SOURCES"]
+    direction TB
+    A1["BDDK<br/><small>sector · regional · NPL</small>"]
+    A2["TCMB EVDS<br/><small>rates · FX · CPI</small>"]
+    A3["TUIK<br/><small>SDMX dataflow</small>"]
+    A4["Runtime upload<br/><small>CSV · Excel · PDF</small>"]
+  end
+
+  subgraph LAKE["2 · LAKEHOUSE PIPELINE"]
+    direction LR
+    B1["Bronze<br/><small>raw response</small>"]
+    B2["Silver<br/><small>normalized CSV</small>"]
+    B3["GOLD · DuckDB<br/><b>Analytics engine</b><br/><small>SQL pushdown</small>"]
+    B1 --> B2 --> B3
+  end
+
+  subgraph AGENT["3 · AUTONOMOUS AGENT CORE"]
+    direction TB
+    C1["Router<br/><small>route · tool groups · round budget</small>"]
+    C2["ReAct orchestrator<br/><small>think → act → observe</small>"]
+    C3["Tool set<br/><small>SQL pushdown · live fetch · schema</small>"]
+    C4["Guardrails<br/><small>SQL guard · truncation · graceful fail</small>"]
+    C1 --> C2 --> C3 --> C4
+    C4 -. observe .-> C2
+  end
+
+  subgraph APP["4 · APPLICATION LAYER"]
+    direction TB
+    D1["FastAPI service<br/><small>/api/ask · /api/upload</small>"]
+    D2["Analyst UI<br/><small>answer · chart · tool trace</small>"]
+    D1 --> D2
+  end
+
+  A1 --> B1
+  A2 --> B1
+  A3 --> B1
+  A4 --> B3
+  B3 <==> C3
+  AGENT ==> D1
+  C3 -. live fetch .-> A2
+
+  subgraph FLOW["REQUEST LIFECYCLE"]
+    direction LR
+    F1["Natural-language question"]
+    F2["Router:<br/>route + budget"]
+    F3["Guardrailed SQL<br/>runs in DuckDB"]
+    F4["Bounded, verified<br/>result set"]
+    F5["Answer + chart<br/>+ source & period"]
+    F1 --> F2 --> F3 --> F4 --> F5
+  end
+
+  class A1,A2,A3,A4 src
+  class B1,B2 flowlyr
+  class B3,C1,C2,C3 core
+  class C4 guard
+  class D1,D2 app
+  class F1,F2,F3,F4,F5 lane
+
+  linkStyle default stroke:#8cc8ea,stroke-width:2px
+  linkStyle 8,9,10 stroke:#1e4a8b,stroke-width:3px
+```
+
+Navy marks the parts that decide (the DuckDB gold layer, the router, the
+ReAct loop, the tool set). Light blue marks the parts that carry (source
+APIs, bronze and silver, every flow edge). Guardrails are drawn as an
+outline rather than a fill because they do not do work, they set limits.
 
 Public data from BDDK, TCMB EVDS and TUIK is cleaned into a bronze, silver
 and gold DuckDB lakehouse. An MIA model plans the work; Python runs every

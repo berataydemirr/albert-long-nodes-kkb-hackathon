@@ -64,13 +64,20 @@
   --bg-main: #FAFBFC;
   --bg-soft: #F6F9FB;
   --surface: #FFFFFF;
+  /* Bogazici corporate palette, exact: navy PANTONE 7686C #1e4a8b and
+     light blue PANTONE 297C #8cc8ea. These used to be grey-blue
+     approximations (#486A83 / #8EAFBF) while the browser theme-color meta
+     was already emitting the real #1e4a8b, so the chrome and the page
+     disagreed. Navy carries text (white on #1e4a8b measures 8.6:1); the
+     light blue stays decoration-only for the reason documented further
+     down - it measures 1.82:1 and can never hold type. */
   /* 15% pale Bogazici blue */
-  --blue-pale: #DCECF4;
-  --blue-pale-hover: #D1E5EF;
-  /* 7% muted blue */
-  --blue-muted: #8EAFBF;
-  /* 3% dark accent */
-  --blue-dark: #486A83;
+  --blue-pale: #E8F1FA;
+  --blue-pale-hover: #DAE8F6;
+  /* 7% muted blue - Bogazici light blue, decorative use only */
+  --blue-muted: #8cc8ea;
+  /* 3% dark accent - Bogazici navy */
+  --blue-dark: #1e4a8b;
   --text-primary: #263640;
   --text-secondary: #71808A;
   --border: #E3EAEE;
@@ -89,14 +96,14 @@
   --faintest: #b3bec5;
   --separator: var(--border);
   --accent: var(--blue-dark);
-  --accent-hover: #3b5870;
-  --accent-deep: #2f4a5e;
+  --accent-hover: #2a5ea6;
+  --accent-deep: #163a6e;
   --accent-2: var(--blue-muted);
-  --accent-rgb: 72,106,131;
-  --accent2-rgb: 142,175,191;
+  --accent-rgb: 30,74,139;
+  --accent2-rgb: 140,200,234;
   --on-accent: #ffffff;
-  --shadow-rgb: 38,54,64;
-  --web-marker-rgb: 142,175,191;
+  --shadow-rgb: 30,45,70;
+  --web-marker-rgb: 140,200,234;
   --error: #b42318;
   --error-rgb: 180,35,24;
   --user-bubble: var(--blue-pale);
@@ -216,6 +223,24 @@ textarea:focus-visible { outline: none; }
    every measurement so one component serves the 20px per-message marker,
    the 20px thinking mark and the larger hero use. */
 @keyframes dot-pulse { 0%, 100% { scale: .45; opacity: .3 } 50% { scale: 1; opacity: 1 } }
+
+/* A pasted URL is one unbreakable token as far as the line breaker is
+   concerned, so it used to push the bubble past its own max-width and
+   spill over the edge of the transcript. overflow-wrap:anywhere is what
+   actually lets the break happen mid-token; word-break is the fallback
+   for older engines, and min-width:0 stops the flex parent from granting
+   an intrinsic width wider than the max-width in the first place.
+   The tool-detail <pre> blocks already did this; the two prose surfaces
+   did not. The assistant side matters at least as much as the user
+   bubble: answers are required to cite their source URL, so long links
+   arrive on nearly every web-backed reply. */
+.user-bubble,
+.wrap-anywhere {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+  max-width: 100%;
+}
 @keyframes dots-glow-breathe { 0%,100% { opacity: .3; scale: .94 } 50% { opacity: .6; scale: 1.06 } }
 .premium-dots { --orb-size: 20px; position: relative; width: var(--orb-size); height: var(--orb-size); flex: none; }
 .premium-dots .dots-glow {
@@ -345,7 +370,7 @@ textarea:focus-visible { outline: none; }
 
       <sc-for list="{{ messages }}" as="m" hint-placeholder-count="0">
         <sc-if value="{{ m.isUser }}" hint-placeholder-val="{{ true }}">
-          <div style="align-self:flex-end; max-width:78%; background:var(--user-bubble); border:1px solid var(--border); border-radius:16px 16px 5px 16px; box-shadow:0 1px 2px rgba(var(--shadow-rgb),.05); padding:13px 17px; font-size:15px; font-weight:400; line-height:1.55; color:var(--ink); animation:msg-in .38s cubic-bezier(.22,1,.36,1) both;">{{ m.userText }}</div>
+          <div class="user-bubble" style="align-self:flex-end; max-width:78%; background:var(--user-bubble); border:1px solid var(--border); border-radius:16px 16px 5px 16px; box-shadow:0 1px 2px rgba(var(--shadow-rgb),.05); padding:13px 17px; font-size:15px; font-weight:400; line-height:1.55; color:var(--ink); animation:msg-in .38s cubic-bezier(.22,1,.36,1) both;">{{ m.userText }}</div>
         </sc-if>
         <sc-if value="{{ m.isAssistant }}" hint-placeholder-val="{{ false }}">
           <div style="align-self:stretch; animation:msg-in .45s cubic-bezier(.22,1,.36,1) both;">
@@ -358,7 +383,7 @@ textarea:focus-visible { outline: none; }
             </div>
             <div style="padding-left:30px; color:var(--ink-2); font-size:15px; line-height:1.7;">
               <sc-for list="{{ m.blocks }}" as="blk" hint-placeholder-count="2">
-                <div>{{ blk }}</div>
+                <div class="wrap-anywhere">{{ blk }}</div>
               </sc-for>
               <sc-if value="{{ m.hasTools }}" hint-placeholder-val="{{ false }}">
                 <button onClick="{{ m.openTrace }}" style="position:relative; overflow:hidden; margin-top:12px; display:inline-flex; align-items:center; gap:10px; background:var(--blue-pale); border:1px solid var(--border); color:var(--text-2); border-radius:999px; padding:8px 15px 8px 12px; font-size:12.5px; cursor:pointer; transition:all .2s ease;" style-hover="background:var(--blue-pale); border-color:rgba(var(--accent-rgb),.38); color:var(--ink);">
