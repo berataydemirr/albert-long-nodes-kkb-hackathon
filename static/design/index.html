@@ -263,6 +263,8 @@ textarea:focus-visible { outline: none; }
 .sess-row:hover .sess-del, .sess-row:focus-within .sess-del { opacity: 1; }
 @media (hover: none) { .sess-date { display: none; } .sess-del { opacity: 1; } }
 /* Top bar: quiet text buttons on one 30px baseline. */
+.brand { display: flex; align-items: center; gap: 10px; height: 30px; margin-left: -2px; padding: 0 6px 0 2px; background: none; border: 0; border-radius: 6px; color: var(--ink); cursor: pointer; transition: opacity .15s ease; }
+.brand:hover { opacity: .8; }
 .top-btn { height: 30px; display: flex; align-items: center; gap: 6px; background: none; border: 0; border-radius: 6px; padding: 0 10px; font-size: 12.5px; color: var(--muted); cursor: pointer; transition: color .15s ease, background .15s ease; }
 .top-btn:hover { color: var(--ink); background: var(--hover-bg); }
 .top-btn .num { color: var(--text-2); transition: color .15s ease; }
@@ -319,8 +321,10 @@ textarea:focus-visible { outline: none; }
       <button class="icon-btn" onClick="{{ toggleSidebar }}" aria-label="Sohbet listesini aç/kapat" title="Sohbetler">
         <svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
       </button>
-      <img src="./icon-128.png" width="22" height="22" alt="" style="flex:none; display:block;">
-      <span style="font-size:13.5px; font-weight:500; letter-spacing:-.01em; color:var(--ink);">Albert Long Nodes</span>
+      <button class="brand" onClick="{{ resetChat }}" title="Yeni sohbet" aria-label="Albert Long Nodes – yeni sohbet">
+        <img src="./icon-128.png" width="22" height="22" alt="" style="flex:none; display:block;">
+        <span style="font-size:13.5px; font-weight:500; letter-spacing:-.01em;">Albert Long Nodes</span>
+      </button>
     </div>
     <div style="display:flex; align-items:center; gap:2px;">
       <button class="top-btn" onClick="{{ openRegistry }}">
@@ -927,7 +931,7 @@ async function requestJsonWithRetry(url, options, retriesLeft = 1) {
   try {
     const r = await fetch(url, options);
     const d = await r.json();
-    if (!r.ok) throw new Error(d.detail || 'İstek başarısız oldu.');
+    if (!r.ok) throw new Error(detailText(d.detail, 'İstek başarısız oldu.'));
     return d;
   } catch (err) {
     const transient = err instanceof TypeError || err instanceof SyntaxError;
@@ -945,13 +949,20 @@ async function requestJsonWithRetry(url, options, retriesLeft = 1) {
 // to (shaped like the old single-JSON body). A transient failure is only
 // retried while nothing has been streamed yet - once a draft is on screen
 // a silent replay would restart it from scratch.
+function detailText(detail, fallback) {
+  if (!detail) return fallback;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) return detail.map(d => (d && d.msg) || JSON.stringify(d)).join('; ');
+  return JSON.stringify(detail);
+}
+
 async function requestAskStream(url, options, onDelta, retriesLeft = 1) {
   let streamed = false;
   try {
     const r = await fetch(url, options);
     if (!r.ok) {
-      const d = await r.json();
-      throw new Error(d.detail || 'İstek başarısız oldu.');
+      const d = await r.json().catch(() => ({}));
+      throw new Error(detailText(d.detail, 'İstek başarısız oldu.'));
     }
     if (!r.body || !r.body.getReader) return await r.json();
     const reader = r.body.getReader();
@@ -1486,30 +1497,21 @@ function chartsToBlocks(charts) {
   return out;
 }
 
-// The upload response rendered as the same markdown the answer text
-// already goes through (mdToBlocks), so it appears as an ordinary chat
-// bubble with no new rendering path to maintain. Explicitly labelled as
-// user-supplied, unverified data - matches the system prompt's own rule
-// for how the model must talk about an imported dataset.
-function formatUploadSummary(result) {
-  const rows = result.columns.map(c => {
-    const extra = c.inferred_type === 'numeric' && c.min != null
-      ? `${c.min} – ${c.max}`
-      : (c.sample_values || []).slice(0, 3).join(', ');
-    return `| ${c.column} | ${c.inferred_type} | ${c.null_count} | ${extra} |`;
-  }).join('\n');
-
-  const truncNote = result.truncated_to
-    ? `\n\n_İlk ${result.truncated_to} satır alındı; dosyanın tamamı değil._`
-    : '';
-  const pdfNote = result.note
-    ? `\n\n_${result.note}_`
-    : '';
-
-  return `**'${result.dataset_name}' olarak içe aktarıldı** — ${result.row_count} satır, ${result.column_count} sütun.\n\n` +
-    `| Sütun | Tür | Boş | Örnek / Aralık |\n|---|---|---|---|\n${rows}${truncNote}${pdfNote}\n\n` +
-    `Bu veri kullanıcı tarafından yüklendi; BDDK/EVDS/TÜİK gibi doğrulanmamıştır. ` +
-    `\`'${result.dataset_name}' hakkında ...\` diye sorabilirsin.`;
+// What the model sees about an attached file, via history. Kept well under
+// the server's per-answer cap (web_app.py HistoryTurn) no matter how wide
+// the sheet is; the full schema is one query_imported_dataset call away.
+const FILE_HISTORY_MAX_CHARS = 1400;
+function uploadHistorySummary(result) {
+  const head = `'${result.dataset_name}' olarak içe aktarıldı — ${result.row_count} satır, ${result.column_count} sütun. ` +
+    `Kullanıcı yükledi; resmi kaynak değil. query_imported_dataset ile sorgulanabilir.`;
+  const cols = (result.columns || []).map(c => `${c.column} (${c.inferred_type})`);
+  let list = '';
+  for (let i = 0; i < cols.length; i++) {
+    const next = list ? `${list}, ${cols[i]}` : cols[i];
+    if (head.length + next.length + 40 > FILE_HISTORY_MAX_CHARS) { list += `, … +${cols.length - i} sütun daha`; break; }
+    list = next;
+  }
+  return list ? `${head}\nSütunlar: ${list}` : head;
 }
 
 const fileExt = (name) => (String(name).split('.').pop() || '').toUpperCase();
@@ -1766,13 +1768,13 @@ class Component extends DCLogic {
     const form = new FormData();
     form.append('file', file);
     fetch('/api/upload', { method: 'POST', body: form })
-      .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail || 'Yükleme başarısız oldu.'); return d; })
+      .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(detailText(d.detail, 'Yükleme başarısız oldu.')); return d; })
       .then(result => patch({
         status: 'ready',
         file: {
           name: file.name, datasetName: result.dataset_name,
           rowCount: result.row_count, columnCount: result.column_count,
-          turnId: result.turn_id, summary: formatUploadSummary(result)
+          turnId: result.turn_id, summary: uploadHistorySummary(result)
         }
       }))
       .catch(err => patch({ status: 'error', error: err.message }));
@@ -1869,7 +1871,7 @@ class Component extends DCLogic {
       const m = messages[i], next = messages[i + 1];
       if (m.role === 'user' && m.files) {
         for (const f of m.files) {
-          if (f.summary) turns.push({ question: `Dosya yüklendi: ${f.name}`, answer: f.summary.slice(0, ANSWER_MAX_CHARS) });
+          if (f.summary) turns.push({ question: `Dosya yüklendi: ${f.name}`, answer: f.summary.slice(0, FILE_HISTORY_MAX_CHARS) });
         }
       }
       if (m.role === 'user' && next.role === 'assistant' && next.answerText) {
@@ -1906,7 +1908,7 @@ class Component extends DCLogic {
       ? `'${files[0].datasetName}' veri setini özetle.`
       : `Yüklediğim veri setlerini özetle: ${files.map(f => `'${f.datasetName}'`).join(', ')}.`);
     const { turns: baseHistory, digest: historyDigest } = this.historyForRequest();
-    const history = [...baseHistory, ...files.map(f => ({ question: `Dosya yüklendi: ${f.name}`, answer: f.summary }))].slice(-6);
+    const history = [...baseHistory, ...files.map(f => ({ question: `Dosya yüklendi: ${f.name}`, answer: f.summary.slice(0, FILE_HISTORY_MAX_CHARS) }))].slice(-6);
     const userMsg = files.length ? { role: 'user', text: typed, question: text, files } : { role: 'user', text };
     this.setState(s => ({
       messages: [...s.messages, { id: s.nextId, ...userMsg }],
@@ -1930,7 +1932,7 @@ class Component extends DCLogic {
         // agent-side failure rides in this "error" field instead and is
         // thrown here so it lands in the same .catch() rendering below as
         // any other failure.
-        if (data && data.error) throw new Error(data.error);
+        if (data && data.error) throw new Error(detailText(data.error, 'Bilinmeyen hata.'));
         this.pushAssistantTo(sessionId, {
           routeName: data.route ? data.route.name : 'agent',
           routeReason: data.route ? data.route.reason : '',
