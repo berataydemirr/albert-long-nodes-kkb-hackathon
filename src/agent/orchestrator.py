@@ -408,6 +408,17 @@ ARDIŞIK FİNANS ANALİZİ:
   endeks günümüzde 100-400 bandında olur) - küsuratlı/virgül kaymış bir
   ayrıştırma hatası şüphesiyle sorguyu veya kaynak hücreyi tekrar kontrol
   et, sessizce basma.
+- "En hızlı/en çok açılan/en büyük değişen N dönem" gibi MUTLAK DEĞERE göre
+  bir sıralama istendiğinde, SQL'de ORDER BY ABS(değişim) DESC ile üretilen
+  sıralamayı OLDUĞU GİBİ kullan - kendi yönsel (işaret bazlı) sezgine göre
+  bir satırı "bu aslında daralma, açılma değil" diyerek listeden çıkarma.
+  Bir değer önceki döneme göre işaret DEĞİŞTİRSE bile (ör. +4,5'ten -8,5'e
+  geçmek) bu hâlâ |4,5|'ten |8,5|'e, hatta ham farkla 13 puanlık bir
+  harekettir - mutlak değer sıralamasında işaret geçişi bir dışlama sebebi
+  DEĞİLDİR. Bir satırı "sayıca en büyük olduğu halde farklı kategoride"
+  diye elemek istiyorsan, bunu SORGUNUN KENDİSİNDE bir filtre olarak
+  (WHERE değişim < 0 gibi) yap ve bunu yanıtta AÇIKÇA belirt - sorgu sonucu
+  ile yazdığın sıralama birbirinden sessizce sapmasın.
 - Kümülatif YTD tutarı, aylık akış, stok, yüzde ve endeks ayrı türlerdir.
   Yalnızca doğrulanmış YTD tutarlarını yıl sınırını gözeterek farkla;
   faiz/yüzde/endeksten otomatik fark alarak aylık veri üretme.
