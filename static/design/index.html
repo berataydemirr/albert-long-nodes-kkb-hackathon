@@ -37,6 +37,7 @@
   } catch (e) {}
 })();
 </script>
+<script type="module" src="./thinking-orb.js"></script>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -327,7 +328,7 @@ textarea:focus-visible { outline: none; }
 
       <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ true }}">
         <div style="margin:auto 0; padding:40px 0 24px; animation:msg-in .5s ease both;">
-          <span class="premium-dots is-live" style="--orb-size:56px; display:block; margin:0 0 22px 32px;"><i class="dots-glow"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i></span>
+          <thinking-orb state="searching" size="64" style="display:block; margin:0 0 22px 28px;"></thinking-orb>
           <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); margin-bottom:12px;">BDDK · EVDS · TUIK</div>
           <h1 style="margin:0 0 10px; font-size:34px; font-weight:500; letter-spacing:-.035em; line-height:1.12; color:var(--ink);">Lakehouse'a ne sormak istersin?</h1>
           <p style="margin:0 0 26px; font-size:15px; line-height:1.6; color:var(--muted); max-width:52ch;">Lakehouse'daki BDDK/TCMB/TÜİK verilerini sorgular, canlı web ve dosya kaynaklarıyla birleştirir, istatistiksel analiz ve karşılaştırma üretir.</p>
@@ -350,7 +351,7 @@ textarea:focus-visible { outline: none; }
         <sc-if value="{{ m.isAssistant }}" hint-placeholder-val="{{ false }}">
           <div style="align-self:stretch; animation:msg-in .45s cubic-bezier(.22,1,.36,1) both;">
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
-              <span class="premium-dots no-halo" style="--orb-size:20px;"><i class="dots-glow"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i></span>
+              <thinking-orb state="searching" size="20" paused="" style="flex:none;"></thinking-orb>
               <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted);">{{ m.routeName }}</span>
               <span style="width:3px; height:3px; border-radius:50%; background:var(--separator);"></span>
               <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--dim);">{{ m.totalLabel }}</span>
@@ -378,7 +379,7 @@ textarea:focus-visible { outline: none; }
       <sc-if value="{{ thinking }}" hint-placeholder-val="{{ false }}">
         <div style="align-self:stretch; animation:msg-in .4s ease both;">
           <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-            <span class="premium-dots is-live no-halo" style="--orb-size:20px;"><i class="dots-glow"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i></span>
+            <thinking-orb state="searching" size="20" style="flex:none;"></thinking-orb>
             <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--dim);">{{ elapsedLabel }}</span>
           </div>
           <div style="padding-left:30px; display:flex; flex-direction:column; gap:9px;">
