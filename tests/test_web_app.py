@@ -23,7 +23,7 @@ def test_browser_ui_is_served():
     response = TestClient(web_app.app).get("/")
 
     assert response.status_code == 200
-    assert "KKB Agent" in response.text
+    assert "Albert Long Nodes" in response.text
     assert "/api/ask" in response.text
     assert "/api/tools" in response.text
     # Trace drawer sections rendered from the /api/ask timing payload.
@@ -118,7 +118,7 @@ def test_page_declares_a_title_and_icon():
     """Both were missing - the browser tab rendered with no name at all."""
     response = TestClient(web_app.app).get("/")
 
-    assert "<title>KKB Agent</title>" in response.text
+    assert "<title>Albert Long Nodes</title>" in response.text
     assert 'rel="icon"' in response.text
 
 
