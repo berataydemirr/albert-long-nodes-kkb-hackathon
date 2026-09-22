@@ -194,6 +194,144 @@ def test_upload_endpoint_rejects_an_oversized_file(monkeypatch):
     assert response.status_code == 422
 
 
+def _make_cover_page_pdf(path):
+    """A table on page 1, with a text-only cover page before it - the
+    normal shape of a BDDK/TCMB bulletin (title page, table of contents),
+    not a hand-picked edge case."""
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Table, TableStyle
+
+    doc = SimpleDocTemplate(str(path), pagesize=A4)
+    elements = [
+        Paragraph("ENFLASYON RAPORU - kapak sayfasi, tablo yok.", getSampleStyleSheet()["Normal"]),
+        PageBreak(),
+    ]
+    t = Table([["Emtia", "Yillik % Degisim"], ["Dogal Gaz (Avrupa)", "72,6"], ["Brent Petrol", "29,9"]])
+    t.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 1, colors.black)]))
+    elements.append(t)
+    doc.build(elements)
+
+
+def test_upload_endpoint_skips_a_tableless_cover_page_when_no_page_is_given(tmp_path, monkeypatch):
+    """Real repro: the frontend's upload form never sends page/table_index
+    (static/design/index.html's FormData only carries file/dataset_name),
+    so a hardcoded page=0 default meant every report with a non-tabular
+    cover page (the normal shape of a corporate bulletin) failed outright
+    on the first upload attempt. Page/table_index left unset must now
+    auto-select the first real table pdfplumber can find, instead of
+    blindly assuming page 0."""
+    import src.agent.data_import as di
+
+    monkeypatch.setattr(di, "LAKEHOUSE_DB_PATH", tmp_path / "web_upload_cover_test.duckdb")
+    pdf_path = tmp_path / "bulletin.pdf"
+    _make_cover_page_pdf(pdf_path)
+
+    response = TestClient(web_app.app).post(
+        "/api/upload",
+        files={"file": ("bulletin.pdf", pdf_path.read_bytes(), "application/pdf")},
+        data={"dataset_name": "cover_test"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["row_count"] == 2
+    assert body["pdf_page_auto_selected"]["page"] == 1, "page 0 (the cover) must be skipped, not imported as if it were data"
+    assert body["pdf_page_auto_selected"]["table_index"] == 0
+
+
+def test_upload_endpoint_skips_a_malformed_table_and_tries_the_next_candidate(tmp_path, monkeypatch):
+    """Real repro: on a real 65-page report, the FIRST table list_pdf_tables
+    finds (after the cover page fix above) had a blank column header -
+    pdfplumber mis-splitting a merged cell, import_pdf_table's own
+    pre-existing, correct refusal. Stopping at the first candidate would
+    have made 'no page given' fail just as often as the old hardcoded
+    page=0 did. Auto-select must cascade to the next candidate instead."""
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import PageBreak, SimpleDocTemplate, Table, TableStyle
+    import src.agent.data_import as di
+
+    monkeypatch.setattr(di, "LAKEHOUSE_DB_PATH", tmp_path / "web_upload_cascade_test.duckdb")
+    pdf_path = tmp_path / "bulletin3.pdf"
+    doc = SimpleDocTemplate(str(pdf_path), pagesize=A4)
+    # Exactly one data row: too short for the merged-header-flattening
+    # fallback to even attempt reconstructing the blank cell (it needs a
+    # 3rd row to borrow a sub-header from), so this reliably hits the
+    # "blank column header" rejection instead of being silently repaired.
+    bad = Table([["", "Deger"], ["a", "1"]])
+    bad.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 1, colors.black)]))
+    good = Table([["Il", "Deger"], ["Ankara", "1"], ["Istanbul", "2"], ["Izmir", "3"]])
+    good.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 1, colors.black)]))
+    doc.build([bad, PageBreak(), good])
+
+    response = TestClient(web_app.app).post(
+        "/api/upload",
+        files={"file": ("bulletin3.pdf", pdf_path.read_bytes(), "application/pdf")},
+        data={"dataset_name": "cascade_test"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["row_count"] == 3, "must land on the good 3-row table, not the malformed one"
+    assert body["pdf_page_auto_selected"]["page"] == 1
+    assert len(body["pdf_auto_select_skipped"]) == 1
+    assert "blank column header" in body["pdf_auto_select_skipped"][0]["error"]
+
+
+def test_upload_endpoint_skips_a_trivial_one_column_fragment(tmp_path, monkeypatch):
+    """Real repro: on a real report, auto-select's first CLEAN import (no
+    header ambiguity) was a 2-row x 1-column fragment - a stray box on the
+    page, not real data - while a real 8x28 data table sat a few
+    candidates later. A 1-column grid has no header to mis-split, so it
+    always passes the blank-header check trivially; a size floor is
+    needed on top of "imports without error"."""
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import PageBreak, SimpleDocTemplate, Table, TableStyle
+    import src.agent.data_import as di
+
+    monkeypatch.setattr(di, "LAKEHOUSE_DB_PATH", tmp_path / "web_upload_tiny_test.duckdb")
+    pdf_path = tmp_path / "bulletin4.pdf"
+    doc = SimpleDocTemplate(str(pdf_path), pagesize=A4)
+    tiny = Table([["42"], ["7"]])  # 1 column, no ambiguity, "imports cleanly" but is not data
+    tiny.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 1, colors.black)]))
+    real = Table([["Il", "Deger"], ["Ankara", "1"], ["Istanbul", "2"], ["Izmir", "3"]])
+    real.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 1, colors.black)]))
+    doc.build([tiny, PageBreak(), real])
+
+    response = TestClient(web_app.app).post(
+        "/api/upload",
+        files={"file": ("bulletin4.pdf", pdf_path.read_bytes(), "application/pdf")},
+        data={"dataset_name": "tiny_skip_test"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["row_count"] == 3, "must land on the real table, not the 1-column fragment"
+    assert body["pdf_page_auto_selected"]["page"] == 1
+
+
+def test_upload_endpoint_still_honors_an_explicit_page_choice(tmp_path, monkeypatch):
+    """The auto-select fallback must never override a caller that DID pick
+    a page - only fill in for one that left it unset."""
+    import src.agent.data_import as di
+
+    monkeypatch.setattr(di, "LAKEHOUSE_DB_PATH", tmp_path / "web_upload_explicit_test.duckdb")
+    pdf_path = tmp_path / "bulletin2.pdf"
+    _make_cover_page_pdf(pdf_path)
+
+    response = TestClient(web_app.app).post(
+        "/api/upload",
+        files={"file": ("bulletin2.pdf", pdf_path.read_bytes(), "application/pdf")},
+        data={"dataset_name": "explicit_test", "page": "1", "table_index": "0"},
+    )
+
+    assert response.status_code == 200
+    assert "pdf_page_auto_selected" not in response.json()
+
+
 def test_upload_endpoint_defaults_a_dataset_name_from_the_filename(tmp_path, monkeypatch):
     """dataset_name is optional in the form - a caller that only picks a
     file should still get a usable, valid table name back."""

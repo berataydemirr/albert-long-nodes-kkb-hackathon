@@ -1,0 +1,12 @@
+[
+  {"id": "Q1", "q": "Ekteki 'enf26_iii_tam.pdf' raporundaki 'Emtia Fiyat Gelismeleri' tablosunu bul. Dogal gaz (Avrupa) ile Brent petrol fiyatlarinin yillik yuzde degisim oranlarini cekerek, bu iki enerji kalemindeki fiyat ayrismasini raporla."},
+  {"id": "Q2", "q": "Yukledigim raporda yer alan 'Varsayimlardaki Guncellemeler' tablosundan 2026 ve 2027 yillari icin petrol fiyati ve gida enflasyonu ongorulerini cikar. Bir onceki rapor donemine gore baz senaryonun ne yonde revize edildigini ozetle."},
+  {"id": "Q3", "q": "Bu PDF icerisindeki 'TUIK'in YYF Sinifinda Yer Alan Urunler' tablosunu incele. Sepet agirligi en yuksek olan ilk 3 kalemi tespit et ve bu kalemlerin Temmuz 2026 itibariyla gerceklesen yillik enflasyon oranlarini listele."},
+  {"id": "Q4", "q": "Rapordaki 'Temel Tahmin Degiskenlerinin Gelisimi' tablosundan 2026'nin birinci ve ikinci ceyregine ait ciktı acigi tahminlerini cikar. Bu oranlarin, ic talebin dezenflasyon surecine olan katkisi hakkinda ne anlama geldigini kisaca yorumla."},
+  {"id": "Q5", "q": "Dosyanin enerji fiyatlarina odaklanan bolumundeki 'Elektrik Fiyati Aylik Degisimleri' tablosunu bul. Nisan, Mayis, Haziran ve Temmuz 2026 aylari icin 'Gerceklesen' fiyat degisim oranlarini cek ve en sert fiyat artisinin yasandigi ayi belirt."},
+  {"id": "Q6", "q": "Raporda Piyasa Katilimcilari Anketi'ne gore 12 ay sonrasina iliskin enflasyon beklentisi ile hanehalkinin 12 ay sonrasina iliskin enflasyon beklentisini Temmuz 2026 itibariyla karsilastir ve aradaki farki puan olarak ver."},
+  {"id": "Q7", "q": "Rapordaki kredi buyumesi verilerine gore, 31 Temmuz itibariyla TL ticari kredi buyumesi ile YP ticari kredi buyumesi (kur etkisinden arindirilmis, 13 haftalik yillıklandirilmis) arasindaki farki hesapla."},
+  {"id": "Q8", "q": "Kamu Maliyesi Gelismeleri bolumunden, 2026 yili ocak-haziran doneminde gelirlerin ve harcamalarin bir onceki yilin ayni donemine gore yillik artis oranlarini bul ve hangisinin daha hizli arttigini belirt."},
+  {"id": "Q9", "q": "Dis Ticaret ve Odemeler Dengesi bolumunden, 2026 yili ikinci ceyreginde Turkiye'nin DIBS piyasasina giris ve hisse senedi piyasasindan cikis tutarlarini (milyar ABD dolari) bularak net portfoy girisini hesapla."},
+  {"id": "Q10", "q": "TCMB Politika Faizi Kararlari bolumunden, kredi buyumesine dayali zorunlu karsilik uygulamasinda 23 Mayis 2026'da yapilan degisiklikle ihtiyac ve tasit kredileri icin aylik buyume sinirinin hangi degerden hangi degere dusuruldugunu belirt."}
+]

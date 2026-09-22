@@ -187,8 +187,8 @@ _ALL_UPLOAD_EXTENSIONS = SUPPORTED_EXTENSIONS + (_PDF_EXTENSION,)
 
 @app.post("/api/upload")
 async def upload_dataset(file: UploadFile = File(...), dataset_name: str | None = Form(None),
-                         sheet: str | None = Form(None), page: int = Form(0),
-                         table_index: int = Form(0)) -> dict:
+                         sheet: str | None = Form(None), page: int | None = Form(None),
+                         table_index: int | None = Form(None)) -> dict:
     """Save an uploaded CSV/Excel/PDF file and import it into the
     lakehouse (see data_import.py / pdf_import.py for why it's the same
     lakehouse.duckdb the curated gold tables live in, not a separate
@@ -198,11 +198,24 @@ async def upload_dataset(file: UploadFile = File(...), dataset_name: str | None 
     rather than handing back a job id to poll - these are small files
     (25 MB cap) meant to be usable in the same conversation, not a batch
     pipeline. A malformed or oversized file is a 422, not a 500: the
-    server did its job correctly by refusing it. page/table_index only
-    apply to a PDF (which page, which of possibly several tables on it -
-    both default to the first, like sheet defaults to the first Excel
-    sheet); a caller that gets a poor extraction can inspect
-    list_pdf_tables' output and retry with a different pair.
+    server did its job correctly by refusing it.
+
+    page/table_index only apply to a PDF, and default to None (the
+    frontend's upload form never actually sends them - checked live,
+    static/design/index.html's FormData only carries file/dataset_name).
+    A hardcoded default of page=0 used to mean every multi-table report
+    with a non-tabular cover page (title page, table of contents - the
+    normal shape of a BDDK/TCMB bulletin) failed on the very first byte
+    of the very first table, with no recovery inside this endpoint at
+    all. None now means "caller did not pick a page": list_pdf_tables'
+    own safe full-document scan (already computed below as `preview`,
+    never wasted) supplies the first page that actually has a table.
+    This does NOT merge different tables from different pages into one
+    dataset - it only chooses which single table gets imported when the
+    caller left that unspecified. A caller that gets a poor extraction,
+    or wants a DIFFERENT one of the ~150 tables a report this size can
+    hold, inspects list_pdf_tables' output (returned as
+    pdf_tables_found) and retries with an explicit page/table_index.
     """
     suffix = Path(file.filename or "").suffix.lower()
     if suffix not in _ALL_UPLOAD_EXTENSIONS:
@@ -232,8 +245,75 @@ async def upload_dataset(file: UploadFile = File(...), dataset_name: str | None 
     try:
         if suffix == _PDF_EXTENSION:
             preview = list_pdf_tables(saved_path)
-            result = import_pdf_table(saved_path, name, page=page, table_index=table_index, source_label=file.filename)
+            auto_selected = None
+            if page is None:
+                # No page/table_index chosen: cascade through every table
+                # list_pdf_tables found, in page order, until one actually
+                # imports cleanly - never at more than one candidate at a
+                # time, and never merging two of them into one dataset.
+                # Found live: the FIRST candidate on a real 65-page report
+                # had a blank column header (pdfplumber mis-splitting a
+                # merged cell, import_pdf_table's own existing, correct
+                # refusal) - stopping there would have made "no page
+                # given" just as unusable as the old hardcoded page=0.
+                if not preview["tables"]:
+                    raise ValueError(
+                        f"PDF has {preview['page_count']} page(s); pdfplumber found no "
+                        "ruling-line or whitespace-aligned table on any of them. This looks "
+                        "like a scanned/image-only document - use list_pdf_tables' OCR text "
+                        "per page instead of table import."
+                    )
+                # A tiny fragment (a stray page-number box, a chart axis
+                # label pdfplumber mis-reads as ruled lines) passes the
+                # header check trivially - there is no header ambiguity in
+                # a 1-column grid. Found live: without this floor, the
+                # auto-select cascade's first "clean" import on a real
+                # report was 2 rows x 1 column, useless, while the actual
+                # 8x28 data table three candidates later was skipped over
+                # for being merely syntactically later, not for being any
+                # less valid. This is a size floor, not a content guess -
+                # it never picks between two real tables on relevance.
+                MIN_AUTO_SELECT_ROWS, MIN_AUTO_SELECT_COLS = 2, 2
+                candidates = [c for c in preview["tables"]
+                             if c["row_count"] >= MIN_AUTO_SELECT_ROWS and c["column_count"] >= MIN_AUTO_SELECT_COLS] \
+                            or preview["tables"]  # every table is tiny: fall back to trying them all anyway
+                attempts = []
+                result = None
+                for candidate in candidates:
+                    try:
+                        result = import_pdf_table(saved_path, name, page=candidate["page"],
+                                                  table_index=candidate["table_index"], source_label=file.filename)
+                        auto_selected = {
+                            "page": candidate["page"], "table_index": candidate["table_index"],
+                            "reason": "no page/table_index given; picked the first table with at "
+                                     f"least {MIN_AUTO_SELECT_ROWS}x{MIN_AUTO_SELECT_COLS} cells "
+                                     "that actually imported cleanly, out of "
+                                     f"{len(preview['tables'])} table(s) list_pdf_tables found in "
+                                     f"total ({len(attempts)} earlier candidate(s) were skipped - "
+                                     "see pdf_auto_select_skipped)",
+                        }
+                        break
+                    except ValueError as candidate_exc:
+                        attempts.append({"page": candidate["page"], "table_index": candidate["table_index"],
+                                         "error": str(candidate_exc)})
+                        continue
+                if result is None:
+                    raise ValueError(
+                        f"None of the {len(preview['tables'])} table(s) pdfplumber found across "
+                        f"{preview['page_count']} page(s) could be imported cleanly (each failed its "
+                        "own data-quality check - blank headers, single-row noise, etc; see "
+                        "list_pdf_tables for the raw candidate list). Pick a page/table_index by "
+                        "hand and inspect why that specific one fails."
+                    )
+                if attempts:
+                    result["pdf_auto_select_skipped"] = attempts
+            else:
+                effective_table_index = table_index if table_index is not None else 0
+                result = import_pdf_table(saved_path, name, page=page, table_index=effective_table_index,
+                                          source_label=file.filename)
             result["pdf_tables_found"] = preview["tables"]
+            if auto_selected:
+                result["pdf_page_auto_selected"] = auto_selected
         else:
             sheets = list_sheets(saved_path)
             result = import_dataset(saved_path, name, sheet=sheet, source_label=file.filename)
