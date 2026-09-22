@@ -76,7 +76,7 @@ heuristiktir; faiz/endeks/yüzde üzerinde otomatik uygulanmamalıdır.
 
 Harness her model turundan önce `compact` işlemini değerlendirir.
 Tetik: `(tahmini mesaj tokenları + araç şemaları) / (kapasite − çıktı rezervi)
-> 0.80`. `AGENT_CONTEXT_TOKENS=16384`, `AGENT_OUTPUT_RESERVE_TOKENS=2048`
+> 0.80`. `AGENT_CONTEXT_TOKENS=100000`, `AGENT_OUTPUT_RESERVE_TOKENS=8192`
 dağıtım varsayılanlarıdır, modelin gerçek limitine dair iddia değildir.
 Sağlayıcının limitine göre ayarlanmalıdır. Token hesabı yaklaşık karakter
 hesabıdır. Eski araç çıktıları kısaltılır; kimlikler korunur; sistem ve

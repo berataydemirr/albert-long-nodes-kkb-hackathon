@@ -24,6 +24,7 @@ import json
 import re
 import time
 from datetime import date
+from types import SimpleNamespace
 
 import openai
 
@@ -361,7 +362,7 @@ MODEL_CALL_BACKOFF_BASE_SEC = 2.0
 # A model call never gets less than this, even with the run deadline nearly
 # spent - a shorter timeout would only turn a slow answer into no answer.
 MODEL_CALL_MIN_TIMEOUT_SEC = 30.0
-TOOL_OUTPUT_MAX_CHARS = 12_000
+TOOL_OUTPUT_MAX_CHARS = 30_000
 # Per-tool limits live on ToolSpec (src/agent/tools.py), with the reasons -
 # including why web_search/lakehouse_query stay tight while analysis tools
 # (anomaly/change/correlation/causality/compare_regions) got raised further
@@ -496,7 +497,8 @@ def _call_model(client, messages: list, tool_schemas: list[dict],
                 reasoning_effort: str | None = None,
                 timeout: float | None = None,
                 deadline: float | None = None,
-                max_attempts: int | None = None) -> "openai.types.chat.ChatCompletion":
+                max_attempts: int | None = None,
+                on_delta=None) -> "openai.types.chat.ChatCompletion":
     """Model call with exponential backoff on transient errors. A 400
     (bad request - e.g. a malformed tool schema) is NOT retried, since
     retrying an malformed request just fails the same way 3 times slower;
@@ -521,7 +523,12 @@ def _call_model(client, messages: list, tool_schemas: list[dict],
     deadline existed but nothing inside this retry loop ever checked it.
     Recomputing the per-attempt timeout from the remaining deadline (and
     refusing to start a new attempt once the deadline has passed) keeps
-    the actual worst case close to what AGENT_RUN_DEADLINE_SEC promises."""
+    the actual worst case close to what AGENT_RUN_DEADLINE_SEC promises.
+
+    on_delta(str), when given, switches to a streamed completion: each
+    visible text fragment is handed to it as it arrives (so the UI can show
+    the answer being written), and the chunks are reassembled into the same
+    response shape the non-streamed call returns."""
     last_exc = None
     attempts = MODEL_CALL_MAX_ATTEMPTS if max_attempts is None else max(1, max_attempts)
     effort = MIA_REASONING_EFFORT if reasoning_effort is None else reasoning_effort
@@ -548,6 +555,15 @@ def _call_model(client, messages: list, tool_schemas: list[dict],
         attempt_client = client.with_options(timeout=attempt_timeout) \
             if attempt_timeout is not None and hasattr(client, "with_options") else client
         try:
+            if on_delta is not None:
+                return _collect_stream(attempt_client.chat.completions.create(
+                    model=MIA_CHAT_MODEL,
+                    messages=messages,
+                    temperature=0.1,
+                    stream=True,
+                    **tool_kwargs,
+                    **extra,
+                ), on_delta, deadline)
             return attempt_client.chat.completions.create(
                 model=MIA_CHAT_MODEL,
                 messages=messages,
@@ -586,6 +602,61 @@ def _call_model(client, messages: list, tool_schemas: list[dict],
                 time.sleep(wait)
     logger.error(f"_call_model: all {attempts} attempts failed")
     raise last_exc
+
+
+def _collect_stream(stream, on_delta, deadline: float | None = None):
+    """Reassemble a streamed chat completion into the non-streamed shape
+    ask() reads (choices[0].message with content/tool_calls, usage),
+    forwarding each content fragment to on_delta on the way. Tool-call
+    arguments arrive split across chunks keyed by index, so they are
+    concatenated per index. A failing on_delta never breaks the call.
+
+    On a stream the HTTP read timeout only bounds the gap between chunks,
+    not the whole completion, so the run deadline is enforced here."""
+    from openai.types.chat import ChatCompletionMessage
+
+    content_parts: list[str] = []
+    calls: dict[int, dict] = {}
+    usage = None
+    for chunk in stream:
+        if deadline is not None and time.monotonic() > deadline:
+            close = getattr(stream, "close", None)
+            if close:
+                close()
+            try:
+                import httpx  # openai's own dependency; only needed on this path
+            except ModuleNotFoundError:  # the Python 3.14 fork this env ships
+                import httpx2 as httpx
+            raise openai.APITimeoutError(request=httpx.Request("POST", "stream"))
+        if getattr(chunk, "usage", None):
+            usage = chunk.usage
+        if not chunk.choices:
+            continue
+        delta = chunk.choices[0].delta
+        if delta.content:
+            content_parts.append(delta.content)
+            try:
+                on_delta(delta.content)
+            except Exception:
+                logger.warning("_collect_stream: on_delta callback failed", exc_info=True)
+        for tc in delta.tool_calls or []:
+            slot = calls.setdefault(tc.index, {"id": None, "name": "", "arguments": ""})
+            if tc.id:
+                slot["id"] = tc.id
+            if tc.function is not None:
+                slot["name"] += tc.function.name or ""
+                slot["arguments"] += tc.function.arguments or ""
+    tool_calls = [
+        {"id": c["id"] or f"call_{i}", "type": "function",
+         "function": {"name": c["name"], "arguments": c["arguments"] or "{}"}}
+        for i, c in sorted(calls.items())
+    ]
+    message = ChatCompletionMessage.model_validate({
+        "role": "assistant",
+        "content": "".join(content_parts) or None,
+        "tool_calls": tool_calls or None,
+    })
+    return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=usage)
 
 
 _TRUNCATION_NOTE = "Çıktı kısaltıldı - sorguyu daraltın (WHERE/LIMIT veya daha kısa dönem)."
@@ -1130,7 +1201,7 @@ def ask(question: str, history: list[dict] | None = None, history_digest: str | 
         max_rounds: int | None = None,
         return_trace: bool = False, return_timing: bool = False,
         reasoning_effort: str | None = None, deadline_sec: float | None = None,
-        on_event=None, evidence_context: list[dict] | None = None):
+        on_event=None, evidence_context: list[dict] | None = None, stream: bool = False):
     """return_trace=True also returns the round-by-round tool-call trace
     (name + arguments + whether it raised) - used by benchmarks/
     agent_benchmark.py to score tool-selection accuracy and hallucinated
@@ -1166,7 +1237,12 @@ def ask(question: str, history: list[dict] | None = None, history_digest: str | 
 
     on_event(dict) receives live progress (route, model rounds, tool start
     and finish) so the UI can show which tool is running. It must be cheap;
-    its exceptions are logged and ignored."""
+    its exceptions are logged and ignored.
+
+    stream=True (with on_event set) streams each model completion and emits
+    {"kind": "delta", "round": n, "text": ...} per text fragment. A round's
+    deltas are a draft: a later round, a correction or the grounding repair
+    can replace them, so the returned answer stays the authoritative one."""
     logger.info(f"ask: question={question!r}, max_rounds={max_rounds}")
     run_t0 = time.monotonic()
     deadline = run_t0 + (AGENT_RUN_DEADLINE_SEC if deadline_sec is None else deadline_sec)
@@ -1194,6 +1270,13 @@ def ask(question: str, history: list[dict] | None = None, history_digest: str | 
 
     def _remaining() -> float:
         return deadline - time.monotonic()
+
+    def _delta_sink(round_no: int):
+        # Streaming only pays off when someone is listening; otherwise keep
+        # the plain completion call (and its simpler failure modes).
+        if not stream or on_event is None:
+            return None
+        return lambda text: _emit("delta", round=round_no, text=text)
 
     def _model_timeout() -> float:
         # Never hand one completion the whole run budget. The absolute
@@ -1364,7 +1447,7 @@ def ask(question: str, history: list[dict] | None = None, history_digest: str | 
         # Compaction runs BEFORE the call, so an oversized history is shrunk
         # on the way out rather than after it has already been paid for.
         messages, compaction_stats = compact_context(messages, routed_tool_schemas)
-        if compaction_stats["threshold_exceeded"]:
+        if compaction_stats["ran"]:
             _emit("compact", round=round_no, **compaction_stats)
         if compaction_stats["ran"]:
             compaction_log.append({"round": round_no, **compaction_stats})
@@ -1384,7 +1467,7 @@ def ask(question: str, history: list[dict] | None = None, history_digest: str | 
         t0 = time.monotonic()
         try:
             response = _call_model(client, messages, [*routed_tool_schemas, REQUEST_TOOLS_SCHEMA], effort,
-                                    _model_timeout(), deadline=deadline)
+                                    _model_timeout(), deadline=deadline, on_delta=_delta_sink(round_no))
         except RETRYABLE_ERRORS as exc:
             # Real incident: this used to propagate straight out of ask()
             # as a raw exception, surfacing to the user as a generic
@@ -1612,7 +1695,7 @@ def ask(question: str, history: list[dict] | None = None, history_digest: str | 
         start_ms = _ms_since_start()
         t0 = time.monotonic()
         response = _call_model(client, messages, [], effort, min(_model_timeout(), 30.0),
-                               deadline=deadline, max_attempts=1)
+                               deadline=deadline, max_attempts=1, on_delta=_delta_sink(max_rounds + 1))
         elapsed = time.monotonic() - t0
         timeline.append({
             "kind": "llm", "round": max_rounds + 1, "name": "LLM düşünme (zorunlu kapanış)",

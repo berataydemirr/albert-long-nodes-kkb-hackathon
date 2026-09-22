@@ -1,3 +1,4 @@
+import json
 import pytest
 from fastapi.testclient import TestClient
 
@@ -283,3 +284,26 @@ def test_auth_covers_api_endpoints_too_not_just_health(monkeypatch):
 
     response = TestClient(web_app.app).post("/api/ask", json={"question": "test"})
     assert response.status_code == 401
+
+
+def test_ask_endpoint_streams_deltas_then_result_as_ndjson(monkeypatch):
+    def fake_ask(question, history, history_digest, return_trace, return_timing, on_event=None, stream=False):
+        assert stream is True
+        on_event({"kind": "llm", "round": 1})
+        on_event({"kind": "delta", "round": 1, "text": "Mer"})
+        on_event({"kind": "delta", "round": 1, "text": "haba"})
+        return "Merhaba", [], {"timeline": [], "summary": {"total_ms": 1.0, "llm_ms": 1.0, "tool_ms": 0.0}}
+
+    monkeypatch.setattr(web_app, "ask", fake_ask)
+    response = TestClient(web_app.app).post("/api/ask", json={
+        "question": "selam", "stream": True, "request_id": "req_stream_1"})
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/x-ndjson")
+    lines = [json.loads(line) for line in response.text.splitlines() if line.strip()]
+    assert "".join(line["text"] for line in lines if line["type"] == "delta") == "Merhaba"
+    assert lines[-1]["type"] == "result"
+    assert lines[-1]["answer"] == "Merhaba"
+    # Stage events still go to the poller; deltas never do.
+    kinds = [e["kind"] for e in web_app.progress("req_stream_1")["events"]]
+    assert kinds == ["llm"]

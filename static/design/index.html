@@ -398,6 +398,13 @@ textarea:focus-visible { outline: none; }
               </div>
             </sc-for>
           </div>
+          <sc-if value="{{ hasDraft }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top:14px; padding-left:30px; color:var(--ink-2); font-size:15px; line-height:1.7;">
+              <sc-for list="{{ draftBlocks }}" as="blk" hint-placeholder-count="2">
+                <div>{{ blk }}</div>
+              </sc-for>
+            </div>
+          </sc-if>
         </div>
       </sc-if>
 
@@ -809,6 +816,51 @@ async function requestJsonWithRetry(url, options, retriesLeft = 1) {
     const transient = err instanceof TypeError || err instanceof SyntaxError;
     if (transient && retriesLeft > 0) {
       return requestJsonWithRetry(url, options, retriesLeft - 1);
+    }
+    throw err;
+  }
+}
+
+// Streamed variant of requestJsonWithRetry for /api/ask with stream:true.
+// The body is NDJSON: blank heartbeat lines, {"type":"delta"} lines with
+// the model's text as it is written (handed to onDelta), then one
+// {"type":"result"} or {"type":"error"} line, which is what this resolves
+// to (shaped like the old single-JSON body). A transient failure is only
+// retried while nothing has been streamed yet - once a draft is on screen
+// a silent replay would restart it from scratch.
+async function requestAskStream(url, options, onDelta, retriesLeft = 1) {
+  let streamed = false;
+  try {
+    const r = await fetch(url, options);
+    if (!r.ok) {
+      const d = await r.json();
+      throw new Error(d.detail || 'İstek başarısız oldu.');
+    }
+    if (!r.body || !r.body.getReader) return await r.json();
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '', final = null;
+    const handle = (line) => {
+      if (!line.trim()) return;
+      const msg = JSON.parse(line);
+      if (msg.type === 'delta') { streamed = true; onDelta(msg); }
+      else if (msg.type === 'error') final = { error: msg.error };
+      else if (msg.type === 'result') { const { type, ...rest } = msg; final = rest; }
+    };
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf('\n')) >= 0) { handle(buf.slice(0, nl)); buf = buf.slice(nl + 1); }
+    }
+    handle(buf + decoder.decode());
+    if (!final) throw new SyntaxError('stream ended without a result');
+    return final;
+  } catch (err) {
+    const transient = err instanceof TypeError || err instanceof SyntaxError;
+    if (transient && !streamed && retriesLeft > 0) {
+      return requestAskStream(url, options, onDelta, retriesLeft - 1);
     }
     throw err;
   }
@@ -1430,6 +1482,17 @@ class Component extends DCLogic {
       })
       .catch(() => setTimeout(() => this.pollProgress(sessionId, requestId, after), 1500));
   };
+  // Live answer text from the /api/ask stream. Each model round starts a
+  // fresh draft: text from a tool-calling round is preamble, and the final
+  // answer (possibly corrected server-side) replaces the draft anyway.
+  appendDraft = (sessionId, requestId, d) => {
+    this.setState(s => {
+      const cur = s.pending[sessionId];
+      if (!cur || cur.requestId !== requestId) return null;
+      const text = cur.draftRound === d.round ? (cur.draft || '') + d.text : d.text;
+      return { pending: { ...s.pending, [sessionId]: { ...cur, draft: text, draftRound: d.round } } };
+    }, () => { if (sessionId === this.state.activeSessionId) this.scrollEnd(); });
+  };
   clearPending = (sessionId) => {
     this.setState(s => {
       const pending = { ...s.pending };
@@ -1701,12 +1764,12 @@ class Component extends DCLogic {
     const requestId = `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
     this.markPending(sessionId, requestId);
 
-    requestJsonWithRetry('/api/ask', {
+    requestAskStream('/api/ask', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question: text, history, history_digest: historyDigest || undefined, request_id: requestId,
+      body: JSON.stringify({ question: text, history, history_digest: historyDigest || undefined, request_id: requestId, stream: true,
         turn_ids: [...new Set([...(this.state.sessions.find(sess => sess.id === sessionId)?.turnIds || []),
           ...this.state.messages.filter(m => m.turnId).map(m => m.turnId)])].slice(-100) })
-    })
+    }, (d) => this.appendDraft(sessionId, requestId, d))
       .then(data => {
         // /api/ask always answers 200 now (see web_app.py's answer_question -
         // it streams heartbeats over a long-running request, so the HTTP
@@ -1965,6 +2028,10 @@ class Component extends DCLogic {
       messages,
       thinking,
       stages,
+      // Same renderer as a finished answer, so the draft doesn't jump in
+      // style when the final result replaces it.
+      draftBlocks: thinking && (activePending.draft || '').trim() ? mdToBlocks(activePending.draft) : [],
+      hasDraft: thinking && !!(activePending.draft || '').trim(),
       elapsedLabel: `${(elapsed / 1000).toFixed(1)}s`,
       endRef: (el) => { this.endEl = el; },
       input: s.input, setInput: this.setInput, handleKeyDown: this.handleKeyDown,

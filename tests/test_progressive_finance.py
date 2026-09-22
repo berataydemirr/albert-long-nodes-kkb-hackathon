@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 
 from src.agent import evidence, finance_fetch
-from src.agent.context_compactor import compact_context
+from src.agent.context_compactor import CHARS_PER_TOKEN, compact_context
 from src.agent.router import route_question, Route
 from src.agent.tools import TOOL_SCHEMAS
 from src.gold.cumulative import decumulate
@@ -77,13 +77,14 @@ def test_evidence_query_readonly_and_original_payload_immutable():
 def test_context_trigger_includes_schemas_and_exact_80_percent(monkeypatch):
     monkeypatch.setenv("AGENT_CONTEXT_TOKENS", "1000")
     monkeypatch.setenv("AGENT_OUTPUT_RESERVE_TOKENS", "0")
-    # Empty schema JSON is zero estimated tokens (2 // 4).
-    _, stats = compact_context([{"role": "user", "content": "x" * 3200}], [])
+    # 80% of 1000 = 800 estimated tokens; empty schema JSON rounds to zero.
+    at_threshold = int(800 * CHARS_PER_TOKEN)
+    _, stats = compact_context([{"role": "user", "content": "x" * at_threshold}], [])
     assert not stats["threshold_exceeded"]
-    _, stats = compact_context([{"role": "user", "content": "x" * 3204}], [])
+    _, stats = compact_context([{"role": "user", "content": "x" * (at_threshold + 10)}], [])
     assert stats["threshold_exceeded"]
     assert not stats["ran"]  # never destroy the user's question to fit a budget
-    _, stats = compact_context([{"role": "user", "content": "x" * 3100}], [{"description": "x" * 500}])
+    _, stats = compact_context([{"role": "user", "content": "x" * (at_threshold - 100)}], [{"description": "x" * 500}])
     assert stats["threshold_exceeded"]
 
 
