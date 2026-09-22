@@ -9,9 +9,14 @@ from urllib.parse import urlparse
 
 import pandas as pd
 
+from config.settings import LAKEHOUSE_DB_PATH
 from src.agent.data_import import import_dataset, _write_dataset
+from src.agent.db_utils import connect_with_retry
 from src.agent.web_url import _download
 from src.collectors.evds import _get_client, _year_chunks
+from src.common.logging_setup import get_logger
+
+logger = get_logger("finance_fetch")
 
 
 def import_url_dataset(url: str, sheet: str | None = None) -> dict:
@@ -73,8 +78,94 @@ def _closest_rows(frame, needle: str, limit: int = 20):
     return frame.loc[ranked.index[:limit]]
 
 
+def _imported_evds_series(con, needle: str) -> list[dict]:
+    """EVDS columns (TP_*) inside imported datasets, described by the
+    file's own "Seri Açıklamaları" rows. Live: the model only found
+    TP_KTF17 (TL commercial loan rate) in an uploaded EVDS export after the
+    user said to look there."""
+    found = []
+    for dataset, source in con.execute(
+            "SELECT dataset_name, source_file FROM _import_registry ORDER BY dataset_name").fetchall():
+        try:
+            columns = [row[0] for row in con.execute(f'DESCRIBE "{dataset}"').fetchall()]
+        except Exception:
+            continue
+        codes = [c for c in columns if c.upper().startswith("TP_")]
+        if not codes or len(columns) < 2:
+            continue
+        # EVDS exports list descriptions below the data: code in the date
+        # column, description in the next one.
+        first, second = columns[0], columns[1]
+        # The first mention wins: a later "Notlar" block repeats each code
+        # with "Veri Kaynağı" etc. in the same column.
+        described = {}
+        for code, text in con.execute(
+                f'SELECT CAST("{first}" AS VARCHAR), CAST("{second}" AS VARCHAR) FROM "{dataset}" '
+                f'WHERE CAST("{first}" AS VARCHAR) LIKE \'TP.%\' AND "{second}" IS NOT NULL ORDER BY rowid').fetchall():
+            described.setdefault(code, text)
+        for code in codes:
+            description = described.get(code.replace("_", ".")) or described.get(code)
+            found.append({"dataset_name": dataset, "source_file": source,
+                          "kolon": code, "aciklama": description})
+    words = [w for w in needle.replace("_", ".").split() if len(w) >= 3]
+    if words:
+        def hits(row):
+            text = _fold(f"{row['kolon']} {row['aciklama'] or ''}".replace("_", "."))
+            return sum(w in text for w in words)
+        best = max((hits(row) for row in found), default=0)
+        return [row for row in found if hits(row) == best][:60] if best else []
+    return found[:60]
+
+
+def _evds_unavailable(needle: str = "") -> dict:
+    """Result for a missing EVDS_API_KEY. A raw ValueError sent the model
+    off searching the web for series the lakehouse already holds (live:
+    a CPI question needing only TP.GENENDEKS.T1); list those, and any EVDS
+    columns inside imported files, instead."""
+    rows, imported = [], []
+    try:
+        con = connect_with_retry(LAKEHOUSE_DB_PATH, read_only=True)
+        try:
+            rows = con.execute(
+                "SELECT Seri_Kod, any_value(Seri_Adi), min(Period), max(Period) FROM gold_fact_long "
+                "WHERE Kaynak = 'evds' GROUP BY Seri_Kod ORDER BY Seri_Kod").fetchall()
+            imported = _imported_evds_series(con, _fold(needle))
+        finally:
+            con.close()
+    except Exception:
+        logger.exception("_evds_unavailable: offline EVDS catalog lookup failed")
+    series = [{"seri_kod": code, "seri_adi": name, "start_period": start, "end_period": end}
+              for code, name, start, end in rows]
+    return {
+        "error": "Canlı EVDS erişimi kapalı: EVDS_API_KEY tanımlı değil.",
+        "evds_available": False,
+        "lakehouse_evds_series": series,
+        "imported_evds_series": imported,
+        "next_step": (
+            "İstenen seri lakehouse_evds_series listesindeyse gold_fact_long üzerinden lakehouse_query ile "
+            "oku (kaynak: 'TCMB EVDS, lakehouse'a önceden yüklenmiş'). Değilse imported_evds_series'e bak: "
+            "açıklaması istenen kavramla eşleşen kolonu query_imported_dataset ile oku; tarih kolonu metin "
+            "olabilir ve dosyanın altındaki açıklama satırlarını (TP.xxx) veri sayma. Bunun kullanıcı "
+            "yüklemesi olduğunu ve doğrulanmadığını belirt. İkisinde de yoksa canlı EVDS'ye erişilemediğini "
+            "söyle; seri kodu veya değer tahmin etme, EVDS'yi web_search/web_url_extract ile arama "
+            "(sayfaları JavaScript ile yüklenir)."
+        ),
+    }
+
+
+def _evds_client():
+    try:
+        return _get_client()
+    except ValueError as exc:
+        if "EVDS_API_KEY" in str(exc):
+            return None
+        raise
+
+
 def search_evds_series(query: str = "", datagroup: str | None = None) -> dict:
-    client = _get_client()
+    client = _evds_client()
+    if client is None:
+        return _evds_unavailable(query)
     try:
         frame = client.get_series(datagroup) if datagroup else client.get_sub_categories()
     except KeyError:
@@ -124,7 +215,9 @@ def fetch_evds_series(datagroup: str, seri_kod: str, start_period: str,
     start, end = pd.Period(start_period, freq="M"), pd.Period(end_period, freq="M")
     if end < start or end.ordinal - start.ordinal > 120:
         raise ValueError("Dönem aralığı sıralı ve en fazla 121 ay olmalı.")
-    client = _get_client()
+    client = _evds_client()
+    if client is None:
+        return _evds_unavailable(seri_kod)
     catalog = client.get_series(datagroup)
     matches = catalog[catalog["SERIE_CODE"] == seri_kod]
     if matches.empty:

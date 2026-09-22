@@ -162,3 +162,16 @@ def test_tool_call_arguments_count_toward_the_estimate():
     }]
 
     assert estimate_tokens(with_args) > estimate_tokens(without)
+
+
+def test_a_pass_that_saves_almost_nothing_keeps_the_full_history():
+    """Seen live: two tool results digested to save 1.7% of the history.
+    Below MIN_USEFUL_SAVING the original messages must come back intact."""
+    from src.agent.context_compactor import compact_messages
+    big_question = {"role": "user", "content": "q" * 20_000}
+    tools = [{"role": "tool", "tool_call_id": f"c{i}", "content": json.dumps({"rows": [{"v": i}] * 30})}
+             for i in range(5)]
+    messages = [big_question, *tools]
+    result, stats = compact_messages(messages, budget_tokens=100, keep_recent=3)
+    assert result is messages
+    assert not stats["ran"]

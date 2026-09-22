@@ -36,10 +36,11 @@ from src.common.logging_setup import get_logger
 
 logger = get_logger("context_compactor")
 
-# Chars-per-token is model-specific; 4 is the usual rough estimate for
-# English/Turkish mixed text and is only used to decide WHEN to compact,
-# never reported as a real token count.
-CHARS_PER_TOKEN = 4
+# Chars-per-token is model-specific. Measured against the endpoint's own
+# usage.prompt_tokens over 238 real rounds: Turkish text plus JSON numbers
+# come out at ~2.2 chars/token (the old guess of 4 undercounted ~1.8x).
+# Only used to decide WHEN to compact, never reported as a real count.
+CHARS_PER_TOKEN = 2.2
 
 # Compaction starts once the estimated history exceeds this.
 # Calibrated, not guessed: benchmarks/context_cost_benchmark.py measures a
@@ -47,6 +48,10 @@ CHARS_PER_TOKEN = 4
 # never fired at all. 3,000 engages partway through a long chain while
 # still leaving the recent rounds (which keep_recent protects) untouched.
 DEFAULT_BUDGET_TOKENS = 3_000
+
+# A pass that cannot win back at least this share of the history is not
+# worth the data it destroys (seen live: two results digested to save 1.7%).
+MIN_USEFUL_SAVING = 0.10
 
 # Tool outputs from the most recent N rounds are never touched - the model
 # is still actively using them.
@@ -64,11 +69,11 @@ def compact_context(messages: list[dict], tool_schemas: list[dict]) -> tuple[lis
     Capacity is a deployment setting, not an assertion about the provider's
     model limit. Include schemas and reserve output space in the estimate.
     """
-    capacity = int(os.getenv("AGENT_CONTEXT_TOKENS", "16384"))
-    reserve = int(os.getenv("AGENT_OUTPUT_RESERVE_TOKENS", "2048"))
+    capacity = int(os.getenv("AGENT_CONTEXT_TOKENS", "100000"))
+    reserve = int(os.getenv("AGENT_OUTPUT_RESERVE_TOKENS", "8192"))
     if capacity <= reserve or reserve < 0:
         raise ValueError("Context capacity must exceed the nonnegative output reserve.")
-    overhead = len(json.dumps(tool_schemas, ensure_ascii=False)) // CHARS_PER_TOKEN
+    overhead = int(len(json.dumps(tool_schemas, ensure_ascii=False)) / CHARS_PER_TOKEN)
     usable = capacity - reserve
     budget = max(0, int(usable * 0.8) - overhead)
     compacted, stats = compact_messages(messages, budget_tokens=budget)
@@ -94,7 +99,7 @@ def estimate_tokens(messages: list[dict]) -> int:
             function = call.get("function") if isinstance(call, dict) else None
             if function:
                 total_chars += len(str(function.get("arguments", "")))
-    estimate = total_chars // CHARS_PER_TOKEN
+    estimate = int(total_chars / CHARS_PER_TOKEN)
     logger.debug(f"estimate_tokens: total_chars={total_chars}, estimated_tokens={estimate}")
     return estimate
 
@@ -121,7 +126,11 @@ def _digest_tool_output(content: str) -> str:
                    if key in ("row_count", "columns", "truncated", "error", "shared_periods", "source", "seri_kod", "evidence_id", "dataset_name", "source_url", "start_period", "end_period", "missing_periods", "aggregation", "pearson_correlation", "x_source", "y_source")}
         rows = payload.get("rows")
         if isinstance(rows, list) and rows:
+            # First and last row: for a time series that is the span the
+            # model already saw, which is what stops a needless re-query.
             summary["first_row"] = rows[0]
+            if len(rows) > 1:
+                summary["last_row"] = rows[-1]
             summary["rows_omitted"] = len(rows)
         digest = json.dumps(summary, ensure_ascii=False, default=str)
         logger.debug(f"_digest_tool_output: structured digest, keys={list(summary.keys())}")
@@ -197,6 +206,12 @@ def compact_messages(messages: list[dict], budget_tokens: int = DEFAULT_BUDGET_T
         )
 
     after_tokens = estimate_tokens(compacted)
+    if rewritten and before_tokens - after_tokens < before_tokens * MIN_USEFUL_SAVING:
+        logger.info(
+            f"compact_messages: SKIPPED, would only save {before_tokens - after_tokens} of "
+            f"{before_tokens} tokens - keeping the full history"
+        )
+        return messages, stats
     stats.update({
         "ran": rewritten > 0,
         "after_tokens": after_tokens,

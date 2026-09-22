@@ -31,6 +31,8 @@ Colours are decided in the frontend from the project palette; this module
 only says which points deserve emphasis.
 """
 
+import re
+
 from src.agent.series_resolver import resolve_series
 from src.common.logging_setup import get_logger
 
@@ -50,7 +52,12 @@ MAX_BARS = 12
 
 # Period-ish and value-ish column names in lakehouse_query results, in the
 # casing the gold layer actually uses.
-_PERIOD_COLUMNS = ("Period", "period", "Donem", "Dönem")
+_PERIOD_COLUMNS = ("Period", "period", "Donem", "Dönem", "Tarih", "tarih", "Ay", "ay", "Date", "date")
+_PERIOD_VALUE_RE = re.compile(r"^\d{4}-\d{1,2}(-\d{1,2})?$")
+
+# Tools whose output is a SELECT result ({columns, rows}) - all go through
+# run_guarded_select, so one shape covers them.
+_TABULAR_TOOLS = ("lakehouse_query", "evidence_query", "query_imported_dataset")
 
 # The regional metric names are slugs the tool takes as input ("npl",
 # "kisi_basi_kredi"). They are fine as an API surface and useless as a
@@ -174,47 +181,58 @@ def _chart_from_compare_regions(payload: dict) -> dict | None:
     }
 
 
-def _chart_from_lakehouse_query(payload: dict) -> dict | None:
-    """Plot a query result only when it is unambiguously a time series.
+def _is_number(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _charts_from_table(payload: dict, source_note: str) -> list[dict]:
+    """Plot a SELECT result only when it is unambiguously a time series.
 
     Deliberately conservative: the model can write any SQL it likes, and a
     chart drawn from a shape this code guessed at would be worse than no
-    chart. It must have a period-like column, exactly one numeric column,
-    and enough rows to have a shape.
+    chart. It needs a period column (by name, or every value shaped like
+    YYYY-MM) and enough rows to have a shape. Each numeric column becomes
+    its own line - small multiples, never a dual axis - so a follow-up like
+    "bunu grafikleştir" over a multi-column table gets real charts instead
+    of the model drawing ASCII bars (live: 27 s spent generating them).
+    NULLs are gaps, e.g. a rate series that starts later than the rest.
     """
     columns = payload.get("columns") or []
-    rows = payload.get("rows") or []
+    rows = [r for r in (payload.get("rows") or []) if isinstance(r, dict)]
     if not columns or len(rows) < MIN_POINTS_FOR_LINE:
-        return None
+        return []
 
     period_col = next((c for c in columns if c in _PERIOD_COLUMNS), None)
     if period_col is None:
-        logger.debug(f"_chart_from_lakehouse_query: no period column in {columns}, skipping")
-        return None
+        period_col = next((c for c in columns
+                           if all(_PERIOD_VALUE_RE.match(str(r.get(c, ""))) for r in rows)), None)
+    if period_col is None:
+        logger.debug(f"_charts_from_table: no period column in {columns}, skipping")
+        return []
 
-    numeric_cols = [
-        c for c in columns
-        if c != period_col and all(isinstance(r.get(c), (int, float)) and not isinstance(r.get(c), bool) for r in rows)
-    ]
-    if len(numeric_cols) != 1:
-        logger.debug(
-            f"_chart_from_lakehouse_query: need exactly one numeric column, found {numeric_cols}; skipping"
+    specs = []
+    for value_col in columns:
+        if value_col == period_col:
+            continue
+        values = [r.get(value_col) for r in rows]
+        present = [v for v in values if v is not None]
+        if len(present) < MIN_POINTS_FOR_LINE or not all(_is_number(v) for v in present):
+            continue
+        points = sorted(
+            ({"label": str(r.get(period_col)), "value": r.get(value_col), "highlight": False}
+             for r in rows if r.get(value_col) is not None),
+            key=lambda p: p["label"],
         )
-        return None
-
-    value_col = numeric_cols[0]
-    points = [{"label": str(r.get(period_col)), "value": r.get(value_col), "highlight": False} for r in rows]
-    points.sort(key=lambda p: p["label"])
-
-    logger.info(f"_chart_from_lakehouse_query: {period_col}/{value_col} -> {len(points)} point(s)")
-    return {
-        "kind": "line",
-        "title": value_col.replace("_", " "),
-        "unit": None,
-        "subtitle": f"{points[0]['label']} – {points[-1]['label']}",
-        "source_note": "lakehouse_query",
-        "points": points,
-    }
+        specs.append({
+            "kind": "line",
+            "title": str(value_col).replace("_", " "),
+            "unit": None,
+            "subtitle": f"{points[0]['label']} – {points[-1]['label']}",
+            "source_note": source_note,
+            "points": points,
+        })
+    logger.info(f"_charts_from_table: {period_col} -> {len(specs)} line(s) from {len(columns)} column(s)")
+    return specs
 
 
 def _highlight_periods_from(payload: dict) -> set[str]:
@@ -272,8 +290,9 @@ def derive_charts(trace: list[dict]) -> list[dict]:
                     if source.get("seri_kod"):
                         add(_series_chart(source["seri_kod"]))
 
-            elif name == "lakehouse_query":
-                add(_chart_from_lakehouse_query(payload))
+            elif name in _TABULAR_TOOLS:
+                for spec in _charts_from_table(payload, name):
+                    add(spec)
 
         except Exception:
             logger.exception(f"derive_charts: failed while charting '{name}', continuing without it")

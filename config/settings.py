@@ -36,17 +36,15 @@ MIA_REASONING_EFFORT = os.getenv("MIA_REASONING_EFFORT", "low")
 # Unset, the router picks the effort per route (a lookup runs lower than a
 # causality chain). Set explicitly, the env value wins for every route.
 MIA_REASONING_EFFORT_EXPLICIT = "MIA_REASONING_EFFORT" in os.environ
-# End-to-end wall-clock budget. Raised from 300s to 600s: with the shared
-# endpoint slow, runs that needed a third/fourth round (e.g. analyse and
-# chart an uploaded CSV) hit the deadline before writing an answer.
+# End-to-end wall-clock budget. Measured per-round latency is p50 ~7s, p90
+# ~44s, so an 8-round route needs more than the old 300s; 600s fits it and
+# is still a hard ceiling (checked inside streamed completions too).
 AGENT_RUN_DEADLINE_SEC = float(os.getenv("AGENT_RUN_DEADLINE_SEC", "600"))
-# A single completion should not be allowed to consume the whole run budget.
-# The shared MIA endpoint occasionally accepts a request but produces no bytes
-# for several minutes. Raised from 120s to 230s: final answer rounds (analysis
-# plus chart) repeatedly died at exactly 120s with only ~9k context in, while
-# the same endpoint answered a trivial prompt in 8.4s - generation, not a
-# hang. 230s stays under mia_client's 240s SDK timeout.
-MODEL_CALL_TIMEOUT_SEC = float(os.getenv("MODEL_CALL_TIMEOUT_SEC", "230"))
+# Per-read timeout for one completion. Completions are streamed, so this is
+# how long the endpoint may stay SILENT (queueing, or before the first
+# token) - not a cap on a completion that is actively producing text. That
+# one is bounded by the run deadline instead.
+MODEL_CALL_TIMEOUT_SEC = float(os.getenv("MODEL_CALL_TIMEOUT_SEC", "180"))
 # One retry is enough to recover a transient connection failure. Three long
 # attempts amplified endpoint incidents into 10+ minute user-visible hangs.
 MODEL_CALL_MAX_ATTEMPTS = max(1, int(os.getenv("MODEL_CALL_MAX_ATTEMPTS", "2")))

@@ -1,6 +1,7 @@
 """Local browser UI for exercising routing and function calling."""
 
 import json
+import queue
 import re
 import hashlib
 import secrets
@@ -107,6 +108,10 @@ class AskRequest(BaseModel):
     history_digest: str | None = Field(default=None, max_length=800)
     # Client-generated id; /api/progress/{request_id} streams this run's events.
     request_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{8,64}$")
+    # True: /api/ask answers as NDJSON - {"type": "delta", ...} lines with
+    # the model's text as it is generated, then one {"type": "result", ...}
+    # (or {"type": "error", ...}) line. False keeps the single-JSON body.
+    stream: bool = False
 
 
 # request_id -> {"events": [...], "updated": monotonic}. In-memory and
@@ -349,7 +354,7 @@ async def upload_dataset(file: UploadFile = File(...), dataset_name: str | None 
 _ASK_HEARTBEAT_SEC = 15
 
 
-def _run_ask(request: AskRequest, question: str) -> dict:
+def _run_ask(request: AskRequest, question: str, on_delta=None) -> dict:
     history = [turn.model_dump(exclude_none=True) for turn in request.history]
     evidence_kwargs = {}
     if request.turn_ids:
@@ -365,7 +370,19 @@ def _run_ask(request: AskRequest, question: str) -> dict:
         ]
     try:
         decision = route_question(question, TOOL_SCHEMAS)
-        progress_kwargs = {"on_event": _progress_recorder(request.request_id)} if request.request_id else {}
+        record = _progress_recorder(request.request_id) if request.request_id else None
+        progress_kwargs = {}
+        if on_delta is not None:
+            # Deltas go straight down the response stream; they would blow
+            # through _PROGRESS_MAX_EVENTS and the poller only needs stages.
+            def on_event(event: dict) -> None:
+                if event.get("kind") == "delta":
+                    on_delta(event)
+                elif record is not None:
+                    record(event)
+            progress_kwargs = {"on_event": on_event, "stream": True}
+        elif record is not None:
+            progress_kwargs = {"on_event": record}
         try:
             answer, trace, timing = ask(question, history=history, history_digest=request.history_digest,
                                         return_trace=True, return_timing=True, **progress_kwargs, **evidence_kwargs)
@@ -423,27 +440,62 @@ def answer_question(request: AskRequest) -> StreamingResponse:
         raise HTTPException(status_code=422, detail="Soru boş olamaz.")
 
     box: dict = {}
+    deltas: queue.Queue = queue.Queue()
 
     def worker():
         try:
-            box["payload"] = _run_ask(request, question)
+            box["payload"] = _run_ask(request, question, on_delta=deltas.put if request.stream else None)
         except HTTPException as exc:
             box["error"] = exc.detail
         except Exception as exc:
             logger.error(f"answer_question: unhandled error in worker thread: {exc}", exc_info=True)
             box["error"] = "Agent yanıt üretemedi. Sunucu günlüklerini kontrol edin."
+        finally:
+            deltas.put(None)  # wakes generate() the moment the run ends
 
     def generate():
         thread = threading.Thread(target=worker, daemon=True)
         thread.start()
-        while thread.is_alive():
-            thread.join(timeout=_ASK_HEARTBEAT_SEC)
-            if thread.is_alive():
+        while True:
+            try:
+                item = deltas.get(timeout=_ASK_HEARTBEAT_SEC)
+            except queue.Empty:
                 yield b"\n"  # heartbeat - keeps the connection from looking idle
+                continue
+            if item is None:
+                break
+            # Coalesce whatever else is already queued into one line per
+            # round, so a fast token stream isn't one tiny write per token.
+            batch, done = [item], False
+            while True:
+                try:
+                    nxt = deltas.get_nowait()
+                except queue.Empty:
+                    break
+                if nxt is None:
+                    done = True
+                    break
+                batch.append(nxt)
+            merged: list[dict] = []
+            for ev in batch:
+                if merged and merged[-1]["round"] == ev.get("round"):
+                    merged[-1]["text"] += ev.get("text", "")
+                else:
+                    merged.append({"type": "delta", "round": ev.get("round"), "text": ev.get("text", "")})
+            for line in merged:
+                yield json.dumps(line, ensure_ascii=False).encode("utf-8") + b"\n"
+            if done:
+                break
+        thread.join()
+        if request.stream:
+            final = {"type": "error", "error": box["error"]} if "error" in box else {"type": "result", **box["payload"]}
+            yield json.dumps(final, default=str).encode("utf-8") + b"\n"
+            return
         # Valid JSON permits insignificant whitespace before the value, so
         # the heartbeats already written do not corrupt the body - the
         # client's response.json() parses this exactly as if no heartbeats
         # had been sent at all.
         yield json.dumps({"error": box["error"]} if "error" in box else box["payload"]).encode("utf-8")
 
-    return StreamingResponse(generate(), media_type="application/json")
+    media_type = "application/x-ndjson" if request.stream else "application/json"
+    return StreamingResponse(generate(), media_type=media_type)

@@ -126,8 +126,12 @@ ROUTE_SETTINGS: dict[Route, RouteSettings] = {
         "low", 8),
     Route.REGIONAL: RouteSettings(
         "ROTA: il bazlı. compare_regions kullan; gold_fact_long ulusaldır.", "low", 5),
+    # 8 for the same reason as DISCOVERY: low-effort rounds measured 1-9s,
+    # and a live chained import question (find a series in an upload, check
+    # its frequency, monthly-average it, add two derived columns) spent all
+    # 5-6 rounds on discovery with 581s of the deadline still unused.
     Route.IMPORTS: RouteSettings(
-        "ROTA: yüklenen veri. Önce list_imported_datasets; verinin doğrulanmadığını belirt.", "low", 5),
+        "ROTA: yüklenen veri. Önce list_imported_datasets; verinin doğrulanmadığını belirt.", "low", 8),
     Route.LIVE_FETCH: RouteSettings(
         "ROTA: canlı veri. İlgili canlı çekme aracını doğrudan çağır, sonra lakehouse'tan sorgula.", "low", 5),
     Route.WEB_SEARCH: RouteSettings(
