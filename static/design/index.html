@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>KKB Agent</title>
+<title>Albert Long Nodes</title>
 <meta name="description" content="BDDK, EVDS ve TUIK verileri üzerinde soru sorulabilen analiz ajanı.">
 <meta name="theme-color" content="#486A83">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -99,76 +99,105 @@
   --error: #b42318;
   --error-rgb: 180,35,24;
   --user-bubble: var(--blue-pale);
+  --row-sep: #EDF1F4;
+  --hover-bg: rgba(72,106,131,.05);
+  --active-bg: rgba(72,106,131,.08);
+  --composer-border: var(--border);
+  --composer-shadow: 0 1px 2px rgba(38,54,64,.04);
+  --code-ink: var(--blue-dark);
+  --scroll-thumb: rgba(72,106,131,.18);
+  --scroll-thumb-hover: rgba(72,106,131,.30);
+  --body-weight: 300;
 }
-/* Dark values, both blocks identical - measured against surface #0a1220:
-   ink 16.5:1, ink-2 13.2:1, text-2 9.8:1, muted 7.2:1, dim 6.3:1,
-   faint 4.1:1 (chrome/placeholder scale, not body text), accent 6.4:1,
-   accent-2 10.3:1, error 6.7:1. --on-accent flips to a dark ink because
-   white-on-accent drops to 1.8-2.9:1 once accent itself is the lighter
-   #5b9bdc/#8cc8ea pair (dark ink on those two: 6.4:1 / 10.3:1). */
+/* Dark values, both blocks identical - measured against bg #080C11:
+   ink 16.4:1, ink-2 12.3:1, text-2 8.1:1, muted 5.6:1, dim 4.9:1,
+   faint 3.6:1 (metadata/placeholder only), accent 9.9:1. Neutral cool
+   greys, no blue cast; turquoise is kept to state (focus, active row,
+   send, running steps), never to surfaces. Hover/selected surfaces are
+   white at a few percent, so they read as a lift, not a colour. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0a1220;
-    --bg-grad: #10192b;
-    --surface: #111b2f;
-    --surface-2: #16223a;
-    --surface-3: #0d1526;
-    --surface-rgb: 17,27,47;
-    --ink: #eaf1f9;
-    --ink-2: #cddaeb;
-    --text-2: #a9bdd6;
-    --muted: #8ba3c2;
-    --dim: #7f97b8;
-    --faint: #5f7896;
-    --faintest: #435878;
-    --separator: #4a6485;
-    --accent: #5b9bdc;
-    --accent-hover: #7db4e8;
-    --accent-deep: #2c5f9e;
-    --accent-2: #8cc8ea;
-    --accent-rgb: 91,155,220;
-    --accent2-rgb: 140,200,234;
-    --on-accent: #0a1220;
+    --bg: #080C11;
+    --bg-grad: #0B1016;
+    --bg-soft: #0F141A;
+    --surface: #0F141A;
+    --surface-2: #131920;
+    --surface-3: #0B1015;
+    --surface-rgb: 11,16,21;
+    --ink: #E7EAEE;
+    --ink-2: #C8CDD3;
+    --text-2: #A2A9B1;
+    --muted: #858C95;
+    --dim: #7B828B;
+    --faint: #646B74;
+    --faintest: #3B424A;
+    --separator: #2C333B;
+    --accent: #35C7C5;
+    --accent-hover: #5CD4D2;
+    --accent-deep: #1F8E8C;
+    --accent-2: #7FDCDA;
+    --accent-rgb: 53,199,197;
+    --accent2-rgb: 127,220,218;
+    --on-accent: #061112;
     --shadow-rgb: 0,0,0;
-    --web-marker-rgb: 122,178,224;
-    --error: #ff6b57;
-    --error-rgb: 255,107,87;
-    --user-bubble: #16223a;
-    --border: rgba(91,155,220,.16);
-    --blue-pale: rgba(91,155,220,.08);
-    --blue-pale-hover: rgba(91,155,220,.14);
+    --web-marker-rgb: 127,220,218;
+    --error: #F0705F;
+    --error-rgb: 240,112,95;
+    --user-bubble: #121820;
+    --border: rgba(255,255,255,.07);
+    --row-sep: rgba(255,255,255,.045);
+    --blue-pale: rgba(255,255,255,.04);
+    --blue-pale-hover: rgba(255,255,255,.07);
+    --hover-bg: rgba(255,255,255,.035);
+    --active-bg: rgba(255,255,255,.055);
+    --composer-border: rgba(255,255,255,.10);
+    --composer-shadow: 0 1px 0 rgba(255,255,255,.025) inset, 0 12px 32px -18px rgba(0,0,0,.7);
+    --code-ink: #C8CDD3;
+    --scroll-thumb: rgba(255,255,255,.08);
+    --scroll-thumb-hover: rgba(255,255,255,.14);
+    --body-weight: 400;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0a1220;
-  --bg-grad: #10192b;
-  --surface: #111b2f;
-  --surface-2: #16223a;
-  --surface-3: #0d1526;
-  --surface-rgb: 17,27,47;
-  --ink: #eaf1f9;
-  --ink-2: #cddaeb;
-  --text-2: #a9bdd6;
-  --muted: #8ba3c2;
-  --dim: #7f97b8;
-  --faint: #5f7896;
-  --faintest: #435878;
-  --separator: #4a6485;
-  --accent: #5b9bdc;
-  --accent-hover: #7db4e8;
-  --accent-deep: #2c5f9e;
-  --accent-2: #8cc8ea;
-  --accent-rgb: 91,155,220;
-  --accent2-rgb: 140,200,234;
-  --on-accent: #0a1220;
+  --bg: #080C11;
+  --bg-grad: #0B1016;
+  --bg-soft: #0F141A;
+  --surface: #0F141A;
+  --surface-2: #131920;
+  --surface-3: #0B1015;
+  --surface-rgb: 11,16,21;
+  --ink: #E7EAEE;
+  --ink-2: #C8CDD3;
+  --text-2: #A2A9B1;
+  --muted: #858C95;
+  --dim: #7B828B;
+  --faint: #646B74;
+  --faintest: #3B424A;
+  --separator: #2C333B;
+  --accent: #35C7C5;
+  --accent-hover: #5CD4D2;
+  --accent-deep: #1F8E8C;
+  --accent-2: #7FDCDA;
+  --accent-rgb: 53,199,197;
+  --accent2-rgb: 127,220,218;
+  --on-accent: #061112;
   --shadow-rgb: 0,0,0;
-  --web-marker-rgb: 122,178,224;
-  --error: #ff6b57;
-  --error-rgb: 255,107,87;
-  --user-bubble: #16223a;
-  --border: rgba(91,155,220,.16);
-  --blue-pale: rgba(91,155,220,.08);
-  --blue-pale-hover: rgba(91,155,220,.14);
+  --web-marker-rgb: 127,220,218;
+  --error: #F0705F;
+  --error-rgb: 240,112,95;
+  --user-bubble: #121820;
+  --border: rgba(255,255,255,.07);
+  --row-sep: rgba(255,255,255,.045);
+  --blue-pale: rgba(255,255,255,.04);
+  --blue-pale-hover: rgba(255,255,255,.07);
+  --hover-bg: rgba(255,255,255,.035);
+  --active-bg: rgba(255,255,255,.055);
+  --composer-border: rgba(255,255,255,.10);
+  --composer-shadow: 0 1px 0 rgba(255,255,255,.025) inset, 0 12px 32px -18px rgba(0,0,0,.7);
+  --code-ink: #C8CDD3;
+  --scroll-thumb: rgba(255,255,255,.08);
+  --scroll-thumb-hover: rgba(255,255,255,.14);
+  --body-weight: 400;
 }
 html, body { margin: 0; background: var(--bg); }
 :root { color-scheme: light dark; }
@@ -177,7 +206,7 @@ html, body { margin: 0; background: var(--bg); }
 * { box-sizing: border-box; }
 a { color: var(--accent); text-decoration: none; border-bottom: 1px solid rgba(var(--accent-rgb),.30); }
 a:hover { color: var(--accent-hover); border-bottom-color: var(--accent-hover); }
-::selection { background: rgba(var(--accent2-rgb),.38); }
+::selection { background: rgba(var(--accent-rgb),.24); }
 textarea, button, input { font-family: inherit; }
 textarea::placeholder { color: var(--faint); }
 .chat-workspace { min-width: 0; }
@@ -203,8 +232,8 @@ pre, .num { font-variant-numeric: tabular-nums; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 textarea:focus-visible { outline: none; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: rgba(var(--accent-rgb),.18); border-radius: 8px; border: 3px solid var(--bg); }
-::-webkit-scrollbar-thumb:hover { background: rgba(var(--accent-rgb),.30); }
+::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 8px; border: 3px solid var(--bg); }
+::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb-hover); }
 ::-webkit-scrollbar-track { background: transparent; }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
@@ -215,12 +244,13 @@ textarea:focus-visible { outline: none; }
 /* Sidebar. Quieter than the chat: recessed surface, muted titles, one
    step of emphasis for the open conversation. */
 .side-new { width: 100%; display: flex; align-items: center; gap: 10px; background: none; border: 0; border-radius: 6px; padding: 7px 10px; font-size: 13px; color: var(--text-2); cursor: pointer; text-align: left; transition: background .15s ease, color .15s ease; }
-.side-new:hover { background: rgba(var(--accent-rgb),.06); color: var(--ink); }
+.side-new:hover { background: var(--hover-bg); color: var(--ink); }
 .side-new svg { flex: none; color: var(--muted); }
 .side-label { padding: 18px 10px 6px; font-family: 'Space Mono', monospace; font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
 .sess-row { position: relative; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 8px 0 10px; border-radius: 6px; cursor: pointer; transition: background .15s ease; }
-.sess-row:hover { background: rgba(var(--accent-rgb),.05); }
-.sess-row[data-active="true"] { background: rgba(var(--accent-rgb),.09); }
+.sess-row:hover { background: var(--hover-bg); }
+.sess-row[data-active="true"] { background: var(--active-bg); }
+.sess-row[data-active="true"]::before { content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 2px; border-radius: 1px; background: var(--accent); }
 .sess-title { flex: 1; min-width: 0; font-size: 13px; line-height: 1.3; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color .15s ease; }
 .sess-row:hover .sess-title { color: var(--text-2); }
 .sess-row[data-active="true"] .sess-title { color: var(--ink); }
@@ -232,6 +262,38 @@ textarea:focus-visible { outline: none; }
 .sess-row:hover .sess-date, .sess-row:focus-within .sess-date { opacity: 0; }
 .sess-row:hover .sess-del, .sess-row:focus-within .sess-del { opacity: 1; }
 @media (hover: none) { .sess-date { display: none; } .sess-del { opacity: 1; } }
+/* Top bar: quiet text buttons on one 30px baseline. */
+.top-btn { height: 30px; display: flex; align-items: center; gap: 6px; background: none; border: 0; border-radius: 6px; padding: 0 10px; font-size: 12.5px; color: var(--muted); cursor: pointer; transition: color .15s ease, background .15s ease; }
+.top-btn:hover { color: var(--ink); background: var(--hover-bg); }
+.top-btn .num { color: var(--text-2); transition: color .15s ease; }
+.top-btn:hover .num { color: var(--ink); }
+.icon-btn { width: 30px; height: 30px; flex: none; display: flex; align-items: center; justify-content: center; background: none; border: 0; border-radius: 6px; color: var(--muted); cursor: pointer; transition: color .15s ease, background .15s ease; }
+.icon-btn:hover { color: var(--ink); background: var(--hover-bg); }
+/* Composer: the one raised surface on the page. */
+.composer { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--composer-border); border-radius: 12px; padding: 10px; box-shadow: var(--composer-shadow); transition: border-color .18s ease; }
+.composer:hover { border-color: rgba(var(--accent-rgb),.22); }
+.composer[data-focused="true"] { border-color: rgba(var(--accent-rgb),.55); }
+.composer-row { display: flex; align-items: flex-end; gap: 8px; }
+.send-btn { flex: none; width: 34px; height: 34px; border-radius: 8px; border: 0; display: flex; align-items: center; justify-content: center; background: var(--blue-pale); color: var(--faint); cursor: default; transition: background .18s ease, color .18s ease; }
+.send-btn[data-ready="true"] { background: var(--accent); color: var(--on-accent); cursor: pointer; }
+.send-btn[data-ready="true"]:hover { background: var(--accent-hover); }
+/* File chips: in the composer before sending, above the user's bubble
+   after. */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: flex; align-items: center; gap: 9px; max-width: 280px; min-width: 0; height: 40px; padding: 0 6px 0 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; animation: stage-in .2s ease both; }
+.chip > .ico { color: var(--muted); }
+.chip[data-status="uploading"] > .ico { color: var(--accent); }
+.chip[data-status="error"] { border-color: rgba(var(--error-rgb),.35); }
+.chip[data-status="error"] > .ico { color: var(--error); }
+.chip-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.chip-name { font-size: 12.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip-meta { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip[data-status="error"] .chip-meta { color: var(--error); }
+.chip-x { flex: none; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; background: none; border: 0; border-radius: 5px; color: var(--faint); cursor: pointer; transition: color .15s ease, background .15s ease; }
+.chip-x:hover { color: var(--ink); background: var(--hover-bg); }
+.composer-chips { padding: 0 0 10px; }
+.msg-chips { justify-content: flex-end; }
+.msg-chips .chip { padding-right: 12px; }
 /* Icons: Lucide, stroke 1.75, colour from the surrounding text. */
 .ico { display: block; flex: none; }
 .ico-spin { animation: ico-spin 4s linear infinite; }
@@ -242,7 +304,8 @@ textarea:focus-visible { outline: none; }
 .step { display: flex; align-items: center; gap: 10px; min-height: 22px; font-size: 13.5px; color: var(--dim); transition: color .2s ease; animation: stage-in .2s ease both; }
 .step[data-state="active"] { color: var(--ink-2); }
 .step[data-state="error"] { color: var(--error); }
-.step .ico { color: var(--muted); opacity: .9; animation: ico-in .2s ease both; }
+.step .ico { color: var(--muted); opacity: .9; animation: ico-in .2s ease both; transition: color .2s ease; }
+.step[data-state="active"] .ico { color: var(--accent); opacity: 1; }
 .step[data-state="done"] .ico { color: var(--faint); }
 .step[data-state="error"] .ico { color: inherit; }
 .step .ico.ico-spin { animation: ico-in .2s ease both, ico-spin 4s linear infinite; }
@@ -251,21 +314,20 @@ textarea:focus-visible { outline: none; }
 </helmet>
 <div class="app-shell" style="display:flex; flex-direction:column; background:var(--bg); color:var(--ink); font-family:'Sora',system-ui,sans-serif; font-weight:400; letter-spacing:-.005em;">
 
-  <header style="position:relative; z-index:8; flex:none; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:0 22px; height:58px; border-bottom:1px solid var(--border); background:rgba(var(--surface-rgb),.86); backdrop-filter:blur(14px);">
+  <header style="position:relative; z-index:8; flex:none; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:0 16px 0 14px; height:54px; border-bottom:1px solid var(--border); background:var(--surface-3);">
     <div style="display:flex; align-items:center; gap:10px;">
-      <button onClick="{{ toggleSidebar }}" aria-label="Sohbet listesini aç/kapat" title="Sohbetler" style="width:32px; height:32px; flex:none; border-radius:6px; background:none; border:0; color:var(--muted); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:color .15s ease, background .15s ease;" style-hover="color:var(--ink); background:var(--blue-pale);">
+      <button class="icon-btn" onClick="{{ toggleSidebar }}" aria-label="Sohbet listesini aç/kapat" title="Sohbetler">
         <svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
       </button>
-      <img src="./icon-128.png" width="26" height="26" alt="" style="flex:none; display:block;">
-      <span style="font-size:14px; font-weight:500; letter-spacing:-.01em;">KKB Agent</span>
-      <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint);">{{ modeLabel }}</span>
+      <img src="./icon-128.png" width="22" height="22" alt="" style="flex:none; display:block;">
+      <span style="font-size:13.5px; font-weight:500; letter-spacing:-.01em; color:var(--ink);">Albert Long Nodes</span>
     </div>
-    <div style="display:flex; align-items:center; gap:8px;">
-      <button onClick="{{ openRegistry }}" style="display:flex; align-items:center; gap:6px; background:none; border:0; color:var(--muted); border-radius:6px; padding:7px 10px; font-size:12.5px; cursor:pointer; transition:color .15s ease, background .15s ease;" style-hover="color:var(--ink); background:var(--blue-pale);">
-        <span class="num" style="color:var(--ink);">{{ toolCount }}</span> tools
+    <div style="display:flex; align-items:center; gap:2px;">
+      <button class="top-btn" onClick="{{ openRegistry }}">
+        <span class="num">{{ toolCount }}</span> tools
       </button>
-      <button onClick="{{ resetChat }}" style="background:none; border:0; color:var(--muted); border-radius:6px; padding:7px 10px; font-size:12.5px; cursor:pointer; transition:color .15s ease, background .15s ease;" style-hover="color:var(--ink); background:var(--blue-pale);">New chat</button>
-      <button onClick="{{ toggleTheme }}" aria-label="Koyu/açık temayı değiştir" title="Koyu/açık tema" style="width:32px; height:32px; flex:none; border-radius:6px; background:none; border:0; color:var(--muted); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:color .15s ease, background .15s ease;" style-hover="color:var(--ink); background:var(--blue-pale);">
+      <button class="top-btn" onClick="{{ resetChat }}">New chat</button>
+      <button class="icon-btn" onClick="{{ toggleTheme }}" aria-label="Koyu/açık temayı değiştir" title="Koyu/açık tema">
         <sc-if value="{{ isDark }}" hint-placeholder-val="{{ false }}"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></sc-if>
         <sc-if value="{{ isLight }}" hint-placeholder-val="{{ true }}"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg></sc-if>
       </button>
@@ -318,7 +380,7 @@ textarea:focus-visible { outline: none; }
         </div>
       </sc-if>
 
-    <div class="col-pad" style="flex:{{ listFlex }}; margin-top:{{ listMarginTop }}; overflow-y:auto; padding-top:40px; padding-bottom:16px; display:flex; flex-direction:column; gap:32px; min-height:0;">
+    <div class="col-pad" style="flex:{{ listFlex }}; margin-top:{{ listMarginTop }}; overflow-y:auto; padding-top:48px; padding-bottom:20px; display:flex; flex-direction:column; gap:40px; min-height:0;">
 
       <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ true }}">
         <div style="padding:0 2px 28px; animation:msg-in .35s ease both;">
@@ -331,23 +393,37 @@ textarea:focus-visible { outline: none; }
 
       <sc-for list="{{ messages }}" as="m" hint-placeholder-count="0">
         <sc-if value="{{ m.isUser }}" hint-placeholder-val="{{ true }}">
-          <div style="align-self:flex-end; max-width:78%; background:var(--user-bubble); border-radius:12px; padding:11px 16px; font-size:15px; font-weight:400; line-height:1.55; color:var(--ink); animation:msg-in .38s cubic-bezier(.22,1,.36,1) both;">{{ m.userText }}</div>
+          <div style="align-self:flex-end; max-width:78%; display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+          <sc-if value="{{ m.hasFiles }}" hint-placeholder-val="{{ false }}">
+            <div class="chips msg-chips">
+              <sc-for list="{{ m.files }}" as="f" hint-placeholder-count="1">
+                <div class="chip" data-status="ready" title="{{ f.name }}">
+                  {{ f.icon }}
+                  <span class="chip-text"><span class="chip-name">{{ f.name }}</span><span class="chip-meta">{{ f.meta }}</span></span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ m.hasText }}" hint-placeholder-val="{{ true }}">
+          <div style="background:var(--user-bubble); border-radius:12px; padding:11px 16px; font-size:15px; font-weight:400; line-height:1.6; color:var(--ink); animation:msg-in .38s cubic-bezier(.22,1,.36,1) both;">{{ m.userText }}</div>
+          </sc-if>
+          </div>
         </sc-if>
         <sc-if value="{{ m.isAssistant }}" hint-placeholder-val="{{ false }}">
           <div style="align-self:stretch; animation:msg-in .45s cubic-bezier(.22,1,.36,1) both;">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
               {{ m.statusIcon }}
-              <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted);">{{ m.routeName }}</span>
+              <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim);">{{ m.routeName }}</span>
               <span style="width:3px; height:3px; border-radius:50%; background:var(--separator);"></span>
-              <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--dim);">{{ m.totalLabel }}</span>
-              <span style="font-size:11px; color:var(--muted);">{{ m.memoryLabel }}</span>
+              <span class="num" style="font-family:'Space Mono',monospace; font-size:11px; color:var(--faint);">{{ m.totalLabel }}</span>
+              <span style="font-size:11px; color:var(--faint);">{{ m.memoryLabel }}</span>
             </div>
             <div style="color:var(--ink-2); font-size:15px; line-height:1.7;">
               <sc-for list="{{ m.blocks }}" as="blk" hint-placeholder-count="2">
                 <div>{{ blk }}</div>
               </sc-for>
               <sc-if value="{{ m.hasTools }}" hint-placeholder-val="{{ false }}">
-                <button onClick="{{ m.openTrace }}" style="margin:10px 0 0 -8px; display:inline-flex; align-items:center; gap:6px; background:none; border:0; color:var(--muted); border-radius:6px; padding:5px 8px; font-size:12.5px; cursor:pointer; transition:color .15s ease, background .15s ease;" style-hover="background:var(--blue-pale); color:var(--ink);">
+                <button onClick="{{ m.openTrace }}" style="margin:10px 0 0 -8px; display:inline-flex; align-items:center; gap:6px; background:none; border:0; color:var(--muted); border-radius:6px; padding:5px 8px; font-size:12.5px; cursor:pointer; transition:color .15s ease, background .15s ease;" style-hover="background:var(--hover-bg); color:var(--ink);">
                   <svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
                   {{ m.traceButtonLabel }}
                 </button>
@@ -382,21 +458,31 @@ textarea:focus-visible { outline: none; }
       <div ref="{{ endRef }}" style="height:1px; flex:none;"></div>
     </div>
 
-    <div class="col-pad" style="padding-top:12px; padding-bottom:28px; margin-bottom:{{ composerMarginBottom }}; position:sticky; bottom:0; background:var(--bg); flex:none;">
-      <div style="display:flex; align-items:flex-end; gap:10px; background:var(--surface); border:1px solid {{ composerBorder }}; border-radius:10px; padding:8px; transition:border-color .15s ease;">
-        <input ref="{{ fileInputRef }}" type="file" accept=".csv,.xlsx,.xls,.pdf" onChange="{{ onFileSelected }}" style="display:none;" />
-        <button onClick="{{ triggerUpload }}" disabled="{{ uploading }}" aria-label="CSV, Excel veya PDF dosyası yükle" title="CSV, Excel veya PDF dosyası yükle" style="flex:none; width:36px; height:36px; border-radius:6px; background:none; border:0; color:var(--muted); cursor:{{ uploadCursor }}; font-size:18px; display:flex; align-items:center; justify-content:center; transition:color .15s ease, background .15s ease;" style-hover="color:var(--ink); background:var(--blue-pale);">
-          <sc-if value="{{ uploading }}" hint-placeholder-val="{{ false }}">
-            <svg class="ico ico-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.1 2.182a10 10 0 0 1 3.8 0"/><path d="M13.9 21.818a10 10 0 0 1-3.8 0"/><path d="M17.609 3.721a10 10 0 0 1 2.69 2.7"/><path d="M2.182 13.9a10 10 0 0 1 0-3.8"/><path d="M20.279 17.609a10 10 0 0 1-2.7 2.69"/><path d="M21.818 10.1a10 10 0 0 1 0 3.8"/><path d="M3.721 6.391a10 10 0 0 1 2.7-2.69"/><path d="M6.391 20.279a10 10 0 0 1-2.69-2.7"/></svg>
-          </sc-if>
-          <sc-if value="{{ uploadIdle }}" hint-placeholder-val="{{ true }}">
-            <svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-          </sc-if>
+    <div class="col-pad" style="padding-top:12px; padding-bottom:24px; margin-bottom:{{ composerMarginBottom }}; position:sticky; bottom:0; background:var(--bg); flex:none;">
+      <div class="composer" data-focused="{{ composerFocused }}">
+        <sc-if value="{{ hasAttachments }}" hint-placeholder-val="{{ false }}">
+          <div class="chips composer-chips">
+            <sc-for list="{{ attachments }}" as="at" hint-placeholder-count="1">
+              <div class="chip" data-status="{{ at.status }}" title="{{ at.title }}">
+                {{ at.icon }}
+                <span class="chip-text"><span class="chip-name">{{ at.name }}</span><span class="chip-meta">{{ at.meta }}</span></span>
+                <button class="chip-x" onClick="{{ at.remove }}" aria-label="Dosyayı kaldır" title="Kaldır">
+                  <svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <div class="composer-row">
+        <input ref="{{ fileInputRef }}" type="file" multiple accept=".csv,.xlsx,.xls,.pdf" onChange="{{ onFileSelected }}" style="display:none;" />
+        <button onClick="{{ triggerUpload }}" aria-label="CSV, Excel veya PDF dosyası yükle" title="CSV, Excel veya PDF dosyası yükle" style="flex:none; width:34px; height:34px; border-radius:8px; background:none; border:0; color:var(--muted); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:color .15s ease, background .15s ease;" style-hover="color:var(--ink); background:var(--hover-bg);">
+          <svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
         </button>
-        <textarea rows="{{ composerRows }}" placeholder="Seriler, anomaliler veya güncel oranlar hakkında sor…" value="{{ input }}" onChange="{{ setInput }}" onKeyDown="{{ handleKeyDown }}" onFocus="{{ onFocus }}" onBlur="{{ onBlur }}" style="flex:1; background:none; border:0; outline:none; resize:none; color:var(--ink); font-size:15px; font-weight:400; line-height:1.6; min-height:26px; max-height:180px; padding:6px 6px;"></textarea>
-        <button onClick="{{ send }}" disabled="{{ sendDisabled }}" style="flex:none; width:36px; height:36px; border-radius:6px; border:0; background:{{ sendBg }}; color:var(--on-accent); cursor:{{ sendCursor }}; display:flex; align-items:center; justify-content:center; transition:background .15s ease;" aria-label="Gönder"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg></button>
+        <textarea rows="{{ composerRows }}" placeholder="Seriler, anomaliler veya güncel oranlar hakkında sor…" value="{{ input }}" onChange="{{ setInput }}" onKeyDown="{{ handleKeyDown }}" onFocus="{{ onFocus }}" onBlur="{{ onBlur }}" style="flex:1; background:none; border:0; outline:none; resize:none; color:var(--ink); font-size:15px; font-weight:400; line-height:1.6; min-height:26px; max-height:180px; padding:5px 4px;"></textarea>
+        <button class="send-btn" data-ready="{{ sendReady }}" onClick="{{ send }}" disabled="{{ sendDisabled }}" aria-label="Gönder"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg></button>
+        </div>
       </div>
-      <div style="display:flex; justify-content:space-between; gap:12px; margin-top:9px; padding:0 4px;">
+      <div style="display:flex; justify-content:space-between; gap:12px; margin-top:10px; padding:0 6px;">
         <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:var(--faint);">Enter ile gönder · Shift+Enter satır · CSV, Excel veya PDF ekleyebilirsin</span>
         <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:var(--faint);">{{ charLabel }}</span>
       </div>
@@ -414,16 +500,16 @@ textarea:focus-visible { outline: none; }
   </div>
 
   <sc-if value="{{ overlayOpen }}" hint-placeholder-val="{{ false }}">
-    <div onClick="{{ closeDrawer }}" style="position:fixed; inset:0; background:rgba(var(--shadow-rgb),.24); z-index:20; animation:msg-in .25s ease both;"></div>
+    <div onClick="{{ closeDrawer }}" style="position:fixed; inset:0; background:rgba(var(--shadow-rgb),.32); z-index:20; animation:msg-in .25s ease both;"></div>
   </sc-if>
 
-  <div style="position:fixed; top:0; right:0; height:100vh; width:min(520px, 94vw); z-index:21; background:var(--surface); border-left:1px solid var(--border); box-shadow:-12px 0 32px rgba(var(--shadow-rgb),.08); display:flex; flex-direction:column; transform:{{ drawerTransform }}; transition:transform .42s cubic-bezier(.22,1,.36,1);">
+  <div style="position:fixed; top:0; right:0; height:100vh; width:min(520px, 94vw); z-index:21; background:var(--surface); border-left:1px solid var(--border); box-shadow:-16px 0 40px -24px rgba(var(--shadow-rgb),.35); display:flex; flex-direction:column; transform:{{ drawerTransform }}; transition:transform .42s cubic-bezier(.22,1,.36,1);">
     <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:18px 20px; border-bottom:1px solid var(--border); flex:none;">
       <div>
-        <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--text-secondary); margin-bottom:5px;">{{ drawerKicker }}</div>
+        <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--dim); margin-bottom:5px;">{{ drawerKicker }}</div>
         <div style="font-size:16px; font-weight:400; letter-spacing:-.01em;">{{ drawerTitle }}</div>
       </div>
-      <button onClick="{{ closeDrawer }}" style="width:32px; height:32px; flex:none; border-radius:6px; background:none; border:0; color:var(--muted); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:color .15s ease, background .15s ease;" style-hover="color:var(--ink); background:var(--blue-pale);" aria-label="Kapat"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+      <button class="icon-btn" onClick="{{ closeDrawer }}" aria-label="Kapat"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
     </div>
 
     <div style="flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:22px;">
@@ -475,11 +561,11 @@ textarea:focus-visible { outline: none; }
           <div style="display:flex; flex-direction:column; border-top:1px solid var(--border);">
             <sc-for list="{{ drawerTrace }}" as="tc" hint-placeholder-count="3">
               <div style="border-bottom:1px solid var(--border);">
-                <button onClick="{{ tc.toggle }}" style="width:100%; display:flex; align-items:center; gap:11px; background:none; border:0; padding:12px 4px; cursor:pointer; text-align:left; transition:background .18s ease;" style-hover="background:var(--blue-pale);">
+                <button onClick="{{ tc.toggle }}" style="width:100%; display:flex; align-items:center; gap:11px; background:none; border:0; padding:12px 4px; cursor:pointer; text-align:left; transition:background .18s ease;" style-hover="background:var(--hover-bg);">
                   <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:var(--faint); flex:none;">{{ tc.index }}</span>
                   <span style="font-family:'Space Mono',monospace; font-size:13px; color:{{ tc.nameColor }}; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ tc.name }}</span>
                   <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:var(--dim); flex:none;">{{ tc.roundLabel }}</span>
-                  <span style="font-family:'Space Mono',monospace; font-size:12px; color:var(--accent-hover); flex:none;">{{ tc.durationLabel }}</span>
+                  <span class="num" style="font-family:'Space Mono',monospace; font-size:12px; color:var(--text-2); flex:none;">{{ tc.durationLabel }}</span>
                   <span style="color:var(--faint); flex:none; display:flex; transition:transform .2s ease; transform:{{ tc.caret }};"><svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>
                 </button>
                 <div style="height:2px; margin:0 4px;">
@@ -550,7 +636,8 @@ function saveSessionsToStorage(sessions) {
 
 function sessionTitleFrom(messages) {
   const firstUser = messages.find(m => m.role === 'user');
-  if (!firstUser || !firstUser.text) return 'Yeni sohbet';
+  if (!firstUser) return 'Yeni sohbet';
+  if (!firstUser.text) return firstUser.files && firstUser.files.length ? firstUser.files[0].name : 'Yeni sohbet';
   return firstUser.text.length > 64 ? firstUser.text.slice(0, 64) + '…' : firstUser.text;
 }
 
@@ -566,7 +653,7 @@ function formatSessionDate(ts) {
 // Drops rendered `blocks` (React elements, not JSON-safe) and keeps only
 // the source `md`/`charts` needed to rebuild them on load.
 function serializeMessage(m) {
-  if (m.role === 'user') return { id: m.id, role: 'user', text: m.text };
+  if (m.role === 'user') return m.files ? { id: m.id, role: 'user', text: m.text, question: m.question, files: m.files } : { id: m.id, role: 'user', text: m.text };
   return {
     id: m.id, role: 'assistant', routeName: m.routeName, routeReason: m.routeReason,
     md: m.md, charts: m.charts || [], answerText: m.answerText, trace: m.trace, timing: m.timing,
@@ -575,7 +662,7 @@ function serializeMessage(m) {
 }
 
 function deserializeMessage(m) {
-  if (m.role === 'user') return { id: m.id, role: 'user', text: m.text };
+  if (m.role === 'user') return m.files ? { id: m.id, role: 'user', text: m.text, question: m.question, files: m.files } : { id: m.id, role: 'user', text: m.text };
   return {
     id: m.id, role: 'assistant', routeName: m.routeName, routeReason: m.routeReason,
     md: m.md, charts: m.charts || [], answerText: m.answerText, trace: m.trace || [], timing: m.timing,
@@ -609,6 +696,8 @@ const LUCIDE = {
   "file-search": "<path d=\"M14 2v4a2 2 0 0 0 2 2h4\"/><path d=\"M4.268 21a2 2 0 0 0 1.727 1H18a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v3\"/><path d=\"m9 18-1.5-1.5\"/><circle cx=\"5\" cy=\"14\" r=\"3\"/>",
   "code": "<path d=\"m18 16 4-4-4-4\"/><path d=\"m6 8-4 4 4 4\"/><path d=\"m14.5 4-5 16\"/>",
   "pen-line": "<path d=\"M12 20h9\"/><path d=\"M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z\"/>",
+  "file-spreadsheet": "<path d=\"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z\"/><path d=\"M14 2v4a2 2 0 0 0 2 2h4\"/><path d=\"M8 13h2\"/><path d=\"M14 13h2\"/><path d=\"M8 17h2\"/><path d=\"M14 17h2\"/>",
+  "file-text": "<path d=\"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z\"/><path d=\"M14 2v4a2 2 0 0 0 2 2h4\"/><path d=\"M10 9H8\"/><path d=\"M16 13H8\"/><path d=\"M16 17H8\"/>",
   "download": "<path d=\"M12 15V3\"/><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/><path d=\"m7 10 5 5 5-5\"/>"
 };
 function lucideIcon(name, size = 14, spin = false) {
@@ -935,7 +1024,7 @@ function inlineToNodes(text) {
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) nodes.push(text.slice(last, m.index));
     if (m[1]) nodes.push(React.createElement('strong', { key: key++, style: { fontWeight: 500, color: 'var(--ink)' } }, m[2]));
-    else if (m[3]) nodes.push(React.createElement('code', { key: key++, style: { fontFamily: "'Space Mono',monospace", fontSize: '13px', background: 'var(--bg-soft)', border: '1px solid var(--border)', borderRadius: '5px', padding: '1px 6px', color: 'var(--blue-dark)' } }, m[4]));
+    else if (m[3]) nodes.push(React.createElement('code', { key: key++, style: { fontFamily: "'Space Mono',monospace", fontSize: '13px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '1px 5px', color: 'var(--code-ink)' } }, m[4]));
     else nodes.push(React.createElement('a', { key: key++, href: m[7], target: '_blank', rel: 'noreferrer' }, m[6]));
     last = re.lastIndex;
   }
@@ -948,7 +1037,7 @@ function mdToBlocks(markdown) {
   const blocks = []; let key = 0, buf = [];
   const flush = () => {
     const t = buf.join(' ').trim(); buf = [];
-    if (t) blocks.push(React.createElement('p', { key: key++, style: { margin: '0 0 12px', fontSize: '15px', fontWeight: 300, lineHeight: 1.7 } }, inlineToNodes(t)));
+    if (t) blocks.push(React.createElement('p', { key: key++, style: { margin: '0 0 14px', fontSize: '15px', fontWeight: 'var(--body-weight)', lineHeight: 1.72 } }, inlineToNodes(t)));
   };
   const isRow = l => /^\s*\|.*\|\s*$/.test(l);
   const isBullet = l => /^\s*[-*]\s+/.test(l);
@@ -959,7 +1048,7 @@ function mdToBlocks(markdown) {
     if (!line.trim()) { flush(); i++; continue; }
     if (h) {
       flush();
-      blocks.push(React.createElement('div', { key: key++, style: { margin: '18px 0 8px', fontSize: '13px', fontWeight: 500, letterSpacing: '.02em', color: 'var(--ink)' } }, inlineToNodes(h[2])));
+      blocks.push(React.createElement('div', { key: key++, style: { margin: '26px 0 10px', fontSize: h[1].length <= 2 ? '16px' : '14.5px', fontWeight: 500, letterSpacing: '-.01em', lineHeight: 1.35, color: 'var(--ink)' } }, inlineToNodes(h[2])));
       i++; continue;
     }
     if (isRow(line)) {
@@ -970,22 +1059,37 @@ function mdToBlocks(markdown) {
       const isSep = r => r.every(c => /^:?-{2,}:?$/.test(c));
       let head = null, body = rows;
       if (rows.length > 1 && isSep(rows[1])) { head = rows[0]; body = rows.slice(2); }
-      const cell = (c, ci, th) => React.createElement(th ? 'th' : 'td', {
+      // Numeric columns right-align on tabular figures so decimals line
+      // up; a column counts as numeric when most of its body cells are.
+      const isNum = c => /^[-+−]?[\d.,\s]+(%|\s?(bp|pp|puan|x))?$/i.test(String(c).replace(/[*`]/g, '').trim()) && /\d/.test(c);
+      const cols = Math.max(...rows.map(r => r.length));
+      const numCol = Array.from({ length: cols }, (_, ci) => {
+        const vals = body.map(r => r[ci]).filter(c => c != null && c !== '' && c !== '-' && c !== '—');
+        return vals.length > 0 && vals.filter(isNum).length / vals.length >= 0.6;
+      });
+      const cell = (c, ci, th, last) => React.createElement(th ? 'th' : 'td', {
         key: ci,
         style: {
-          textAlign: 'left', padding: '9px 12px', fontSize: '12.5px',
+          textAlign: numCol[ci] ? 'right' : 'left',
+          padding: th ? '0 14px 9px' : '9px 14px',
+          paddingLeft: ci === 0 ? 0 : '14px',
+          paddingRight: ci === cols - 1 ? 0 : '14px',
+          fontSize: th ? '10.5px' : '13px',
           fontFamily: th ? "'Space Mono',monospace" : 'inherit',
-          fontWeight: th ? 400 : 300,
+          fontWeight: th ? 400 : 'var(--body-weight)',
           letterSpacing: th ? '.1em' : 'normal',
           textTransform: th ? 'uppercase' : 'none',
-          color: th ? 'var(--dim)' : 'var(--ink-2)',
-          borderBottom: '1px solid var(--border)'
+          fontVariantNumeric: 'tabular-nums',
+          whiteSpace: numCol[ci] ? 'nowrap' : 'normal',
+          verticalAlign: 'baseline',
+          color: th ? 'var(--dim)' : numCol[ci] ? 'var(--ink)' : 'var(--ink-2)',
+          borderBottom: th ? '1px solid var(--border)' : last ? 'none' : '1px solid var(--row-sep)'
         }
       }, inlineToNodes(c));
-      blocks.push(React.createElement('div', { key: key++, style: { overflowX: 'auto', margin: '6px 0 16px' } },
+      blocks.push(React.createElement('div', { key: key++, style: { overflowX: 'auto', margin: '8px 0 20px' } },
         React.createElement('table', { style: { borderCollapse: 'collapse', width: '100%' } },
-          head ? React.createElement('thead', null, React.createElement('tr', null, head.map((c, ci) => cell(c, ci, true)))) : null,
-          React.createElement('tbody', null, body.map((r, ri) => React.createElement('tr', { key: ri }, r.map((c, ci) => cell(c, ci, false)))))
+          head ? React.createElement('thead', null, React.createElement('tr', null, head.map((c, ci) => cell(c, ci, true, false)))) : null,
+          React.createElement('tbody', null, body.map((r, ri) => React.createElement('tr', { key: ri }, r.map((c, ci) => cell(c, ci, false, ri === body.length - 1)))))
         )
       ));
       continue;
@@ -995,8 +1099,8 @@ function mdToBlocks(markdown) {
       const items = [];
       while (i < lines.length && isBullet(lines[i])) { items.push(lines[i].replace(/^\s*[-*]\s+/, '')); i++; }
       blocks.push(React.createElement('ul', { key: key++, style: { margin: '0 0 14px', paddingLeft: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '7px' } },
-        items.map((it, ii) => React.createElement('li', { key: ii, style: { position: 'relative', paddingLeft: '18px', fontSize: '15px', fontWeight: 300, lineHeight: 1.65 } },
-          React.createElement('span', { style: { position: 'absolute', left: 0, top: '10px', width: '5px', height: '5px', borderRadius: '50%', background: ACC_DIM } }),
+        items.map((it, ii) => React.createElement('li', { key: ii, style: { position: 'relative', paddingLeft: '18px', fontSize: '15px', fontWeight: 'var(--body-weight)', lineHeight: 1.65 } },
+          React.createElement('span', { style: { position: 'absolute', left: '2px', top: '11px', width: '4px', height: '4px', borderRadius: '50%', background: 'var(--faint)' } }),
           inlineToNodes(it)
         ))
       ));
@@ -1024,7 +1128,7 @@ function mdToBlocks(markdown) {
 // where it is decoration and never the thing being read.
 const CHART_INK = 'var(--accent)';
 const CHART_DIM = 'var(--dim)';
-const CHART_GRID = 'rgba(var(--accent-rgb),.13)';
+const CHART_GRID = 'var(--row-sep)';
 const CHART_AXIS_TEXT = 'var(--muted)';
 
 // Axis ticks land on round numbers rather than on the data's own min/max.
@@ -1216,13 +1320,13 @@ function chartFrame(title, subtitle, unit, sourceNote, body, tableRows, onDownlo
           el('tbody', null, tableRows.map((r, i) => el('tr', { key: i },
             el('td', {
               style: {
-                padding: '4px 8px', borderBottom: '1px solid var(--border)',
+                padding: '5px 8px 5px 0', borderBottom: '1px solid var(--row-sep)',
                 color: 'var(--text-2)', whiteSpace: 'nowrap',
               },
             }, r[0]),
             el('td', {
               style: {
-                padding: '4px 8px', borderBottom: '1px solid var(--border)',
+                padding: '5px 0 5px 8px', borderBottom: '1px solid var(--row-sep)',
                 color: 'var(--ink)', textAlign: 'right', fontVariantNumeric: 'tabular-nums',
               },
             }, r[1]),
@@ -1408,9 +1512,19 @@ function formatUploadSummary(result) {
     `\`'${result.dataset_name}' hakkında ...\` diye sorabilirsin.`;
 }
 
+const fileExt = (name) => (String(name).split('.').pop() || '').toUpperCase();
+const fileIcon = (name) => lucideIcon(/\.pdf$/i.test(name) ? 'file-text' : 'file-spreadsheet', 16);
+// What a ready attachment says under its name: shape of the table.
+function fileMeta(f) {
+  const ext = fileExt(f.name);
+  if (f.rowCount == null) return ext;
+  return `${ext} · ${Number(f.rowCount).toLocaleString('tr-TR')} satır · ${f.columnCount} sütun`;
+}
+
 class Component extends DCLogic {
   state = {
     input: '',
+    attachments: [],           // composer file chips: {key, name, status, file?, error?}
     messages: [], nextId: 1,
     drawer: null,              // {kind:'trace', id} | {kind:'registry'}
     openCalls: {},             // `${msgId}:${idx}` -> true
@@ -1419,7 +1533,6 @@ class Component extends DCLogic {
     // applied any saved explicit choice before this component mounted,
     // so this just reads back what is already on the document.
     themeMode: (document.documentElement.getAttribute('data-theme') || null),
-    uploading: false,
     isDragOver: false,
     activeSessionId: newSessionId(),
     sessions: [],              // past chat sessions, sidebar list (persisted, see syncActiveSession)
@@ -1443,7 +1556,7 @@ class Component extends DCLogic {
     document.documentElement.setAttribute('data-theme', next);
     try { localStorage.setItem('kkb-theme', next); } catch (e) {}
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', next === 'dark' ? '#0a1220' : '#1e4a8b');
+    if (meta) meta.setAttribute('content', next === 'dark' ? '#080C11' : '#486A83');
     this.setState({ themeMode: next });
   };
 
@@ -1550,7 +1663,7 @@ class Component extends DCLogic {
     // Doesn't touch `pending` - a request started from the session being
     // left behind keeps running and lands there in the background.
     this.setState({
-      messages: [], drawer: null, input: '', openCalls: {},
+      messages: [], drawer: null, input: '', attachments: [], openCalls: {},
       activeSessionId: newSessionId()
     });
   };
@@ -1589,7 +1702,7 @@ class Component extends DCLogic {
       activeSessionId: id,
       messages: found.messages.map(deserializeMessage),
       nextId: found.nextId || found.messages.length + 1,
-      drawer: null, input: '', openCalls: {}
+      drawer: null, input: '', attachments: [], openCalls: {}
     }, this.scrollEnd);
   };
 
@@ -1599,18 +1712,17 @@ class Component extends DCLogic {
       const sessions = s.sessions.filter(sess => sess.id !== id);
       saveSessionsToStorage(sessions);
       if (id !== s.activeSessionId) return { sessions };
-      return { sessions, messages: [], drawer: null, input: '', openCalls: {}, activeSessionId: newSessionId() };
+      return { sessions, messages: [], drawer: null, input: '', attachments: [], openCalls: {}, activeSessionId: newSessionId() };
     });
   };
 
   fileInputRef = (el) => { this.fileInputEl = el; };
-  triggerUpload = () => { if (!this.state.uploading && this.fileInputEl) this.fileInputEl.click(); };
+  triggerUpload = () => { if (this.fileInputEl) this.fileInputEl.click(); };
 
   onFileSelected = (e) => {
-    const file = e.target.files && e.target.files[0];
+    const files = Array.from((e.target.files) || []);
     e.target.value = ''; // lets the same file be picked again after an error
-    if (!file) return;
-    this.uploadFile(file);
+    files.forEach(this.uploadFile);
   };
 
   // dragCounter (not state) tracks nested enter/leave pairs, since a
@@ -1635,47 +1747,38 @@ class Component extends DCLogic {
     e.preventDefault();
     this.dragCounter = 0;
     this.setState({ isDragOver: false });
-    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-    if (!file || this.state.uploading) return;
+    Array.from((e.dataTransfer && e.dataTransfer.files) || []).forEach(this.uploadFile);
+  };
+
+  // A file becomes a chip above the prompt, like any chat app: no message
+  // in the conversation. The upload summary still reaches the model, as a
+  // history turn built from the user message the chip is sent with.
+  uploadFile = (file) => {
+    const key = `f${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    const patch = (fields) => this.setState(s => ({
+      attachments: s.attachments.map(a => a.key === key ? { ...a, ...fields } : a)
+    }));
     if (!/\.(csv|xlsx|xls|pdf)$/i.test(file.name)) {
-      this.pushAssistantTo(this.state.activeSessionId, {
-        routeName: 'data_import', routeReason: 'Desteklenmeyen dosya türü.',
-        md: `**Yükleme başarısız oldu.**\n\nSadece CSV, Excel (.xlsx/.xls) veya PDF dosyaları kabul ediliyor.`,
-        trace: [], timing: null,
-      });
+      this.setState(s => ({ attachments: [...s.attachments, { key, name: file.name, status: 'error', error: 'Desteklenmeyen tür' }] }));
       return;
     }
-    this.uploadFile(file);
-  };
-
-  uploadFile = (file) => {
-    const sessionId = this.state.activeSessionId;
-    this.setState(s => ({
-      messages: [...s.messages, { id: s.nextId, role: 'user', text: `Dataset yükleniyor: ${file.name}` }],
-      uploading: true, nextId: s.nextId + 1
-    }), () => { this.scrollEnd(); this.syncActiveSession(); });
-
+    this.setState(s => ({ attachments: [...s.attachments, { key, name: file.name, status: 'uploading' }] }));
     const form = new FormData();
     form.append('file', file);
-
     fetch('/api/upload', { method: 'POST', body: form })
       .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail || 'Yükleme başarısız oldu.'); return d; })
-      .then(result => {
-        this.pushAssistantTo(sessionId, {
-          routeName: 'data_import', routeReason: `'${result.file_name}' içe aktarıldı.`,
-          md: formatUploadSummary(result), trace: [], timing: null,
-          turnId: result.turn_id, artifacts: result.artifacts || [],
-          answerText: formatUploadSummary(result),
-        });
-      })
-      .catch(err => {
-        this.pushAssistantTo(sessionId, {
-          routeName: 'data_import', routeReason: 'Yükleme başarısız.',
-          md: `**Yükleme başarısız oldu.**\n\n${err.message}`, trace: [], timing: null,
-        });
-      })
-      .finally(() => this.setState({ uploading: false }));
+      .then(result => patch({
+        status: 'ready',
+        file: {
+          name: file.name, datasetName: result.dataset_name,
+          rowCount: result.row_count, columnCount: result.column_count,
+          turnId: result.turn_id, summary: formatUploadSummary(result)
+        }
+      }))
+      .catch(err => patch({ status: 'error', error: err.message }));
   };
+
+  removeAttachment = (key) => this.setState(s => ({ attachments: s.attachments.filter(a => a.key !== key) }));
 
   // `payload` carries `md` (raw markdown) and `charts` rather than pre-built
   // `blocks`, so the message stays JSON-serializable for the sessions
@@ -1764,12 +1867,18 @@ class Component extends DCLogic {
     const turns = [];
     for (let i = 0; i < messages.length - 1; i++) {
       const m = messages[i], next = messages[i + 1];
+      if (m.role === 'user' && m.files) {
+        for (const f of m.files) {
+          if (f.summary) turns.push({ question: `Dosya yüklendi: ${f.name}`, answer: f.summary.slice(0, ANSWER_MAX_CHARS) });
+        }
+      }
       if (m.role === 'user' && next.role === 'assistant' && next.answerText) {
         const withCharts = next.answerText + this.chartCaptionsFor(next.charts);
         const answer = withCharts.length > ANSWER_MAX_CHARS
           ? withCharts.slice(0, ANSWER_MAX_CHARS) + '…'
           : withCharts;
-        turns.push(next.turnNote ? { question: m.text, answer, note: next.turnNote } : { question: m.text, answer });
+        const question = m.question || m.text;
+        turns.push(next.turnNote ? { question, answer, note: next.turnNote } : { question, answer });
       }
     }
     const older = turns.slice(0, -HISTORY_MAX_TURNS);
@@ -1786,13 +1895,22 @@ class Component extends DCLogic {
   }
 
   send = (override) => {
-    const text = (override !== undefined ? override : this.state.input).trim();
+    const typed = (override !== undefined ? override : this.state.input).trim();
     const sessionId = this.state.activeSessionId;
-    if (!text || this.state.pending[sessionId]) return;
-    const { turns: history, digest: historyDigest } = this.historyForRequest();
+    const atts = override !== undefined ? [] : this.state.attachments;
+    if (atts.some(a => a.status === 'uploading')) return;
+    const files = atts.filter(a => a.status === 'ready').map(a => a.file);
+    if ((!typed && !files.length) || this.state.pending[sessionId]) return;
+    // A file sent on its own still needs a question for the agent.
+    const text = typed || (files.length === 1
+      ? `'${files[0].datasetName}' veri setini özetle.`
+      : `Yüklediğim veri setlerini özetle: ${files.map(f => `'${f.datasetName}'`).join(', ')}.`);
+    const { turns: baseHistory, digest: historyDigest } = this.historyForRequest();
+    const history = [...baseHistory, ...files.map(f => ({ question: `Dosya yüklendi: ${f.name}`, answer: f.summary }))].slice(-6);
+    const userMsg = files.length ? { role: 'user', text: typed, question: text, files } : { role: 'user', text };
     this.setState(s => ({
-      messages: [...s.messages, { id: s.nextId, role: 'user', text }],
-      input: '', nextId: s.nextId + 1
+      messages: [...s.messages, { id: s.nextId, ...userMsg }],
+      input: '', attachments: override !== undefined ? s.attachments : [], nextId: s.nextId + 1
     }), () => { this.scrollEnd(); this.syncActiveSession(); });
     const requestId = `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
     this.markPending(sessionId, requestId);
@@ -1801,7 +1919,9 @@ class Component extends DCLogic {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ question: text, history, history_digest: historyDigest || undefined, request_id: requestId, stream: true,
         turn_ids: [...new Set([...(this.state.sessions.find(sess => sess.id === sessionId)?.turnIds || []),
-          ...this.state.messages.filter(m => m.turnId).map(m => m.turnId)])].slice(-100) })
+          ...this.state.messages.filter(m => m.turnId).map(m => m.turnId),
+          ...this.state.messages.flatMap(m => (m.files || []).map(f => f.turnId)).filter(Boolean),
+          ...files.map(f => f.turnId).filter(Boolean)])].slice(-100) })
     }, (d) => this.appendDraft(sessionId, requestId, d))
       .then(data => {
         // /api/ask always answers 200 now (see web_app.py's answer_question -
@@ -1888,7 +2008,11 @@ class Component extends DCLogic {
     const elapsed = thinking ? Date.now() - activePending.startedAt : 0;
 
     const messages = s.messages.map(m => {
-      if (m.role === 'user') return { id: m.id, isUser: true, isAssistant: false, userText: m.text };
+      if (m.role === 'user') return {
+        id: m.id, isUser: true, isAssistant: false, userText: m.text, hasText: !!m.text,
+        hasFiles: !!(m.files && m.files.length),
+        files: (m.files || []).map(f => ({ name: f.name, meta: fileMeta(f), icon: fileIcon(f.name) }))
+      };
       const n = m.trace.length;
       return {
         id: m.id, isUser: false, isAssistant: true, blocks: m.blocks,
@@ -1980,7 +2104,7 @@ class Component extends DCLogic {
       return {
         index: String(i + 1).padStart(2, '0'),
         name: tc.name,
-        nameColor: tc.error ? ERR : 'var(--accent-hover)',
+        nameColor: tc.error ? ERR : 'var(--ink-2)',
         roundLabel: `r${tc.round}`,
         durationLabel: fmtMs(tc.durationMs),
         sharePct: `${Math.max(2, (tc.durationMs / maxCall) * 100)}%`,
@@ -2010,10 +2134,11 @@ class Component extends DCLogic {
       timing: `${fmtMs(pt.duration_ms)} · ${pctOf(pt.duration_ms, total)}`
     }));
 
-    const canSend = s.input.trim().length > 0 && !thinking;
+    const attUploading = s.attachments.some(a => a.status === 'uploading');
+    const attReady = s.attachments.some(a => a.status === 'ready');
+    const canSend = (s.input.trim().length > 0 || attReady) && !attUploading && !thinking;
 
     return {
-      modeLabel: s.live ? 'live' : 'preview',
       toolCount: s.tools.length || 9,
       openRegistry: this.openRegistry,
       resetChat: this.resetChat,
@@ -2042,9 +2167,13 @@ class Component extends DCLogic {
       onDragOver: this.onDragOver,
       onDragLeave: this.onDragLeave,
       onDropFile: this.onDropFile,
-      uploading: s.uploading,
-      uploadIdle: !s.uploading,
-      uploadCursor: s.uploading ? 'default' : 'pointer',
+      hasAttachments: s.attachments.length > 0,
+      attachments: s.attachments.map(a => ({
+        name: a.name, status: a.status, title: a.error ? `${a.name} — ${a.error}` : a.name,
+        meta: a.status === 'uploading' ? 'Yükleniyor' : a.status === 'error' ? (a.error || 'Yüklenemedi') : fileMeta(a.file),
+        icon: a.status === 'uploading' ? lucideIcon('circle-dashed', 16, true) : a.status === 'error' ? lucideIcon('circle-alert', 16) : fileIcon(a.name),
+        remove: () => this.removeAttachment(a.key)
+      })),
       isEmpty: s.messages.length === 0 && !thinking,
       // Empty chat: shrink the message list to its content and let the
       // auto margins centre heading + composer as one group.
@@ -2072,9 +2201,8 @@ class Component extends DCLogic {
       onFocus: this.onFocus, onBlur: this.onBlur,
       send: () => this.send(),
       sendDisabled: !canSend,
-      sendBg: canSend ? 'var(--accent)' : 'var(--blue-pale)',
-      sendCursor: canSend ? 'pointer' : 'default',
-      composerBorder: s.focused ? 'rgba(var(--accent-rgb),.35)' : 'var(--border)',
+      sendReady: canSend ? 'true' : 'false',
+      composerFocused: s.focused ? 'true' : 'false',
       charLabel: `${s.input.length}/2000`,
       // Recomputed on every render from the current input, not driven by
       // a ref/scrollHeight timing trick - so it grows correctly whether
