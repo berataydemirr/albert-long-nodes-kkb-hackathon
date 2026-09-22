@@ -1068,7 +1068,13 @@ function mdToBlocks(markdown) {
           letterSpacing: th ? '.1em' : 'normal',
           textTransform: th ? 'uppercase' : 'none',
           fontVariantNumeric: 'tabular-nums',
-          whiteSpace: numCol[ci] ? 'nowrap' : 'normal',
+          // Headers are short labels ("DÖNEM", "KUR AYLIK DEĞ. (%)") that
+          // must never wrap - found live: a narrow date/label column next
+          // to several wide numeric ones squeezed its <th> down until
+          // whiteSpace:'normal' broke the header one letter per line. Body
+          // cells can still wrap (a long text cell is legitimately allowed
+          // to), so only th is forced nowrap here.
+          whiteSpace: (th || numCol[ci]) ? 'nowrap' : 'normal',
           verticalAlign: 'baseline',
           color: th ? 'var(--dim)' : numCol[ci] ? 'var(--ink)' : 'var(--ink-2)',
           borderBottom: th ? '1px solid var(--border)' : last ? 'none' : '1px solid var(--row-sep)'
