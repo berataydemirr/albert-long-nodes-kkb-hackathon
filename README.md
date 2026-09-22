@@ -30,13 +30,13 @@ CLI equivalent:
 
 ### System overview
 
-The system is three things stacked on top of each other: a pipeline that
-gets public data into a queryable form, a reasoning core that decides what
-to query, and a lifecycle that turns one question into one grounded answer.
-Each is small enough to read in a glance.
+The system has three parts. First, a pipeline turns raw public data into
+one clean database. Second, an agent reads that database and decides what
+to check. Third, one user question moves through both parts and comes back
+as a checked answer.
 
-**1. Data pipeline.** Every source, batch or on-demand, lands in the same
-place: a DuckDB gold layer, not four different formats to remember.
+**1. Data pipeline.** Every source, whether it updates on a schedule or is
+uploaded on the spot, ends up in the same place: one DuckDB database.
 
 ```mermaid
 graph LR
@@ -45,13 +45,13 @@ graph LR
   classDef silver fill:#c0c0c0,stroke:#9a9a9a,stroke-width:1.5px,color:#20303f
   classDef gold   fill:#ffd700,stroke:#c9a600,stroke-width:1.5px,color:#20303f
 
-  A1["BDDK<br/><small>sector · regional · NPL</small>"]
-  A2["TCMB EVDS<br/><small>rates · FX · CPI</small>"]
-  A3["TUIK<br/><small>SDMX dataflow</small>"]
-  A4["Runtime upload<br/><small>CSV · Excel · PDF</small>"]
-  B1["Bronze<br/><small>raw response</small>"]
-  B2["Silver<br/><small>normalized CSV</small>"]
-  B3["Gold · DuckDB<br/><b>analytics engine</b><br/><small>SQL pushdown</small>"]
+  A1["BDDK"]
+  A2["TCMB EVDS"]
+  A3["TUIK"]
+  A4["File upload"]
+  B1["Bronze<br/>raw data"]
+  B2["Silver<br/>clean data"]
+  B3["Gold<br/>DuckDB"]
 
   A1 --> B1
   A2 --> B1
@@ -66,26 +66,26 @@ graph LR
   linkStyle default stroke:#8cc8ea,stroke-width:2px
 ```
 
-Bronze, silver and gold are colored as what they literally are - a medallion
-architecture, staged by how refined the data is, not by which team owns it.
+Bronze, silver and gold are colored like real metal. This is a common
+pattern for data pipelines: each color is one step of cleanup, from raw
+file to ready-to-query table.
 
-**2. Agent core.** The gold layer is a database, not an oracle - something
-has to decide what to ask it. This is the loop that does: a router sets the
-budget, the orchestrator drives think/act/observe, and guardrails watch
-every step rather than checking the answer at the end.
+**2. Agent core.** A database on its own does not answer questions. This
+loop does: a router picks a plan, the agent thinks and acts in small
+steps, and safety checks run on every step, not just at the end.
 
 ```mermaid
 graph TB
   classDef core  fill:#1e4a8b,stroke:#1e4a8b,stroke-width:0px,color:#ffffff
   classDef guard fill:#ffffff,stroke:#1e4a8b,stroke-width:2px,color:#1e4a8b
 
-  C1["Router<br/><small>route · tool groups · round budget</small>"]
-  C2["ReAct orchestrator<br/><small>think → act → observe</small>"]
-  C3["Tool set<br/><small>SQL pushdown · live fetch · schema</small>"]
-  C4["Guardrails<br/><small>SQL guard · truncation · graceful fail</small>"]
+  C1["Router<br/>picks tools"]
+  C2["Agent loop<br/>think, act, check"]
+  C3["Tools<br/>run SQL, fetch data"]
+  C4["Safety checks<br/>limits, error checks"]
 
   C1 --> C2 --> C3 --> C4
-  C4 -. observe .-> C2
+  C4 -. result .-> C2
 
   class C1,C2,C3 core
   class C4 guard
@@ -93,20 +93,20 @@ graph TB
   linkStyle 1 stroke:#1e4a8b,stroke-width:3px
 ```
 
-**3. Request lifecycle.** Zoomed out, a single question crosses both
-diagrams above exactly once: the agent core reaches into the gold layer,
-gets back a bounded result, and hands the user something they can check.
+**3. Request lifecycle.** Zoomed out, one question crosses both parts above
+exactly once: the agent reads the database, gets back a small, checked
+result, and turns it into an answer.
 
 ```mermaid
 graph LR
   classDef lane fill:#fafbfc,stroke:#d8dee6,stroke-width:1px,color:#5b6b7c
   classDef core fill:#1e4a8b,stroke:#1e4a8b,stroke-width:0px,color:#ffffff
 
-  F1["Natural-language<br/>question"]
-  F2["Router<br/><small>route + budget</small>"]
-  F3["Guardrailed SQL<br/><small>runs in DuckDB</small>"]
-  F4["Bounded, verified<br/>result set"]
-  F5["Answer + chart<br/><small>+ source & period</small>"]
+  F1["Your question"]
+  F2["Router<br/>picks a plan"]
+  F3["SQL query<br/>runs in DuckDB"]
+  F4["Checked<br/>result"]
+  F5["Answer<br/>+ chart + source"]
 
   F1 --> F2 --> F3 --> F4 --> F5
 
@@ -115,15 +115,14 @@ graph LR
   linkStyle default stroke:#8cc8ea,stroke-width:2px
 ```
 
-Navy marks the parts that decide (the gold layer, the router, the ReAct
-loop, the tool set). Light blue marks the parts that carry (source APIs,
-bronze/silver, every flow edge). Guardrails are an outline, not a fill,
-because they do not do work - they set limits on what the parts that do
-work are allowed to produce.
+Navy boxes make decisions (the database, the router, the agent loop, the
+tools). Light blue lines and boxes move data around. Safety checks are
+drawn as an outline, not a solid fill, because they do not do the work -
+they only set the limits.
 
-Every number the agent states in an answer can be traced back to a table
-and a period; it is never just asserted from the model's own memory. A full
-Turkish walkthrough of the flow is in
+Every number in an answer points back to a real table and time period. The
+agent never states a number from memory alone. A longer, Turkish write-up
+of this flow is in
 [docs/agent_architecture.md](docs/agent_architecture.md).
 
 ### Modular code structure
