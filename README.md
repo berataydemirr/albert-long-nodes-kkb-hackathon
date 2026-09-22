@@ -1,4 +1,6 @@
-# KKB data agent
+# KKB Agentic Data Analytics
+
+**An Autonomous Lakehouse & Reasoning Engine for BDDK, TCMB, and TUIK Data**
 
 Turns BDDK, EVDS and TUIK data into a queryable DuckDB database, then
 answers questions about it through a tool-calling MIA agent. The model
@@ -28,88 +30,101 @@ CLI equivalent:
 
 ### System overview
 
+The system is three things stacked on top of each other: a pipeline that
+gets public data into a queryable form, a reasoning core that decides what
+to query, and a lifecycle that turns one question into one grounded answer.
+Each is small enough to read in a glance.
+
+**1. Data pipeline.** Every source, batch or on-demand, lands in the same
+place: a DuckDB gold layer, not four different formats to remember.
+
 ```mermaid
 graph LR
-  classDef src     fill:#ffffff,stroke:#8cc8ea,stroke-width:2px,color:#20303f
-  classDef flowlyr fill:#eef7fc,stroke:#8cc8ea,stroke-width:1.5px,color:#20303f
-  classDef core    fill:#1e4a8b,stroke:#1e4a8b,stroke-width:0px,color:#ffffff
-  classDef guard   fill:#ffffff,stroke:#1e4a8b,stroke-width:2px,color:#1e4a8b
-  classDef app     fill:#ffffff,stroke:#1e4a8b,stroke-width:2px,color:#20303f
-  classDef lane    fill:#fafbfc,stroke:#d8dee6,stroke-width:1px,color:#5b6b7c
+  classDef src    fill:#ffffff,stroke:#8cc8ea,stroke-width:2px,color:#20303f
+  classDef bronze fill:#cd7f32,stroke:#a8672a,stroke-width:1.5px,color:#2a1a0a
+  classDef silver fill:#c0c0c0,stroke:#9a9a9a,stroke-width:1.5px,color:#20303f
+  classDef gold   fill:#ffd700,stroke:#c9a600,stroke-width:1.5px,color:#20303f
 
-  subgraph SRC["1 · DATA SOURCES"]
-    direction TB
-    A1["BDDK<br/><small>sector · regional · NPL</small>"]
-    A2["TCMB EVDS<br/><small>rates · FX · CPI</small>"]
-    A3["TUIK<br/><small>SDMX dataflow</small>"]
-    A4["Runtime upload<br/><small>CSV · Excel · PDF</small>"]
-  end
-
-  subgraph LAKE["2 · LAKEHOUSE PIPELINE"]
-    direction LR
-    B1["Bronze<br/><small>raw response</small>"]
-    B2["Silver<br/><small>normalized CSV</small>"]
-    B3["GOLD · DuckDB<br/><b>Analytics engine</b><br/><small>SQL pushdown</small>"]
-    B1 --> B2 --> B3
-  end
-
-  subgraph AGENT["3 · AUTONOMOUS AGENT CORE"]
-    direction TB
-    C1["Router<br/><small>route · tool groups · round budget</small>"]
-    C2["ReAct orchestrator<br/><small>think → act → observe</small>"]
-    C3["Tool set<br/><small>SQL pushdown · live fetch · schema</small>"]
-    C4["Guardrails<br/><small>SQL guard · truncation · graceful fail</small>"]
-    C1 --> C2 --> C3 --> C4
-    C4 -. observe .-> C2
-  end
-
-  subgraph APP["4 · APPLICATION LAYER"]
-    direction TB
-    D1["FastAPI service<br/><small>/api/ask · /api/upload</small>"]
-    D2["Analyst UI<br/><small>answer · chart · tool trace</small>"]
-    D1 --> D2
-  end
+  A1["BDDK<br/><small>sector · regional · NPL</small>"]
+  A2["TCMB EVDS<br/><small>rates · FX · CPI</small>"]
+  A3["TUIK<br/><small>SDMX dataflow</small>"]
+  A4["Runtime upload<br/><small>CSV · Excel · PDF</small>"]
+  B1["Bronze<br/><small>raw response</small>"]
+  B2["Silver<br/><small>normalized CSV</small>"]
+  B3["Gold · DuckDB<br/><b>analytics engine</b><br/><small>SQL pushdown</small>"]
 
   A1 --> B1
   A2 --> B1
   A3 --> B1
   A4 --> B3
-  B3 <==> C3
-  AGENT ==> D1
-  C3 -. live fetch .-> A2
-
-  subgraph FLOW["REQUEST LIFECYCLE"]
-    direction LR
-    F1["Natural-language question"]
-    F2["Router:<br/>route + budget"]
-    F3["Guardrailed SQL<br/>runs in DuckDB"]
-    F4["Bounded, verified<br/>result set"]
-    F5["Answer + chart<br/>+ source & period"]
-    F1 --> F2 --> F3 --> F4 --> F5
-  end
+  B1 --> B2 --> B3
 
   class A1,A2,A3,A4 src
-  class B1,B2 flowlyr
-  class B3,C1,C2,C3 core
-  class C4 guard
-  class D1,D2 app
-  class F1,F2,F3,F4,F5 lane
-
+  class B1 bronze
+  class B2 silver
+  class B3 gold
   linkStyle default stroke:#8cc8ea,stroke-width:2px
-  linkStyle 8,9,10 stroke:#1e4a8b,stroke-width:3px
 ```
 
-Navy marks the parts that decide (the DuckDB gold layer, the router, the
-ReAct loop, the tool set). Light blue marks the parts that carry (source
-APIs, bronze and silver, every flow edge). Guardrails are drawn as an
-outline rather than a fill because they do not do work, they set limits.
+Bronze, silver and gold are colored as what they literally are - a medallion
+architecture, staged by how refined the data is, not by which team owns it.
 
-Public data from BDDK, TCMB EVDS and TUIK is cleaned into a bronze, silver
-and gold DuckDB lakehouse. An MIA model plans the work; Python runs every
-tool call and keeps the actual data processing local. Every number the
-agent states in an answer can be traced back to a table and a period, it is
-never just asserted from the model's own memory. A full Turkish walkthrough
-of the flow is in [docs/agent_architecture.md](docs/agent_architecture.md).
+**2. Agent core.** The gold layer is a database, not an oracle - something
+has to decide what to ask it. This is the loop that does: a router sets the
+budget, the orchestrator drives think/act/observe, and guardrails watch
+every step rather than checking the answer at the end.
+
+```mermaid
+graph TB
+  classDef core  fill:#1e4a8b,stroke:#1e4a8b,stroke-width:0px,color:#ffffff
+  classDef guard fill:#ffffff,stroke:#1e4a8b,stroke-width:2px,color:#1e4a8b
+
+  C1["Router<br/><small>route · tool groups · round budget</small>"]
+  C2["ReAct orchestrator<br/><small>think → act → observe</small>"]
+  C3["Tool set<br/><small>SQL pushdown · live fetch · schema</small>"]
+  C4["Guardrails<br/><small>SQL guard · truncation · graceful fail</small>"]
+
+  C1 --> C2 --> C3 --> C4
+  C4 -. observe .-> C2
+
+  class C1,C2,C3 core
+  class C4 guard
+  linkStyle default stroke:#8cc8ea,stroke-width:2px
+  linkStyle 1 stroke:#1e4a8b,stroke-width:3px
+```
+
+**3. Request lifecycle.** Zoomed out, a single question crosses both
+diagrams above exactly once: the agent core reaches into the gold layer,
+gets back a bounded result, and hands the user something they can check.
+
+```mermaid
+graph LR
+  classDef lane fill:#fafbfc,stroke:#d8dee6,stroke-width:1px,color:#5b6b7c
+  classDef core fill:#1e4a8b,stroke:#1e4a8b,stroke-width:0px,color:#ffffff
+
+  F1["Natural-language<br/>question"]
+  F2["Router<br/><small>route + budget</small>"]
+  F3["Guardrailed SQL<br/><small>runs in DuckDB</small>"]
+  F4["Bounded, verified<br/>result set"]
+  F5["Answer + chart<br/><small>+ source & period</small>"]
+
+  F1 --> F2 --> F3 --> F4 --> F5
+
+  class F1,F4,F5 lane
+  class F2,F3 core
+  linkStyle default stroke:#8cc8ea,stroke-width:2px
+```
+
+Navy marks the parts that decide (the gold layer, the router, the ReAct
+loop, the tool set). Light blue marks the parts that carry (source APIs,
+bronze/silver, every flow edge). Guardrails are an outline, not a fill,
+because they do not do work - they set limits on what the parts that do
+work are allowed to produce.
+
+Every number the agent states in an answer can be traced back to a table
+and a period; it is never just asserted from the model's own memory. A full
+Turkish walkthrough of the flow is in
+[docs/agent_architecture.md](docs/agent_architecture.md).
 
 ### Modular code structure
 
