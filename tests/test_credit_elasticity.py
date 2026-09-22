@@ -3,7 +3,11 @@ import json
 import pytest
 
 from src.agent import orchestrator
-from src.agent.tools import TOOL_SPECS, credit_elasticity_analysis, execute_tool
+from src.agent.tools import DB_PATH, TOOL_SPECS, credit_elasticity_analysis, execute_tool
+
+pytestmark = pytest.mark.skipif(
+    not DB_PATH.exists(), reason="gold database not built; run `python -m src.gold.build_gold`"
+)
 
 
 def test_credit_elasticity_uses_the_literal_requested_months_not_the_nearest_quarter():

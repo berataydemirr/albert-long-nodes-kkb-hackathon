@@ -13,9 +13,14 @@ import json
 import pytest
 
 from src.agent.tools import (
+    DB_PATH,
     lakehouse_query, execute_tool,
     anomaly_analysis, change_detection, correlation_analysis,
     causality_analysis, threshold_filter_compare,
+)
+
+needs_db = pytest.mark.skipif(
+    not DB_PATH.exists(), reason="gold database not built; run `python -m src.gold.build_gold`"
 )
 
 
@@ -23,6 +28,7 @@ from src.agent.tools import (
 # lakehouse_query: guardrail bypass attempts
 # ---------------------------------------------------------------------
 
+@needs_db
 def test_blocks_system_table_introspection():
     """DuckDB table functions (not in our allowlist) must be rejected -
     this is how an attacker would try to read filesystem/catalog info."""
@@ -30,26 +36,31 @@ def test_blocks_system_table_introspection():
         lakehouse_query("SELECT * FROM duckdb_tables()")
 
 
+@needs_db
 def test_blocks_read_csv_file_read():
     with pytest.raises(ValueError):
         lakehouse_query("SELECT * FROM read_csv('/etc/passwd')")
 
 
+@needs_db
 def test_blocks_semicolon_stacked_statement():
     with pytest.raises(ValueError):
         lakehouse_query("SELECT 1; DROP TABLE gold_fact_long")
 
 
+@needs_db
 def test_blocks_ddl_even_without_semicolon():
     with pytest.raises(ValueError):
         lakehouse_query("SELECT * FROM gold_fact_long WHERE 1=1; ALTER TABLE gold_fact_long ADD COLUMN x INT")
 
 
+@needs_db
 def test_case_and_whitespace_do_not_bypass_guardrail():
     with pytest.raises(ValueError):
         lakehouse_query("   \n\t SeLeCt * from gold_fact_long; DrOp TaBlE gold_fact_long")
 
 
+@needs_db
 def test_allows_a_real_query_with_a_sql_comment():
     """A '--' comment containing something that LOOKS dangerous must not
     false-positive the guardrail, since a comment can't execute."""
@@ -57,6 +68,7 @@ def test_allows_a_real_query_with_a_sql_comment():
     assert result["row_count"] <= 1
 
 
+@needs_db
 def test_allows_a_common_table_expression():
     """WITH ... SELECT is extremely common SQL and must not be rejected
     just because the statement doesn't start with the literal word
@@ -65,6 +77,7 @@ def test_allows_a_common_table_expression():
     assert result["row_count"] == 1
 
 
+@needs_db
 def test_hard_row_cap_is_enforced_even_with_an_explicit_large_limit():
     """A query that explicitly asks for more than the intended cap must
     still come back capped - the cap is a resource/context-size
@@ -73,16 +86,19 @@ def test_hard_row_cap_is_enforced_even_with_an_explicit_large_limit():
     assert result["row_count"] <= 200
 
 
+@needs_db
 def test_result_is_always_valid_json_serializable():
     result = lakehouse_query("SELECT * FROM gold_fact_long LIMIT 5")
     json.dumps(result, default=str)  # must not raise
 
 
+@needs_db
 def test_empty_sql_string_raises_cleanly_not_a_crash():
     with pytest.raises(ValueError):
         lakehouse_query("")
 
 
+@needs_db
 def test_whitespace_only_sql_raises_cleanly():
     with pytest.raises(ValueError):
         lakehouse_query("   \n\t  ")
@@ -107,6 +123,7 @@ def test_execute_tool_survives_missing_required_argument():
         execute_tool("lakehouse_query", "{}")  # missing 'sql'
 
 
+@needs_db
 def test_execute_tool_result_is_always_json_parseable_on_success():
     out = execute_tool("lakehouse_query", json.dumps({"sql": "SELECT 1 AS x"}))
     json.loads(out)  # must not raise

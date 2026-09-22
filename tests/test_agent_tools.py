@@ -4,9 +4,14 @@ from src.agent.router import Route, route_question
 from benchmarks.router_benchmark import evaluate
 from src.agent.tools import (
     TOOL_SCHEMAS,
+    DB_PATH,
     anomaly_analysis, change_detection, correlation_analysis,
     causality_analysis, threshold_filter_compare,
     lakehouse_schema, lakehouse_query,
+)
+
+needs_db = pytest.mark.skipif(
+    not DB_PATH.exists(), reason="gold database not built; run `python -m src.gold.build_gold`"
 )
 
 
@@ -63,6 +68,7 @@ def test_threshold_filter_compare_separates_window():
     assert "descriptive contrast" in result["warning"]
 
 
+@needs_db
 def test_lakehouse_schema_includes_series_catalog():
     result = lakehouse_schema()
     assert "gold_fact_long" in result["tables"]
@@ -70,6 +76,7 @@ def test_lakehouse_schema_includes_series_catalog():
     assert len(result["gold_fact_long_series_catalog"]) > 0
 
 
+@needs_db
 def test_lakehouse_schema_konu_filter_cuts_the_dump_under_the_truncation_limit():
     """The unfiltered dump measured ~14.8k chars, over orchestrator.py's
     TOOL_OUTPUT_MAX_CHARS (12k) - so an unfiltered call was reaching the
@@ -90,6 +97,7 @@ def test_lakehouse_schema_konu_filter_cuts_the_dump_under_the_truncation_limit()
     assert len(json.dumps(narrowed, ensure_ascii=False)) < TOOL_OUTPUT_MAX_CHARS
 
 
+@needs_db
 def test_lakehouse_schema_unmatched_filter_falls_back_instead_of_answering_nothing():
     """An over-narrow keyword returning an empty schema is worse than no
     filter - the model would read "there are no such tables" and give up
@@ -101,12 +109,14 @@ def test_lakehouse_schema_unmatched_filter_falls_back_instead_of_answering_nothi
     assert "filtered_by" not in result
 
 
+@needs_db
 def test_lakehouse_schema_filter_is_turkish_case_insensitive():
     """'İ'/'I' casefold the wrong way with plain .lower(), which would make
     a Turkish keyword silently miss a table it should match."""
     assert lakehouse_schema("KREDİ")["tables"] == lakehouse_schema("kredi")["tables"]
 
 
+@needs_db
 def test_lakehouse_schema_serializes_to_valid_json():
     """Found live: at least 3 series have no confirmed Birim (NULL in the
     gold table). catalog.where(catalog.notna(), None) alone is a no-op on
@@ -126,22 +136,26 @@ def test_lakehouse_schema_serializes_to_valid_json():
     assert json.loads(serialized) == result
 
 
+@needs_db
 def test_lakehouse_query_runs_a_real_select():
     result = lakehouse_query("SELECT Seri_Kod, Deger FROM gold_fact_long WHERE Seri_Kod = 'TP.BKR.TRY.18' ORDER BY Period LIMIT 3")
     assert result["row_count"] == 3
     assert result["columns"] == ["Seri_Kod", "Deger"]
 
 
+@needs_db
 def test_lakehouse_query_rejects_multiple_statements():
     with pytest.raises(ValueError, match="single SELECT"):
         lakehouse_query("SELECT 1; DROP TABLE gold_fact_long")
 
 
+@needs_db
 def test_lakehouse_query_rejects_ddl_keyword():
     with pytest.raises(ValueError, match="read-only SELECT"):
         lakehouse_query("CREATE TABLE x AS SELECT 1 FROM gold_fact_long")
 
 
+@needs_db
 def test_lakehouse_query_rejects_unknown_table():
     with pytest.raises(ValueError, match="Unknown table"):
         lakehouse_query("SELECT * FROM this_table_does_not_exist")

@@ -8,7 +8,11 @@ misstates the move and mis-ranks it against a larger rate's bigger move.
 
 import pytest
 
-from src.agent.tools import _is_rate_series, change_detection
+from src.agent.tools import DB_PATH, _is_rate_series, change_detection
+
+needs_db = pytest.mark.skipif(
+    not DB_PATH.exists(), reason="gold database not built; run `python -m src.gold.build_gold`"
+)
 
 
 @pytest.mark.parametrize("birim", ["%", " % ", "yüzde", "oran", "PERCENT"])
@@ -31,6 +35,7 @@ def test_a_rate_series_reports_percentage_points_and_never_percent():
     assert result["change_metric"] == "percent"
 
 
+@needs_db
 def test_ranking_uses_the_size_of_the_actual_move_not_the_size_of_the_base():
     """8.5 -> 15 is +6.5pp on a small base (+76.5% relatively); 17.5 -> 25
     is +7.5pp on a larger one (+42.9%). Ranked by relative change the
@@ -47,6 +52,7 @@ def test_ranking_uses_the_size_of_the_actual_move_not_the_size_of_the_base():
     assert "pp" in result["metric_note"]
 
 
+@needs_db
 def test_a_volume_series_still_reports_relative_percent():
     result = change_detection(
         seri_kod="tablo_4.konut_kredisi", start_period="2023-01", end_period="2024-06")
