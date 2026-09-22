@@ -193,3 +193,44 @@ def test_upload_same_filename_is_versioned_and_remembered(monkeypatch, tmp_path)
     second = client.post("/api/upload", files={"file": ("faiz.csv", b"Period,Value\n2025-01,99", "text/csv")}).json()
     assert first["dataset_name"] != second["dataset_name"]
     assert evidence.recall_turn(first["turn_id"])["artifacts"][0]["dataset_name"] == first["dataset_name"]
+
+
+def test_missing_evds_key_points_to_lakehouse_series(monkeypatch):
+    """Live: a raw 'EVDS_API_KEY is not set' error sent the model searching
+    the web for a CPI series already in gold_fact_long."""
+    def no_key():
+        raise ValueError("EVDS_API_KEY is not set in the environment (check your .env file).")
+    monkeypatch.setattr(finance_fetch, "_get_client", no_key)
+    for result in (finance_fetch.search_evds_series("tüfe"),
+                   finance_fetch.fetch_evds_series("group", "TP.GENENDEKS.T1", "2025-01", "2025-04")):
+        assert result["evds_available"] is False
+        assert "EVDS_API_KEY" in result["error"]
+        assert "lakehouse_query" in result["next_step"]
+        assert isinstance(result["lakehouse_evds_series"], list)
+
+
+def test_missing_evds_key_finds_evds_columns_in_imported_files(monkeypatch, tmp_path):
+    """Live: the TL commercial loan rate sat in an uploaded EVDS export as
+    TP_KTF17, described only by the file's own "Seri Açıklamaları" rows."""
+    import duckdb
+    db = tmp_path / "lakehouse.duckdb"
+    con = duckdb.connect(str(db))
+    con.execute("CREATE TABLE gold_fact_long (Seri_Kod VARCHAR, Seri_Adi VARCHAR, Period VARCHAR, Kaynak VARCHAR)")
+    con.execute("CREATE TABLE _import_registry (dataset_name VARCHAR, source_file VARCHAR)")
+    con.execute("INSERT INTO _import_registry VALUES ('faiz', 'faiz.xlsx')")
+    con.execute('CREATE TABLE faiz ("Tarih" VARCHAR, "TP_KTF10" VARCHAR, "TP_KTF17" DOUBLE)')
+    con.execute("""INSERT INTO faiz VALUES ('09-07-2021', '23.3', 21.5), ('Seri Açıklamaları', NULL, NULL),
+        ('TP.KTF10', 'İhtiyaç Kredisi (TL, Akım, %)-Düzey', NULL),
+        ('TP.KTF17', 'Ticari Krediler (TL, Akım, %)-Düzey', NULL),
+        ('TP.KTF17', 'Veri Kaynağı', NULL)""")
+    con.close()
+    def no_key():
+        raise ValueError("EVDS_API_KEY is not set in the environment (check your .env file).")
+    monkeypatch.setattr(finance_fetch, "_get_client", no_key)
+    monkeypatch.setattr(finance_fetch, "LAKEHOUSE_DB_PATH", db)
+
+    result = finance_fetch.search_evds_series("ticari kredi faiz oranı")
+    assert result["imported_evds_series"] == [{"dataset_name": "faiz", "source_file": "faiz.xlsx",
+                                               "kolon": "TP_KTF17", "aciklama": "Ticari Krediler (TL, Akım, %)-Düzey"}]
+    assert finance_fetch.search_evds_series("tüfe")["imported_evds_series"] == []
+    assert len(finance_fetch.search_evds_series("")["imported_evds_series"]) == 2

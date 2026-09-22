@@ -198,5 +198,5 @@ def test_elasticity_and_contraction_wording_routes_to_analysis():
 
     assert decision.route is Route.ANALYSIS
     assert decision.settings.reasoning_effort == "low"
-    assert decision.settings.max_rounds == 4
+    assert decision.settings.max_rounds == 8
     assert "credit_elasticity_analysis" in decision.allowed_tool_names
