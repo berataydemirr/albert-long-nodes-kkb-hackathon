@@ -127,7 +127,16 @@ ROUTE_SETTINGS: dict[Route, RouteSettings] = {
     Route.REGIONAL: RouteSettings(
         "ROTA: il bazlı. compare_regions kullan; gold_fact_long ulusaldır.", "low", 5),
     Route.IMPORTS: RouteSettings(
-        "ROTA: yüklenen veri. Önce list_imported_datasets; verinin doğrulanmadığını belirt.", "low", 5),
+        "ROTA: yüklenen veri. Önce list_imported_datasets; verinin doğrulanmadığını belirt.", "low", 6),
+    # 6, not 5 - measured live on a real TCMB Excel with footer metadata
+    # rows (try_strptime cleanup) JOINed against a second imported dataset
+    # with ambiguous EVDS column codes: profiling + cleanup + the actual
+    # GROUP BY already cost 4 rounds before the model even started
+    # disambiguating the column names (which chains in the "web" route,
+    # adding its own rounds on top via _merge_settings' max()+1). At 5 the
+    # forced-closure round landed right after the real aggregate query ran,
+    # so the answer reported only the first row of an already-computed
+    # table instead of the full result it had.
     Route.LIVE_FETCH: RouteSettings(
         "ROTA: canlı veri. İlgili canlı çekme aracını doğrudan çağır, sonra lakehouse'tan sorgula.", "low", 5),
     Route.WEB_SEARCH: RouteSettings(
