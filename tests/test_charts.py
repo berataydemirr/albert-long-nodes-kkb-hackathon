@@ -82,11 +82,40 @@ def test_query_without_a_period_column_is_not_charted():
     assert derive_charts([_call("lakehouse_query", {"columns": ["Bolge", "Deger"], "rows": rows})]) == []
 
 
-def test_query_with_two_numeric_columns_is_not_charted():
-    """Two measures on one plot is the dual-axis mistake; refusing to draw
-    is the correct fallback here."""
+def test_query_with_two_numeric_columns_becomes_two_separate_lines():
+    """Two measures on one plot is the dual-axis mistake; each gets its own
+    single-series chart instead (small multiples)."""
     rows = [{"Period": f"2021-{m:02d}", "A": float(m), "B": float(m * 2)} for m in range(1, 9)]
-    assert derive_charts([_call("lakehouse_query", {"columns": ["Period", "A", "B"], "rows": rows})]) == []
+    charts = derive_charts([_call("lakehouse_query", {"columns": ["Period", "A", "B"], "rows": rows})])
+
+    assert [c["title"] for c in charts] == ["A", "B"]
+    assert all(len(c["points"]) == 8 for c in charts)
+
+
+def test_follow_up_evidence_table_is_charted_with_gaps():
+    """Live: "bunu grafikleştir" over a previous turn's table ran
+    evidence_query with a Tarih column and got no chart, so the model drew
+    ASCII bars. A later-starting series (NULLs) is plotted from where it
+    has data."""
+    rows = [{"Tarih": f"2021-{m:02d}", "Reel KOBİ": float(m), "Faiz": None if m < 4 else 20.0 + m}
+            for m in range(1, 11)]
+    charts = derive_charts([_call("evidence_query", {"columns": ["Tarih", "Reel KOBİ", "Faiz"], "rows": rows})])
+
+    assert [c["title"] for c in charts] == ["Reel KOBİ", "Faiz"]
+    assert charts[1]["points"][0]["label"] == "2021-04"
+    assert len(charts[1]["points"]) == 7
+
+
+def test_period_column_is_recognised_by_its_values():
+    rows = [{"ay_kodu": f"2021-{m:02d}", "Deger": float(m)} for m in range(1, 9)]
+    charts = derive_charts([_call("query_imported_dataset", {"columns": ["ay_kodu", "Deger"], "rows": rows})])
+    assert len(charts) == 1
+
+
+def test_at_most_three_charts_per_answer():
+    rows = [{"Period": f"2021-{m:02d}", **{c: float(m) for c in "ABCDE"}} for m in range(1, 9)]
+    charts = derive_charts([_call("lakehouse_query", {"columns": ["Period", *"ABCDE"], "rows": rows})])
+    assert len(charts) == 3
 
 
 def test_too_few_points_is_not_charted():
