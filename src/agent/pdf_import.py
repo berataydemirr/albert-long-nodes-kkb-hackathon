@@ -30,12 +30,15 @@ from src.common.logging_setup import get_logger
 
 logger = get_logger("pdf_import")
 
-MAX_PDF_PAGES = 60  # a runaway multi-hundred-page PDF should not be extracted whole
-# Raised from 30: a real Hazine ve Maliye Bakanligi "Kamu Borc Yonetimi
-# Raporu" (downloaded live, Aralik 2025 edition) is 47 pages and was
-# rejected outright at 30 - a routine, real government report, not an
-# adversarial input. 60 keeps a real ceiling against a runaway file while
-# covering this and similar multi-page annual/quarterly reports.
+MAX_PDF_PAGES = 100  # a runaway multi-hundred-page PDF should not be extracted whole
+# Raised from 30 to 60: a real Hazine ve Maliye Bakanligi "Kamu Borc
+# Yonetimi Raporu" (downloaded live, Aralik 2025 edition) is 47 pages and
+# was rejected outright at 30 - a routine, real government report, not an
+# adversarial input.
+# Raised from 60 to 100: a real TCMB Enflasyon Raporu is 65 pages and was
+# rejected at 60. TCMB/BDDK quarterly and annual reports commonly run
+# 70-80 pages. 100 still keeps a real ceiling against a runaway file
+# (hundreds of pages) while covering this class of routine reports.
 
 # OCR fallback for a page pdfplumber finds NO table structure on at all -
 # a scanned page or, the real case this was built against, a chart/graph
