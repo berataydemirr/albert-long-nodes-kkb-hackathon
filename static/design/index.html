@@ -9,9 +9,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<!-- Inline so the tab icon needs no extra request: a 297C diamond on a
-     7686C ground, the two official colours. -->
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231e4a8b'/%3E%3Cpath d='M16 7l9 9-9 9-9-9z' fill='%238cc8ea'/%3E%3C/svg%3E">
+<link rel="icon" type="image/png" sizes="128x128" href="./icon-128.png">
+<link rel="apple-touch-icon" href="./icon-180.png">
 <script>
 // Applied before first paint so the page never flashes the wrong theme.
 // Plain, synchronous, outside the DC component tree on purpose - this
@@ -37,7 +36,6 @@
   } catch (e) {}
 })();
 </script>
-<script type="module" src="./thinking-orb.js"></script>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -183,10 +181,19 @@ a:hover { color: var(--accent-hover); border-bottom-color: var(--accent-hover); 
 textarea, button, input { font-family: inherit; }
 textarea::placeholder { color: var(--faint); }
 .chat-workspace { min-width: 0; }
+/* Pinned to the viewport; dvh so mobile browser chrome doesn't hide the
+   composer. */
+.app-shell { height: 100vh; height: 100dvh; overflow: hidden; }
+/* Reading column: 760px of text, centred in whatever the sidebar leaves.
+   Applied as padding on full-width rows (not a max-width wrapper) so the
+   scroll area and the sticky composer backdrop still span the pane. */
+:root { --col: 760px; --gutter: 24px; }
+.col-pad { padding-left: max(var(--gutter), calc((100% - var(--col)) / 2)); padding-right: max(var(--gutter), calc((100% - var(--col)) / 2)); }
 @media (max-width: 700px) {
+  .starters { grid-template-columns: 1fr !important; }
   header { height: auto !important; min-height: 58px; flex-wrap: wrap; padding: 8px 12px !important; gap: 8px !important; }
   aside { position: absolute; z-index: 10; top: 100px; bottom: 0; left: 0; box-shadow: 6px 0 20px rgba(0,0,0,.12); }
-  .chat-workspace { padding: 0 12px !important; }
+  :root { --gutter: 16px; }
 }
 /* Tabular figures stop timing readouts from shifting sideways as they
    tick up during a run. */
@@ -202,172 +209,146 @@ textarea:focus-visible { outline: none; }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
-@keyframes shimmer { 0% { background-position: 120% 0 } 100% { background-position: -40% 0 } }
-@keyframes stage-in { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+@keyframes stage-in { from { opacity: 0; transform: translateY(3px) } to { opacity: 1; transform: none } }
 @keyframes msg-in { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
 @keyframes caret { 0%,100% { opacity: 1 } 50% { opacity: .15 } }
-@keyframes sweep { 0% { transform: translateX(-100%) } 100% { transform: translateX(220%) } }
-@keyframes spinner-spin { to { transform: rotate(360deg) } }
-/* Premium dots marker: 8 dots placed around a circle with `translate`
-   (kept separate from `scale` - two independent CSS transform properties -
-   so positioning and pulsing never fight over one `transform`). Each dot
-   scales up/opaques and back down on its own clock, offset by a negative
-   delay per dot, so the pulse visibly travels around the ring rather than
-   every dot breathing in unison. No rotation anywhere. --orb-size drives
-   every measurement so one component serves the 20px per-message marker,
-   the 20px thinking mark and the larger hero use. */
-@keyframes dot-pulse { 0%, 100% { scale: .45; opacity: .3 } 50% { scale: 1; opacity: 1 } }
-@keyframes dots-glow-breathe { 0%,100% { opacity: .3; scale: .94 } 50% { opacity: .6; scale: 1.06 } }
-.premium-dots { --orb-size: 20px; position: relative; width: var(--orb-size); height: var(--orb-size); flex: none; }
-.premium-dots .dots-glow {
-  position: absolute; inset: calc(var(--orb-size) * -0.55); border-radius: 50%;
-  background: radial-gradient(circle, rgba(var(--accent2-rgb),.22), rgba(var(--accent-rgb),.08) 50%, transparent 74%);
-  filter: blur(calc(var(--orb-size) * .28)); opacity: .3; pointer-events: none;
-}
-.premium-dots.no-halo .dots-glow { display: none; }
-.premium-dots.is-live .dots-glow { animation: dots-glow-breathe 2.4s ease-in-out infinite; }
-.premium-dots .dot {
-  position: absolute; top: 50%; left: 50%;
-  width: calc(var(--orb-size) * .17); height: calc(var(--orb-size) * .17);
-  margin: calc(var(--orb-size) * -.085) 0 0 calc(var(--orb-size) * -.085);
-  border-radius: 50%; background: var(--accent); scale: .8; opacity: .55;
-  box-shadow: 0 0 calc(var(--orb-size) * .22) rgba(var(--accent-rgb),.32);
-}
-.premium-dots.is-live .dot { animation: dot-pulse 1.3s ease-in-out infinite; }
-.premium-dots .dot:nth-child(2) { translate: calc(var(--orb-size) * .36) 0; }
-.premium-dots .dot:nth-child(3) { translate: calc(var(--orb-size) * .255) calc(var(--orb-size) * .255); background: var(--accent-2); }
-.premium-dots .dot:nth-child(4) { translate: 0 calc(var(--orb-size) * .36); }
-.premium-dots .dot:nth-child(5) { translate: calc(var(--orb-size) * -.255) calc(var(--orb-size) * .255); }
-.premium-dots .dot:nth-child(6) { translate: calc(var(--orb-size) * -.36) 0; background: var(--accent-2); }
-.premium-dots .dot:nth-child(7) { translate: calc(var(--orb-size) * -.255) calc(var(--orb-size) * -.255); }
-.premium-dots .dot:nth-child(8) { translate: 0 calc(var(--orb-size) * -.36); }
-.premium-dots .dot:nth-child(9) { translate: calc(var(--orb-size) * .255) calc(var(--orb-size) * -.255); background: var(--accent-2); }
-.premium-dots.is-live .dot:nth-child(2) { animation-delay: -1.1375s; }
-.premium-dots.is-live .dot:nth-child(3) { animation-delay: -.975s; }
-.premium-dots.is-live .dot:nth-child(4) { animation-delay: -.8125s; }
-.premium-dots.is-live .dot:nth-child(5) { animation-delay: -.65s; }
-.premium-dots.is-live .dot:nth-child(6) { animation-delay: -.4875s; }
-.premium-dots.is-live .dot:nth-child(7) { animation-delay: -.325s; }
-.premium-dots.is-live .dot:nth-child(8) { animation-delay: -.1625s; }
-.premium-dots.is-live .dot:nth-child(9) { animation-delay: 0s; }
-/* Premium stage spinner: a two-tone conic ring (instead of a flat border
-   spinner) so an active tool call reads as "charged" rather than a plain
-   loading circle. */
-.premium-spinner {
-  width: 14px; height: 14px; flex: none; border-radius: 50%;
-  background: conic-gradient(from 0deg, var(--blue-dark) 0%, var(--blue-muted) 35%, transparent 70%, transparent 100%);
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
-  animation: spinner-spin .85s linear infinite;
-  filter: drop-shadow(0 0 3px rgba(var(--accent-rgb),.28));
-}
+/* Sidebar. Quieter than the chat: recessed surface, muted titles, one
+   step of emphasis for the open conversation. */
+.side-new { width: 100%; display: flex; align-items: center; gap: 10px; background: none; border: 0; border-radius: 6px; padding: 7px 10px; font-size: 13px; color: var(--text-2); cursor: pointer; text-align: left; transition: background .15s ease, color .15s ease; }
+.side-new:hover { background: rgba(var(--accent-rgb),.06); color: var(--ink); }
+.side-new svg { flex: none; color: var(--muted); }
+.side-label { padding: 18px 10px 6px; font-family: 'Space Mono', monospace; font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+.sess-row { position: relative; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 8px 0 10px; border-radius: 6px; cursor: pointer; transition: background .15s ease; }
+.sess-row:hover { background: rgba(var(--accent-rgb),.05); }
+.sess-row[data-active="true"] { background: rgba(var(--accent-rgb),.09); }
+.sess-title { flex: 1; min-width: 0; font-size: 13px; line-height: 1.3; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color .15s ease; }
+.sess-row:hover .sess-title { color: var(--text-2); }
+.sess-row[data-active="true"] .sess-title { color: var(--ink); }
+.sess-pending { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--accent); }
+.sess-meta { position: relative; flex: none; width: 44px; height: 22px; display: flex; align-items: center; justify-content: flex-end; }
+.sess-date { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--faint); transition: opacity .15s ease; }
+.sess-del { position: absolute; right: -2px; top: 0; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; background: none; border: 0; border-radius: 5px; color: var(--muted); cursor: pointer; opacity: 0; transition: opacity .15s ease, color .15s ease, background .15s ease; }
+.sess-del:hover { color: var(--error); background: rgba(var(--error-rgb),.10); }
+.sess-row:hover .sess-date, .sess-row:focus-within .sess-date { opacity: 0; }
+.sess-row:hover .sess-del, .sess-row:focus-within .sess-del { opacity: 1; }
+@media (hover: none) { .sess-date { display: none; } .sess-del { opacity: 1; } }
+/* Icons: Lucide, stroke 1.75, colour from the surrounding text. */
+.ico { display: block; flex: none; }
+.ico-spin { animation: ico-spin 4s linear infinite; }
+@keyframes ico-spin { to { transform: rotate(360deg) } }
+@keyframes ico-in { from { opacity: 0 } to { opacity: 1 } }
+/* Agent steps: icon + short status. Only the step in progress uses the
+   primary text colour; finished steps fall back to secondary. */
+.step { display: flex; align-items: center; gap: 10px; min-height: 22px; font-size: 13.5px; color: var(--dim); transition: color .2s ease; animation: stage-in .2s ease both; }
+.step[data-state="active"] { color: var(--ink-2); }
+.step[data-state="error"] { color: var(--error); }
+.step .ico { color: var(--muted); opacity: .9; animation: ico-in .2s ease both; }
+.step[data-state="done"] .ico { color: var(--faint); }
+.step[data-state="error"] .ico { color: inherit; }
+.step .ico.ico-spin { animation: ico-in .2s ease both, ico-spin 4s linear infinite; }
+.step-meta { font-family: 'Space Mono', monospace; font-size: 10.5px; color: var(--faint); white-space: pre; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 </style>
 </helmet>
-<div style="min-height:100vh; display:flex; flex-direction:column; background:radial-gradient(1100px 520px at 50% -220px, var(--bg-grad), var(--bg) 70%); color:var(--ink); font-family:'Sora',system-ui,sans-serif; font-weight:400; letter-spacing:-.005em;">
+<div class="app-shell" style="display:flex; flex-direction:column; background:var(--bg); color:var(--ink); font-family:'Sora',system-ui,sans-serif; font-weight:400; letter-spacing:-.005em;">
 
-  <header style="position:sticky; top:0; z-index:8; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:0 22px; height:58px; border-bottom:1px solid var(--border); background:rgba(var(--surface-rgb),.86); backdrop-filter:blur(14px); box-shadow:0 1px 3px rgba(var(--shadow-rgb),.04);">
+  <header style="position:relative; z-index:8; flex:none; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:0 22px; height:58px; border-bottom:1px solid var(--border); background:rgba(var(--surface-rgb),.86); backdrop-filter:blur(14px);">
     <div style="display:flex; align-items:center; gap:10px;">
-      <button onClick="{{ toggleSidebar }}" aria-label="Sohbet listesini aç/kapat" title="Sohbetler" style="width:30px; height:30px; flex:none; border-radius:8px; background:none; border:1px solid var(--border); color:var(--muted); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .18s ease;" style-hover="color:var(--ink); border-color:rgba(var(--accent-rgb),.32);">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+      <button onClick="{{ toggleSidebar }}" aria-label="Sohbet listesini aç/kapat" title="Sohbetler" style="width:32px; height:32px; flex:none; border-radius:6px; background:none; border:0; color:var(--muted); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:color .15s ease, background .15s ease;" style-hover="color:var(--ink); background:var(--blue-pale);">
+        <svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
       </button>
-      <svg width="18" height="18" viewBox="0 0 32 32" style="flex:none; display:block;" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--accent)"></rect><path d="M16 7l9 9-9 9-9-9z" fill="var(--accent-2)"></path></svg>
+      <img src="./icon-128.png" width="26" height="26" alt="" style="flex:none; display:block;">
       <span style="font-size:14px; font-weight:500; letter-spacing:-.01em;">KKB Agent</span>
-      <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); border:1px solid var(--border); border-radius:4px; padding:3px 7px;">{{ modeLabel }}</span>
+      <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint);">{{ modeLabel }}</span>
     </div>
     <div style="display:flex; align-items:center; gap:8px;">
-      <button onClick="{{ openRegistry }}" style="display:flex; align-items:center; gap:7px; background:var(--blue-pale); border:1px solid var(--border); color:var(--text-2); border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; transition:all .18s ease;" style-hover="background:rgba(var(--accent-rgb),.15); border-color:rgba(var(--accent-rgb),.32); color:var(--ink);">
-        <span style="font-family:'Space Mono',monospace; color:var(--text-primary); font-weight:600;">{{ toolCount }}</span> tools
+      <button onClick="{{ openRegistry }}" style="display:flex; align-items:center; gap:6px; background:none; border:0; color:var(--muted); border-radius:6px; padding:7px 10px; font-size:12.5px; cursor:pointer; transition:color .15s ease, background .15s ease;" style-hover="color:var(--ink); background:var(--blue-pale);">
+        <span class="num" style="color:var(--ink);">{{ toolCount }}</span> tools
       </button>
-      <button onClick="{{ resetChat }}" style="background:none; border:1px solid var(--border); color:var(--muted); border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; transition:all .18s ease;" style-hover="color:var(--ink); border-color:rgba(var(--accent-rgb),.32);">New chat</button>
-      <button onClick="{{ toggleTheme }}" aria-label="Koyu/açık temayı değiştir" title="Koyu/açık tema" style="width:34px; height:34px; flex:none; border-radius:8px; background:none; border:1px solid var(--border); color:var(--muted); cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; transition:all .18s ease;" style-hover="color:var(--ink); border-color:rgba(var(--accent-rgb),.32);">{{ themeIcon }}</button>
+      <button onClick="{{ resetChat }}" style="background:none; border:0; color:var(--muted); border-radius:6px; padding:7px 10px; font-size:12.5px; cursor:pointer; transition:color .15s ease, background .15s ease;" style-hover="color:var(--ink); background:var(--blue-pale);">New chat</button>
+      <button onClick="{{ toggleTheme }}" aria-label="Koyu/açık temayı değiştir" title="Koyu/açık tema" style="width:32px; height:32px; flex:none; border-radius:6px; background:none; border:0; color:var(--muted); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:color .15s ease, background .15s ease;" style-hover="color:var(--ink); background:var(--blue-pale);">
+        <sc-if value="{{ isDark }}" hint-placeholder-val="{{ false }}"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></sc-if>
+        <sc-if value="{{ isLight }}" hint-placeholder-val="{{ true }}"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg></sc-if>
+      </button>
     </div>
   </header>
 
   <div style="flex:1; display:flex; width:100%; min-height:0;">
 
     <sc-if value="{{ sidebarOpen }}" hint-placeholder-val="{{ true }}">
-      <aside style="width:252px; flex:none; border-right:1px solid var(--border); background:var(--surface); display:flex; flex-direction:column; min-height:0;">
-        <div style="padding:14px 12px 8px; flex:none;">
-          <button onClick="{{ resetChat }}" style="width:100%; display:flex; align-items:center; justify-content:center; gap:7px; background:var(--blue-pale); border:1px solid var(--border); color:var(--text-2); border-radius:8px; padding:9px 10px; font-size:12.5px; cursor:pointer; transition:all .18s ease;" style-hover="background:rgba(var(--accent-rgb),.14); color:var(--ink); border-color:rgba(var(--accent-rgb),.32);">+ Yeni sohbet</button>
+      <aside style="width:248px; flex:none; border-right:1px solid var(--border); background:var(--surface-3); display:flex; flex-direction:column; min-height:0;">
+        <div style="padding:12px 8px 0; flex:none;">
+          <button class="side-new" onClick="{{ resetChat }}">
+            <svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+            Yeni sohbet
+          </button>
         </div>
-        <div style="flex:1; overflow-y:auto; padding:4px 8px 14px; display:flex; flex-direction:column; gap:2px;">
+        <div style="flex:1; overflow-y:auto; padding:0 8px 14px; display:flex; flex-direction:column; gap:1px;">
+          <div class="side-label">Sohbetler</div>
           <sc-if value="{{ hasSessions }}" hint-placeholder-val="{{ true }}">
             <sc-for list="{{ sessionsView }}" as="sess" hint-placeholder-count="4">
-              <div onClick="{{ sess.open }}" style="position:relative; display:flex; flex-direction:column; gap:2px; padding:9px 30px 9px 10px; border-radius:8px; cursor:pointer; background:{{ sess.bg }}; transition:background .15s ease;" style-hover="background:var(--blue-pale);">
-                <span style="display:flex; align-items:center; gap:6px;">
-                  <sc-if value="{{ sess.isPending }}" hint-placeholder-val="{{ false }}">
-                    <span title="Yanıt bekleniyor" style="width:6px; height:6px; flex:none; border-radius:50%; background:var(--accent); box-shadow:0 0 6px rgba(var(--accent-rgb),.4);"></span>
-                  </sc-if>
-                  <span style="font-size:12.5px; line-height:1.4; color:{{ sess.titleColor }}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ sess.title }}</span>
+              <div class="sess-row" data-active="{{ sess.activeAttr }}" onClick="{{ sess.open }}" title="{{ sess.title }}">
+                <sc-if value="{{ sess.isPending }}" hint-placeholder-val="{{ false }}">
+                  <span class="sess-pending" title="Yanıt bekleniyor"></span>
+                </sc-if>
+                <span class="sess-title">{{ sess.title }}</span>
+                <span class="sess-meta">
+                  <span class="sess-date">{{ sess.dateLabel }}</span>
+                  <button class="sess-del" onClick="{{ sess.remove }}" title="Sohbeti sil" aria-label="Sohbeti sil">
+                    <svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                  </button>
                 </span>
-                <span style="font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:.06em; color:var(--faint);">{{ sess.dateLabel }}</span>
-                <button onClick="{{ sess.remove }}" title="Sohbeti sil" style="position:absolute; top:8px; right:6px; width:20px; height:20px; border-radius:6px; background:none; border:0; color:var(--faint); font-size:13px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .15s ease;" style-hover="background:rgba(var(--error-rgb),.12); color:var(--error);">×</button>
               </div>
             </sc-for>
           </sc-if>
           <sc-if value="{{ sessionsEmpty }}" hint-placeholder-val="{{ false }}">
-            <div style="padding:14px 10px; font-size:12px; color:var(--faint); line-height:1.5;">Henüz sohbet yok. Bir soru sor, burada listelenecek.</div>
+            <div style="padding:4px 10px; font-size:12.5px; color:var(--faint); line-height:1.5;">Henüz sohbet yok. Sorduğun sorular burada listelenir.</div>
           </sc-if>
         </div>
       </aside>
     </sc-if>
 
-    <div class="chat-workspace" onDragEnter="{{ onDragEnter }}" onDragOver="{{ onDragOver }}" onDragLeave="{{ onDragLeave }}" onDrop="{{ onDropFile }}" style="position:relative; flex:1; display:flex; flex-direction:column; width:100%; max-width:840px; margin:0 auto; padding:0 20px; min-height:0;">
+    <div class="chat-workspace" onDragEnter="{{ onDragEnter }}" onDragOver="{{ onDragOver }}" onDragLeave="{{ onDragLeave }}" onDrop="{{ onDropFile }}" style="position:relative; flex:1; display:flex; flex-direction:column; width:100%; min-height:0;">
 
       <sc-if value="{{ isDragOver }}" hint-placeholder-val="{{ false }}">
-        <div style="position:absolute; inset:6px; z-index:5; display:flex; align-items:center; justify-content:center; background:rgba(var(--accent-rgb),.06); border:2px dashed rgba(var(--accent-rgb),.45); border-radius:16px; pointer-events:none; animation:msg-in .2s ease both;">
+        <div style="position:absolute; inset:6px; z-index:5; display:flex; align-items:center; justify-content:center; background:rgba(var(--accent-rgb),.06); border:1px dashed rgba(var(--accent-rgb),.45); border-radius:8px; pointer-events:none; animation:msg-in .2s ease both;">
           <div style="text-align:center;">
-            <div style="font-size:28px; margin-bottom:8px;">⭳</div>
             <div style="font-size:14px; font-weight:500; color:var(--ink);">Dosyayı buraya bırak</div>
             <div style="font-size:11.5px; color:var(--muted); margin-top:4px;">CSV, Excel (.xlsx/.xls) veya PDF</div>
           </div>
         </div>
       </sc-if>
 
-    <div style="flex:1; overflow-y:auto; padding:34px 0 8px; display:flex; flex-direction:column; gap:26px; min-height:0;">
+    <div class="col-pad" style="flex:{{ listFlex }}; margin-top:{{ listMarginTop }}; overflow-y:auto; padding-top:40px; padding-bottom:16px; display:flex; flex-direction:column; gap:32px; min-height:0;">
 
       <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ true }}">
-        <div style="margin:auto 0; padding:40px 0 24px; animation:msg-in .5s ease both;">
-          <thinking-orb state="searching" size="64" style="display:block; margin:0 0 22px 28px;"></thinking-orb>
-          <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); margin-bottom:12px;">BDDK · EVDS · TUIK</div>
-          <h1 style="margin:0 0 10px; font-size:34px; font-weight:500; letter-spacing:-.035em; line-height:1.12; color:var(--ink);">Lakehouse'a ne sormak istersin?</h1>
-          <p style="margin:0 0 26px; font-size:15px; line-height:1.6; color:var(--muted); max-width:52ch;">Lakehouse'daki BDDK/TCMB/TÜİK verilerini sorgular, canlı web ve dosya kaynaklarıyla birleştirir, istatistiksel analiz ve karşılaştırma üretir.</p>
-
-          <div style="display:flex; flex-wrap:wrap; gap:8px;">
-            <sc-for list="{{ examples }}" as="ex" hint-placeholder-count="12">
-              <button onClick="{{ ex.use }}" style="display:flex; align-items:center; gap:10px; text-align:left; background:var(--surface); border:1px solid rgba(var(--accent-rgb),.15); color:var(--text-2); border-radius:10px; padding:10px 14px 10px 11px; font-size:13px; line-height:1.4; max-width:100%; cursor:pointer; box-shadow:0 1px 2px rgba(var(--shadow-rgb),.05); transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease, color .2s ease;" style-hover="border-color:rgba(var(--accent-rgb),.34); color:var(--ink); transform:translateY(-1px); box-shadow:0 4px 12px rgba(var(--shadow-rgb),.09);">
-                <span style="font-family:'Space Mono',monospace; font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:{{ ex.tagFg }}; background:{{ ex.tagBg }}; border-radius:4px; padding:3px 6px; flex:none;">{{ ex.tag }}</span>
-                <span>{{ ex.label }}</span>
-              </button>
-            </sc-for>
-          </div>
+        <div style="padding:0 2px 28px; animation:msg-in .35s ease both;">
+          <h1 style="margin:0 0 10px; font-size:32px; font-weight:500; letter-spacing:-.03em; line-height:1.15; color:var(--ink);">Lakehouse'a ne sormak istersin?</h1>
+          <p style="margin:0; font-size:15px; line-height:1.6; color:var(--muted); max-width:56ch;">BDDK, TCMB ve TÜİK serilerini sorgular; web ve dosya kaynaklarıyla birleştirip analiz eder.</p>
         </div>
       </sc-if>
 
+      <div aria-hidden="true" style="flex:1 0 0;"></div>
+
       <sc-for list="{{ messages }}" as="m" hint-placeholder-count="0">
         <sc-if value="{{ m.isUser }}" hint-placeholder-val="{{ true }}">
-          <div style="align-self:flex-end; max-width:78%; background:var(--user-bubble); border:1px solid var(--border); border-radius:16px 16px 5px 16px; box-shadow:0 1px 2px rgba(var(--shadow-rgb),.05); padding:13px 17px; font-size:15px; font-weight:400; line-height:1.55; color:var(--ink); animation:msg-in .38s cubic-bezier(.22,1,.36,1) both;">{{ m.userText }}</div>
+          <div style="align-self:flex-end; max-width:78%; background:var(--user-bubble); border-radius:12px; padding:11px 16px; font-size:15px; font-weight:400; line-height:1.55; color:var(--ink); animation:msg-in .38s cubic-bezier(.22,1,.36,1) both;">{{ m.userText }}</div>
         </sc-if>
         <sc-if value="{{ m.isAssistant }}" hint-placeholder-val="{{ false }}">
           <div style="align-self:stretch; animation:msg-in .45s cubic-bezier(.22,1,.36,1) both;">
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
-              <thinking-orb state="searching" size="20" paused="" style="flex:none;"></thinking-orb>
+              {{ m.statusIcon }}
               <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted);">{{ m.routeName }}</span>
               <span style="width:3px; height:3px; border-radius:50%; background:var(--separator);"></span>
               <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--dim);">{{ m.totalLabel }}</span>
               <span style="font-size:11px; color:var(--muted);">{{ m.memoryLabel }}</span>
             </div>
-            <div style="padding-left:30px; color:var(--ink-2); font-size:15px; line-height:1.7;">
+            <div style="color:var(--ink-2); font-size:15px; line-height:1.7;">
               <sc-for list="{{ m.blocks }}" as="blk" hint-placeholder-count="2">
                 <div>{{ blk }}</div>
               </sc-for>
               <sc-if value="{{ m.hasTools }}" hint-placeholder-val="{{ false }}">
-                <button onClick="{{ m.openTrace }}" style="position:relative; overflow:hidden; margin-top:12px; display:inline-flex; align-items:center; gap:10px; background:var(--blue-pale); border:1px solid var(--border); color:var(--text-2); border-radius:999px; padding:8px 15px 8px 12px; font-size:12.5px; cursor:pointer; transition:all .2s ease;" style-hover="background:var(--blue-pale); border-color:rgba(var(--accent-rgb),.38); color:var(--ink);">
-                  <span style="display:flex; gap:3px; align-items:center;">
-                    <span style="width:3px; height:11px; border-radius:2px; background:var(--blue-muted);"></span>
-                    <span style="width:3px; height:7px; border-radius:2px; background:rgba(var(--accent-rgb),.45);"></span>
-                    <span style="width:3px; height:13px; border-radius:2px; background:rgba(var(--accent-rgb),.85);"></span>
-                  </span>
+                <button onClick="{{ m.openTrace }}" style="margin:10px 0 0 -8px; display:inline-flex; align-items:center; gap:6px; background:none; border:0; color:var(--muted); border-radius:6px; padding:5px 8px; font-size:12.5px; cursor:pointer; transition:color .15s ease, background .15s ease;" style-hover="background:var(--blue-pale); color:var(--ink);">
+                  <svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
                   {{ m.traceButtonLabel }}
                 </button>
               </sc-if>
@@ -378,29 +359,18 @@ textarea:focus-visible { outline: none; }
 
       <sc-if value="{{ thinking }}" hint-placeholder-val="{{ false }}">
         <div style="align-self:stretch; animation:msg-in .4s ease both;">
-          <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-            <thinking-orb state="searching" size="20" style="flex:none;"></thinking-orb>
-            <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--dim);">{{ elapsedLabel }}</span>
-          </div>
-          <div style="padding-left:30px; display:flex; flex-direction:column; gap:9px;">
+          <div style="margin-bottom:10px; font-family:'Space Mono',monospace; font-size:11px; color:var(--faint);">{{ elapsedLabel }}</div>
+          <div style="display:flex; flex-direction:column; gap:8px;">
             <sc-for list="{{ stages }}" as="st" hint-placeholder-count="2">
-              <div style="display:flex; align-items:center; gap:11px; animation:stage-in .42s cubic-bezier(.22,1,.36,1) both;">
-                <sc-if value="{{ st.done }}" hint-placeholder-val="{{ true }}">
-                  <span style="width:14px; height:14px; flex:none; border-radius:50%; border:1px solid rgba(var(--accent-rgb),.40); display:flex; align-items:center; justify-content:center;">
-                    <span style="width:5px; height:5px; border-radius:50%; background:var(--blue-muted);"></span>
-                  </span>
-                  <span style="font-size:13.5px; color:var(--dim);">{{ st.label }}</span>
-                  <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:var(--faintest);">{{ st.time }}</span>
-                </sc-if>
-                <sc-if value="{{ st.active }}" hint-placeholder-val="{{ false }}">
-                  <span class="premium-spinner"></span>
-                  <span style="font-size:14px; font-weight:400; background:linear-gradient(100deg, var(--text-secondary) 25%, var(--blue-muted) 45%, var(--text-secondary) 65%); background-size:250% 100%; -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; animation:shimmer 2.1s linear infinite;">{{ st.label }}</span>
-                </sc-if>
+              <div class="step" data-state="{{ st.state }}">
+                {{ st.icon }}
+                <span class="step-label">{{ st.label }}</span>
+                <span class="step-meta">{{ st.meta }}</span>
               </div>
             </sc-for>
           </div>
           <sc-if value="{{ hasDraft }}" hint-placeholder-val="{{ false }}">
-            <div style="margin-top:14px; padding-left:30px; color:var(--ink-2); font-size:15px; line-height:1.7;">
+            <div style="margin-top:14px; color:var(--ink-2); font-size:15px; line-height:1.7;">
               <sc-for list="{{ draftBlocks }}" as="blk" hint-placeholder-count="2">
                 <div>{{ blk }}</div>
               </sc-for>
@@ -412,50 +382,59 @@ textarea:focus-visible { outline: none; }
       <div ref="{{ endRef }}" style="height:1px; flex:none;"></div>
     </div>
 
-    <div style="padding:10px 0 26px; position:sticky; bottom:0; background:linear-gradient(to top, var(--bg) 42%, transparent); flex:none;">
-      <div style="display:flex; align-items:flex-end; gap:10px; background:var(--surface); border:1px solid {{ composerBorder }}; border-radius:16px; padding:10px 10px 10px 10px; transition:border-color .25s ease, box-shadow .25s ease; box-shadow:{{ composerShadow }};">
+    <div class="col-pad" style="padding-top:12px; padding-bottom:28px; margin-bottom:{{ composerMarginBottom }}; position:sticky; bottom:0; background:var(--bg); flex:none;">
+      <div style="display:flex; align-items:flex-end; gap:10px; background:var(--surface); border:1px solid {{ composerBorder }}; border-radius:10px; padding:8px; transition:border-color .15s ease;">
         <input ref="{{ fileInputRef }}" type="file" accept=".csv,.xlsx,.xls,.pdf" onChange="{{ onFileSelected }}" style="display:none;" />
-        <button onClick="{{ triggerUpload }}" disabled="{{ uploading }}" aria-label="CSV, Excel veya PDF dosyası yükle" title="CSV, Excel veya PDF dosyası yükle" style="flex:none; width:38px; height:38px; border-radius:11px; background:none; border:1px solid var(--border); color:var(--muted); cursor:{{ uploadCursor }}; font-size:17px; display:flex; align-items:center; justify-content:center; transition:all .18s ease;" style-hover="color:var(--ink); border-color:rgba(var(--accent-rgb),.32);">
+        <button onClick="{{ triggerUpload }}" disabled="{{ uploading }}" aria-label="CSV, Excel veya PDF dosyası yükle" title="CSV, Excel veya PDF dosyası yükle" style="flex:none; width:36px; height:36px; border-radius:6px; background:none; border:0; color:var(--muted); cursor:{{ uploadCursor }}; font-size:18px; display:flex; align-items:center; justify-content:center; transition:color .15s ease, background .15s ease;" style-hover="color:var(--ink); background:var(--blue-pale);">
           <sc-if value="{{ uploading }}" hint-placeholder-val="{{ false }}">
-            <span class="premium-spinner"></span>
+            <svg class="ico ico-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.1 2.182a10 10 0 0 1 3.8 0"/><path d="M13.9 21.818a10 10 0 0 1-3.8 0"/><path d="M17.609 3.721a10 10 0 0 1 2.69 2.7"/><path d="M2.182 13.9a10 10 0 0 1 0-3.8"/><path d="M20.279 17.609a10 10 0 0 1-2.7 2.69"/><path d="M21.818 10.1a10 10 0 0 1 0 3.8"/><path d="M3.721 6.391a10 10 0 0 1 2.7-2.69"/><path d="M6.391 20.279a10 10 0 0 1-2.69-2.7"/></svg>
           </sc-if>
           <sc-if value="{{ uploadIdle }}" hint-placeholder-val="{{ true }}">
-            <span>{{ uploadLabel }}</span>
+            <svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
           </sc-if>
         </button>
         <textarea rows="{{ composerRows }}" placeholder="Seriler, anomaliler veya güncel oranlar hakkında sor…" value="{{ input }}" onChange="{{ setInput }}" onKeyDown="{{ handleKeyDown }}" onFocus="{{ onFocus }}" onBlur="{{ onBlur }}" style="flex:1; background:none; border:0; outline:none; resize:none; color:var(--ink); font-size:15px; font-weight:400; line-height:1.6; min-height:26px; max-height:180px; padding:6px 6px;"></textarea>
-        <button onClick="{{ send }}" disabled="{{ sendDisabled }}" style="flex:none; width:38px; height:38px; border-radius:11px; border:0; background:{{ sendBg }}; color:var(--on-accent); font-size:16px; cursor:{{ sendCursor }}; display:flex; align-items:center; justify-content:center; transition:all .2s ease;" style-hover="filter:brightness(1.08);">↑</button>
+        <button onClick="{{ send }}" disabled="{{ sendDisabled }}" style="flex:none; width:36px; height:36px; border-radius:6px; border:0; background:{{ sendBg }}; color:var(--on-accent); cursor:{{ sendCursor }}; display:flex; align-items:center; justify-content:center; transition:background .15s ease;" aria-label="Gönder"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg></button>
       </div>
       <div style="display:flex; justify-content:space-between; gap:12px; margin-top:9px; padding:0 4px;">
-        <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:var(--faint);">Enter ile gönder · Shift+Enter satır · + ile CSV/Excel/PDF yükle</span>
+        <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:var(--faint);">Enter ile gönder · Shift+Enter satır · CSV, Excel veya PDF ekleyebilirsin</span>
         <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:var(--faint);">{{ charLabel }}</span>
       </div>
+      <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ true }}">
+        <div class="starters" style="display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:0 24px; margin-top:22px; animation:msg-in .35s ease both;">
+          <sc-for list="{{ examples }}" as="ex" hint-placeholder-count="6">
+            <button onClick="{{ ex.use }}" title="{{ ex.label }}" style="display:flex; align-items:center; gap:10px; min-width:0; text-align:left; background:none; border:0; border-top:1px solid var(--border); color:var(--muted); padding:10px 2px; font-size:13.5px; line-height:1.4; cursor:pointer; transition:color .15s ease;" style-hover="color:var(--ink);">
+              <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ ex.title }}</span>
+            </button>
+          </sc-for>
+        </div>
+      </sc-if>
     </div>
     </div>
   </div>
 
   <sc-if value="{{ overlayOpen }}" hint-placeholder-val="{{ false }}">
-    <div onClick="{{ closeDrawer }}" style="position:fixed; inset:0; background:rgba(var(--shadow-rgb),.34); backdrop-filter:blur(3px); z-index:20; animation:msg-in .25s ease both;"></div>
+    <div onClick="{{ closeDrawer }}" style="position:fixed; inset:0; background:rgba(var(--shadow-rgb),.24); z-index:20; animation:msg-in .25s ease both;"></div>
   </sc-if>
 
-  <div style="position:fixed; top:0; right:0; height:100vh; width:min(520px, 94vw); z-index:21; background:var(--surface); border-left:1px solid var(--border); box-shadow:-30px 0 70px rgba(var(--shadow-rgb),.14); display:flex; flex-direction:column; transform:{{ drawerTransform }}; transition:transform .42s cubic-bezier(.22,1,.36,1);">
+  <div style="position:fixed; top:0; right:0; height:100vh; width:min(520px, 94vw); z-index:21; background:var(--surface); border-left:1px solid var(--border); box-shadow:-12px 0 32px rgba(var(--shadow-rgb),.08); display:flex; flex-direction:column; transform:{{ drawerTransform }}; transition:transform .42s cubic-bezier(.22,1,.36,1);">
     <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:18px 20px; border-bottom:1px solid var(--border); flex:none;">
       <div>
         <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--text-secondary); margin-bottom:5px;">{{ drawerKicker }}</div>
         <div style="font-size:16px; font-weight:400; letter-spacing:-.01em;">{{ drawerTitle }}</div>
       </div>
-      <button onClick="{{ closeDrawer }}" style="width:32px; height:32px; flex:none; border-radius:9px; background:var(--blue-pale); border:1px solid var(--border); color:var(--muted); font-size:15px; cursor:pointer; transition:all .18s ease;" style-hover="color:var(--ink); border-color:rgba(var(--accent-rgb),.34);">×</button>
+      <button onClick="{{ closeDrawer }}" style="width:32px; height:32px; flex:none; border-radius:6px; background:none; border:0; color:var(--muted); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:color .15s ease, background .15s ease;" style-hover="color:var(--ink); background:var(--blue-pale);" aria-label="Kapat"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
     </div>
 
     <div style="flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:22px;">
 
       <sc-if value="{{ isRegistry }}" hint-placeholder-val="{{ false }}">
-        <div style="display:flex; flex-direction:column; gap:10px;">
+        <div style="display:flex; flex-direction:column;">
           <sc-for list="{{ tools }}" as="t" hint-placeholder-count="6">
-            <div style="border:1px solid var(--border); border-radius:12px; padding:13px 15px; background:var(--surface-2); box-shadow:0 1px 2px rgba(var(--shadow-rgb),.04);">
+            <div style="padding:14px 0; border-bottom:1px solid var(--border);">
               <div style="display:flex; align-items:center; gap:9px; margin-bottom:6px;">
                 <span style="font-family:'Space Mono',monospace; font-size:13px; color:var(--accent-hover);">{{ t.name }}</span>
-                <span style="font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); border:1px solid var(--border); border-radius:4px; padding:2px 6px;">{{ t.tag }}</span>
+                <span style="font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint);">{{ t.tag }}</span>
               </div>
               <p style="margin:0; font-size:12.5px; line-height:1.55; color:var(--muted);">{{ t.desc }}</p>
             </div>
@@ -464,9 +443,9 @@ textarea:focus-visible { outline: none; }
       </sc-if>
 
       <sc-if value="{{ isTrace }}" hint-placeholder-val="{{ true }}">
-        <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:9px;">
+        <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px; padding-bottom:20px; border-bottom:1px solid var(--border);">
           <sc-for list="{{ drawerStats }}" as="s" hint-placeholder-count="3">
-            <div style="border:1px solid var(--border); border-radius:11px; padding:12px 13px; background:var(--surface-2); box-shadow:0 1px 2px rgba(var(--shadow-rgb),.04);">
+            <div>
               <div style="font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); margin-bottom:7px;">{{ s.label }}</div>
               <div style="font-family:'Space Mono',monospace; font-size:17px; color:{{ s.color }};">{{ s.value }}</div>
               <div style="font-family:'Space Mono',monospace; font-size:10.5px; color:var(--faint); margin-top:3px;">{{ s.sub }}</div>
@@ -493,29 +472,29 @@ textarea:focus-visible { outline: none; }
 
         <div>
           <div style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); margin-bottom:12px;">Calls</div>
-          <div style="display:flex; flex-direction:column; gap:10px;">
+          <div style="display:flex; flex-direction:column; border-top:1px solid var(--border);">
             <sc-for list="{{ drawerTrace }}" as="tc" hint-placeholder-count="3">
-              <div style="border:1px solid {{ tc.border }}; border-radius:12px; background:var(--surface-2); overflow:hidden; box-shadow:0 1px 2px rgba(var(--shadow-rgb),.04);">
-                <button onClick="{{ tc.toggle }}" style="width:100%; display:flex; align-items:center; gap:11px; background:none; border:0; padding:13px 15px; cursor:pointer; text-align:left; transition:background .18s ease;" style-hover="background:var(--blue-pale);">
+              <div style="border-bottom:1px solid var(--border);">
+                <button onClick="{{ tc.toggle }}" style="width:100%; display:flex; align-items:center; gap:11px; background:none; border:0; padding:12px 4px; cursor:pointer; text-align:left; transition:background .18s ease;" style-hover="background:var(--blue-pale);">
                   <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:var(--faint); flex:none;">{{ tc.index }}</span>
                   <span style="font-family:'Space Mono',monospace; font-size:13px; color:{{ tc.nameColor }}; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ tc.name }}</span>
                   <span style="font-family:'Space Mono',monospace; font-size:10.5px; color:var(--dim); flex:none;">{{ tc.roundLabel }}</span>
                   <span style="font-family:'Space Mono',monospace; font-size:12px; color:var(--accent-hover); flex:none;">{{ tc.durationLabel }}</span>
-                  <span style="color:var(--faint); font-size:11px; flex:none; transition:transform .25s ease; transform:{{ tc.caret }};">▾</span>
+                  <span style="color:var(--faint); flex:none; display:flex; transition:transform .2s ease; transform:{{ tc.caret }};"><svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>
                 </button>
-                <div style="height:3px; background:var(--blue-pale);">
-                  <div style="height:100%; width:{{ tc.sharePct }}; background:linear-gradient(90deg, rgba(var(--accent-rgb),.30), var(--accent));"></div>
+                <div style="height:2px; margin:0 4px;">
+                  <div style="height:100%; width:{{ tc.sharePct }}; background:rgba(var(--accent-rgb),.45);"></div>
                 </div>
                 <sc-if value="{{ tc.open }}" hint-placeholder-val="{{ false }}">
-                  <div style="padding:14px 15px 15px; border-top:1px solid rgba(var(--accent-rgb),.11); display:flex; flex-direction:column; gap:12px; animation:stage-in .3s ease both;">
+                  <div style="padding:12px 4px 16px; display:flex; flex-direction:column; gap:12px; animation:stage-in .3s ease both;">
                     {{ tc.sqlSection }}
                     <div>
                       <div style="font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); margin-bottom:6px;">arguments</div>
-                      <pre style="margin:0; font-family:'Space Mono',monospace; font-size:11.5px; line-height:1.6; color:var(--text-2); background:var(--surface-3); border:1px solid var(--border); border-radius:9px; padding:11px; max-height:200px; overflow:auto; white-space:pre-wrap; word-break:break-word;">{{ tc.args }}</pre>
+                      <pre style="margin:0; font-family:'Space Mono',monospace; font-size:11.5px; line-height:1.6; color:var(--text-2); background:var(--surface-3); border:1px solid var(--border); border-radius:6px; padding:11px; max-height:200px; overflow:auto; white-space:pre-wrap; word-break:break-word;">{{ tc.args }}</pre>
                     </div>
                     <div>
                       <div style="font-family:'Space Mono',monospace; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); margin-bottom:6px;">result preview</div>
-                      <pre style="margin:0; font-family:'Space Mono',monospace; font-size:11.5px; line-height:1.6; color:{{ tc.resultColor }}; background:var(--surface-3); border:1px solid var(--border); border-radius:9px; padding:11px; max-height:260px; overflow:auto; white-space:pre-wrap; word-break:break-word;">{{ tc.result }}</pre>
+                      <pre style="margin:0; font-family:'Space Mono',monospace; font-size:11.5px; line-height:1.6; color:{{ tc.resultColor }}; background:var(--surface-3); border:1px solid var(--border); border-radius:6px; padding:11px; max-height:260px; overflow:auto; white-space:pre-wrap; word-break:break-word;">{{ tc.result }}</pre>
                     </div>
                   </div>
                 </sc-if>
@@ -618,6 +597,59 @@ const pctOf = (part, whole) => {
   return p > 0 && p < 1 ? '<1%' : `${Math.round(p)}%`;
 };
 
+// Lucide icon data (same family and stroke as the static markup above).
+// Returned as React elements so a view-model field can carry one; the key
+// changes with the icon, so a state change remounts it and fades it in.
+const LUCIDE = {
+  "circle-dashed": "<path d=\"M10.1 2.182a10 10 0 0 1 3.8 0\"/><path d=\"M13.9 21.818a10 10 0 0 1-3.8 0\"/><path d=\"M17.609 3.721a10 10 0 0 1 2.69 2.7\"/><path d=\"M2.182 13.9a10 10 0 0 1 0-3.8\"/><path d=\"M20.279 17.609a10 10 0 0 1-2.7 2.69\"/><path d=\"M21.818 10.1a10 10 0 0 1 0 3.8\"/><path d=\"M3.721 6.391a10 10 0 0 1 2.7-2.69\"/><path d=\"M6.391 20.279a10 10 0 0 1-2.69-2.7\"/>",
+  "check": "<path d=\"M20 6 9 17l-5-5\"/>",
+  "circle-alert": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 8v4\"/><path d=\"M12 16h.01\"/>",
+  "search": "<circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/>",
+  "globe": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20\"/><path d=\"M2 12h20\"/>",
+  "file-search": "<path d=\"M14 2v4a2 2 0 0 0 2 2h4\"/><path d=\"M4.268 21a2 2 0 0 0 1.727 1H18a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v3\"/><path d=\"m9 18-1.5-1.5\"/><circle cx=\"5\" cy=\"14\" r=\"3\"/>",
+  "code": "<path d=\"m18 16 4-4-4-4\"/><path d=\"m6 8-4 4 4 4\"/><path d=\"m14.5 4-5 16\"/>",
+  "pen-line": "<path d=\"M12 20h9\"/><path d=\"M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z\"/>",
+  "download": "<path d=\"M12 15V3\"/><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/><path d=\"m7 10 5 5 5-5\"/>"
+};
+function lucideIcon(name, size = 14, spin = false) {
+  return React.createElement('svg', {
+    key: name + (spin ? '-spin' : ''), className: 'ico' + (spin ? ' ico-spin' : ''),
+    width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor',
+    strokeWidth: 1.75, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true,
+    dangerouslySetInnerHTML: { __html: LUCIDE[name] }
+  });
+}
+
+// What a tool call looks like to the reader: an icon for the kind of work
+// and a short status line. The tool's own name stays as secondary detail.
+const TOOL_STEP = {
+  web_search:             { icon: 'globe',       label: 'Searching the web' },
+  web_url_extract:        { icon: 'globe',       label: 'Reading a web page' },
+  import_url_dataset:     { icon: 'globe',       label: 'Importing from a URL' },
+  search_evds_series:     { icon: 'search',      label: 'Searching EVDS series' },
+  search_tuik_dataflows:  { icon: 'search',      label: 'Searching TÜİK datasets' },
+  lakehouse_schema:       { icon: 'search',      label: 'Looking up the schema' },
+  fuzzy_match_category:   { icon: 'search',      label: 'Matching categories' },
+  list_imported_datasets: { icon: 'search',      label: 'Listing imported data' },
+  lakehouse_query:        { icon: 'file-search', label: 'Reading the lakehouse' },
+  evidence_query:         { icon: 'file-search', label: 'Reading the data' },
+  query_imported_dataset: { icon: 'file-search', label: 'Reading imported data' },
+  fetch_evds_series:      { icon: 'file-search', label: 'Reading EVDS series' },
+  refresh_tuik_series:    { icon: 'file-search', label: 'Reading TÜİK series' },
+  fetch_bist_stock:       { icon: 'file-search', label: 'Reading market data' }
+};
+const toolStep = (name) => TOOL_STEP[name] || { icon: 'code', label: 'Running analysis' };
+
+// Row state -> icon. Finished rows collapse to a check, failures to an
+// alert; only an in-progress "thinking" row moves, and slowly.
+function stepView(r) {
+  const icon = r.state === 'done' ? lucideIcon('check')
+    : r.state === 'error' ? lucideIcon('circle-alert')
+    : r.icon === 'thinking' ? lucideIcon('circle-dashed', 14, true)
+    : lucideIcon(r.icon);
+  return { label: r.label, meta: [r.detail, r.time].filter(Boolean).join('  ·  '), state: r.state, icon };
+}
+
 // Stage rows from /api/progress events. A tool row stays active (spinner)
 // until its tool_done arrives, so parallel calls show side by side; any
 // other row is done once a later event exists.
@@ -625,29 +657,38 @@ function stagesFromEvents(events, elapsed) {
   const rows = [];
   for (const e of events) {
     if (e.kind === 'route') {
-      rows.push({ label: `Routing → ${(e.groups || []).join(', ')}`, t: e.t_ms });
+      rows.push({ label: 'Routing the request', detail: (e.groups || []).join(', '), icon: 'thinking', t: e.t_ms });
     } else if (e.kind === 'llm') {
-      rows.push({ label: e.forced ? 'Writing the final answer' : `Thinking · round ${e.round}`, t: e.t_ms });
+      rows.push(e.forced
+        ? { label: 'Writing the answer', icon: 'pen-line', t: e.t_ms }
+        : { label: 'Thinking', detail: e.round > 1 ? `round ${e.round}` : '', icon: 'thinking', t: e.t_ms });
     } else if (e.kind === 'tools_start') {
-      for (const name of e.names || []) rows.push({ label: `Calling ${name}`, tool: name, t: e.t_ms, running: true });
+      for (const name of e.names || []) {
+        const ts = toolStep(name);
+        rows.push({ label: ts.label, detail: name, icon: ts.icon, tool: name, t: e.t_ms, running: true });
+      }
     } else if (e.kind === 'tool_done') {
       const row = rows.find(r => r.tool === e.name && r.running);
       if (row) {
         row.running = false;
+        row.failed = !!(e.error || e.blocked);
         row.time = fmtMs(e.duration_ms || 0) + (e.error ? ' · error' : e.blocked ? ' · blocked' : '');
       }
     } else if (e.kind === 'repair') {
-      rows.push({ label: 'Checking the numbers', t: e.t_ms });
+      rows.push({ label: 'Checking the numbers', icon: 'code', t: e.t_ms });
     } else if (e.kind === 'compact') {
-      rows.push({ label: e.ran ? 'Bağlam sıkıştırıldı · veri kayıtları korundu' : 'Bağlam %80 eşiğini aştı · sıkıştırma kontrolü', t: e.t_ms });
+      rows.push({ label: e.ran ? 'Bağlam sıkıştırıldı · veri kayıtları korundu' : 'Bağlam %80 eşiğini aştı · sıkıştırma kontrolü', icon: 'thinking', t: e.t_ms });
     }
   }
   return rows.map((r, i) => {
     const last = i === rows.length - 1;
-    if (r.tool) return { label: r.label, done: !r.running, active: r.running, time: r.running ? '' : r.time };
+    if (r.tool) {
+      const state = r.running ? 'active' : r.failed ? 'error' : 'done';
+      return stepView({ ...r, state, time: r.running ? '' : r.time });
+    }
     const next = rows.slice(i + 1).find(x => x.t != null);
     const done = !last && !!next;
-    return { label: r.label, done, active: !done, time: done ? fmtMs(next.t - r.t) : '' };
+    return stepView({ ...r, state: done ? 'done' : 'active', time: done ? fmtMs(next.t - r.t) : '' });
   });
 }
 
@@ -676,39 +717,25 @@ const TAG_BY_NAME = {
 // its own (see `use` above) - the URL example in particular has a
 // bracketed placeholder that must be replaced first.
 const EXAMPLES = [
-  { tag: 'Data', label: "Lakehouse'ta hanehalkının kredi kullanımını açıklamak için kullanabileceğim bütün BDDK ve TCMB göstergelerini bul. Henüz analiz yapma. Göstergeleri konu, frekans, birim ve kaynak açısından sınıflandır." },
-  { tag: 'Web', label: "[CSV/Excel bağlantısını buraya yapıştırın] — bu veriyi lakehouse'a aktar, aynı dönemin ilgili BDDK/TCMB serisiyle birleştir ve karşılaştır." },
-  { tag: 'Analysis', label: "Sermaye yeterliliği rasyosunda 2021-2026 arasında istatistiksel olarak anormal sayılacak bir düşüş dönemi var mı? Anomali testiyle tespit et; varsa hangi ayda ve ne büyüklükte olduğunu rakamlarla göster." },
-  { tag: 'Analysis', label: "Politika faizinin %9'dan %50'ye çıktığı 2023-2024 döneminde konut ve taşıt kredilerinin reel daralma hızlarını karşılaştır; hangisinin faize daha duyarlı (elastik) olduğunu verilerle ispatla." },
-  { tag: 'Analysis', label: "2022-2024 arası Toplam Kredi ve Mevduat verileriyle Kredi/Mevduat Oranı'nı (KMO) hesapla; sıkılaşma sürecinde bu oranın en keskin düşüş yaşadığı ayı tespit et." },
-  { tag: 'Regional', label: "En yüksek riskli illerdeki takipteki alacaklar (NPL) tırmanışının bireysel kredilerde mi yoksa ticari/KOBİ kollarında mı daha baskın olduğunu sektörel ayrışmayla ispatla." }
+  { title: "Hanehalkı kredisi için gösterge envanteri", tag: 'Data', label: "Lakehouse'ta hanehalkının kredi kullanımını açıklamak için kullanabileceğim bütün BDDK ve TCMB göstergelerini bul. Henüz analiz yapma. Göstergeleri konu, frekans, birim ve kaynak açısından sınıflandır." },
+  { title: "Bir CSV/Excel bağlantısını içe aktar ve karşılaştır", tag: 'Web', label: "[CSV/Excel bağlantısını buraya yapıştırın] — bu veriyi lakehouse'a aktar, aynı dönemin ilgili BDDK/TCMB serisiyle birleştir ve karşılaştır." },
+  { title: "Sermaye yeterliliğinde anomali ara", tag: 'Analysis', label: "Sermaye yeterliliği rasyosunda 2021-2026 arasında istatistiksel olarak anormal sayılacak bir düşüş dönemi var mı? Anomali testiyle tespit et; varsa hangi ayda ve ne büyüklükte olduğunu rakamlarla göster." },
+  { title: "Konut ve taşıt kredilerinin faiz duyarlılığı", tag: 'Analysis', label: "Politika faizinin %9'dan %50'ye çıktığı 2023-2024 döneminde konut ve taşıt kredilerinin reel daralma hızlarını karşılaştır; hangisinin faize daha duyarlı (elastik) olduğunu verilerle ispatla." },
+  { title: "Kredi/Mevduat oranının en keskin düşüşü", tag: 'Analysis', label: "2022-2024 arası Toplam Kredi ve Mevduat verileriyle Kredi/Mevduat Oranı'nı (KMO) hesapla; sıkılaşma sürecinde bu oranın en keskin düşüş yaşadığı ayı tespit et." },
+  { title: "Riskli illerde NPL: bireysel mi, ticari mi?", tag: 'Regional', label: "En yüksek riskli illerdeki takipteki alacaklar (NPL) tırmanışının bireysel kredilerde mi yoksa ticari/KOBİ kollarında mı daha baskın olduğunu sektörel ayrışmayla ispatla." }
 ];
-
-// Fixed categorical hue per tag - never cycled, never reused between tags -
-// so a chip's colour is an identity cue, not decoration. Kept as literal
-// hex (not theme tokens): six distinguishable hues don't exist in this
-// app's blue-monochrome token set, and a flat ~12% wash reads fine on both
-// a near-white and a near-black surface without a separate dark variant.
-const TAG_COLOR = {
-  Data:     { fg: '#1e4a8b', bg: 'rgba(30,74,139,.12)' },
-  Analysis: { fg: '#2f6d3c', bg: 'rgba(47,109,60,.12)' },
-  Regional: { fg: '#8a5a1f', bg: 'rgba(138,90,31,.12)' },
-  Market:   { fg: '#6a3d8f', bg: 'rgba(106,61,143,.12)' },
-  TUIK:     { fg: '#1f7a7a', bg: 'rgba(31,122,122,.12)' },
-  Web:      { fg: '#a13a2e', bg: 'rgba(161,58,46,.12)' }
-};
 
 // Progress narration. Each stage holds until the next one's `at` (ms) passes;
 // the last stage stays active until the response lands.
 const STAGES = [
-  { at: 0,     label: 'Thinking' },
-  { at: 1100,  label: 'Routing the request' },
+  { at: 0,     label: 'Thinking',            icon: 'thinking' },
+  { at: 1100,  label: 'Routing the request', icon: 'thinking' },
   // Timer-driven, not a live feed: the route is only known once the
   // response lands, so these labels must not name a specific tool.
-  { at: 2600,  label: 'Calling tools' },
-  { at: 5200,  label: 'Reading results' },
-  { at: 8200,  label: 'Organizing results' },
-  { at: 11500, label: 'Wrapping up' }
+  { at: 2600,  label: 'Calling tools',       icon: 'search' },
+  { at: 5200,  label: 'Reading results',     icon: 'file-search' },
+  { at: 8200,  label: 'Organizing results',  icon: 'pen-line' },
+  { at: 11500, label: 'Wrapping up',         icon: 'pen-line' }
 ];
 
 // An open-ended "you decide which series" question can genuinely keep the
@@ -955,7 +982,7 @@ function mdToBlocks(markdown) {
           borderBottom: '1px solid var(--border)'
         }
       }, inlineToNodes(c));
-      blocks.push(React.createElement('div', { key: key++, style: { overflowX: 'auto', margin: '6px 0 16px', border: '1px solid var(--border)', borderRadius: '11px', background: 'var(--surface)' } },
+      blocks.push(React.createElement('div', { key: key++, style: { overflowX: 'auto', margin: '6px 0 16px' } },
         React.createElement('table', { style: { borderCollapse: 'collapse', width: '100%' } },
           head ? React.createElement('thead', null, React.createElement('tr', null, head.map((c, ci) => cell(c, ci, true)))) : null,
           React.createElement('tbody', null, body.map((r, ri) => React.createElement('tr', { key: ri }, r.map((c, ci) => cell(c, ci, false)))))
@@ -1169,8 +1196,7 @@ function chartFrame(title, subtitle, unit, sourceNote, body, tableRows, onDownlo
   const el = React.createElement;
   return el('figure', {
     style: {
-      margin: '4px 0 18px', padding: '15px 16px 12px', border: '1px solid var(--border)',
-      borderRadius: '12px', background: 'var(--surface)', boxShadow: '0 1px 2px rgba(var(--shadow-rgb),.04)',
+      margin: '8px 0 24px', padding: 0,
     },
   },
     el('figcaption', { style: { marginBottom: '12px' } },
@@ -1209,7 +1235,7 @@ function chartFrame(title, subtitle, unit, sourceNote, body, tableRows, onDownlo
         onClick: (e) => {
           const btn = e.currentTarget, original = btn.textContent;
           (navigator.clipboard ? navigator.clipboard.writeText(sourceNote || '') : Promise.reject())
-            .then(() => { btn.textContent = 'Kopyalandı ✓'; setTimeout(() => { btn.textContent = original; }, 1400); })
+            .then(() => { btn.textContent = 'Kopyalandı'; setTimeout(() => { btn.textContent = original; }, 1400); })
             .catch(() => {});
         },
         title: 'Kaynağı kopyala',
@@ -1223,10 +1249,10 @@ function chartFrame(title, subtitle, unit, sourceNote, body, tableRows, onDownlo
         title: 'Grafiği PNG olarak indir',
         style: {
           display: 'flex', alignItems: 'center', gap: '5px', background: 'none',
-          border: '1px solid rgba(var(--accent-rgb),.16)', borderRadius: '7px', padding: '4px 9px',
+          border: '1px solid var(--border)', borderRadius: '6px', padding: '4px 9px',
           fontSize: '10.5px', color: 'var(--text-2)', cursor: 'pointer', flex: 'none',
         },
-      }, '⭳ PNG indir') : null,
+      }, lucideIcon('download'), 'PNG indir') : null,
     ),
   );
 }
@@ -1477,7 +1503,7 @@ class Component extends DCLogic {
             const cur = s.pending[sessionId];
             if (!cur || cur.requestId !== requestId) return null;
             return { pending: { ...s.pending, [sessionId]: { ...cur, events: [...cur.events, ...d.events] } } };
-          });
+          }, () => { if (sessionId === this.state.activeSessionId) this.scrollEnd(true); });
         }
         setTimeout(() => this.pollProgress(sessionId, requestId, d.next ?? after), 600);
       })
@@ -1492,7 +1518,7 @@ class Component extends DCLogic {
       if (!cur || cur.requestId !== requestId) return null;
       const text = cur.draftRound === d.round ? (cur.draft || '') + d.text : d.text;
       return { pending: { ...s.pending, [sessionId]: { ...cur, draft: text, draftRound: d.round } } };
-    }, () => { if (sessionId === this.state.activeSessionId) this.scrollEnd(); });
+    }, () => { if (sessionId === this.state.activeSessionId) this.scrollEnd(true); });
   };
   clearPending = (sessionId) => {
     this.setState(s => {
@@ -1502,9 +1528,15 @@ class Component extends DCLogic {
     }, () => { if (!Object.keys(this.state.pending).length) this.stopClock(); });
   };
 
-  scrollEnd = () => {
+  // follow=true (streamed text, progress rows) only keeps the view pinned
+  // when the reader is already near the bottom - scrolling up to re-read
+  // an earlier answer must not get yanked back down by every chunk.
+  scrollEnd = (follow) => {
     const el = this.endEl;
-    if (el && el.parentElement) el.parentElement.scrollTop = el.parentElement.scrollHeight;
+    const box = el && el.parentElement;
+    if (!box) return;
+    if (follow === true && box.scrollHeight - box.scrollTop - box.clientHeight > 200) return;
+    box.scrollTop = box.scrollHeight;
   };
 
   setInput = (e) => this.setState({ input: e.target.value });
@@ -1865,6 +1897,7 @@ class Component extends DCLogic {
         memoryLabel: m.turnId ? `${(m.artifacts || []).length} veri kaydı korundu${m.timing?.context?.compaction_runs ? ' · Bağlam sıkıştırıldı (%80)' : ''}` : '',
         hasTools: n > 0,
         traceButtonLabel: `Tool details · ${n} call${n === 1 ? '' : 's'}${m.timing ? ` · ${fmtMs(m.timing.summary.tool_ms)}` : ''}`,
+        statusIcon: m.routeName === 'error' ? lucideIcon('circle-alert') : null,
         openTrace: () => this.openTrace(m.id)
       };
     });
@@ -1880,10 +1913,9 @@ class Component extends DCLogic {
       const pace = Number(this.props.stagePace ?? 1) || 1;
       let activeIdx = 0;
       for (let i = 0; i < STAGES.length; i++) if (elapsed >= STAGES[i].at / pace) activeIdx = i;
-      stages = STAGES.slice(0, activeIdx + 1).map((st, i) => ({
-        label: st.label,
-        done: i < activeIdx,
-        active: i === activeIdx,
+      stages = STAGES.slice(0, activeIdx + 1).map((st, i) => stepView({
+        label: st.label, icon: st.icon,
+        state: i < activeIdx ? 'done' : 'active',
         time: i < activeIdx ? fmtMs((STAGES[i + 1].at - st.at) / pace) : ''
       }));
       // Past the fixed schedule, swap the final stage's label through
@@ -1892,7 +1924,7 @@ class Component extends DCLogic {
       const lastAt = STAGES[STAGES.length - 1].at / pace;
       if (elapsed >= lastAt && stages.length) {
         const cycleIdx = Math.floor((elapsed - lastAt) / LONG_WAIT_CYCLE_MS) % LONG_WAIT_STAGES.length;
-        stages[stages.length - 1] = { ...stages[stages.length - 1], label: LONG_WAIT_STAGES[cycleIdx] };
+        stages[stages.length - 1] = stepView({ label: LONG_WAIT_STAGES[cycleIdx], icon: 'thinking', state: 'active' });
       }
     }
 
@@ -1900,8 +1932,7 @@ class Component extends DCLogic {
       const active = sess.id === s.activeSessionId;
       return {
         id: sess.id, title: sess.title, dateLabel: formatSessionDate(sess.updatedAt),
-        bg: active ? 'var(--blue-pale)' : 'transparent',
-        titleColor: active ? 'var(--ink)' : 'var(--text-2)',
+        activeAttr: active ? 'true' : 'false',
         // Still running in the background from a session the user isn't on
         // right now - see pushAssistantTo.
         isPending: !!s.pending[sess.id],
@@ -1931,7 +1962,7 @@ class Component extends DCLogic {
             onClick: (e) => {
               const btn = e.currentTarget, original = btn.textContent;
               (navigator.clipboard ? navigator.clipboard.writeText(tc.sql) : Promise.reject())
-                .then(() => { btn.textContent = 'Kopyalandı ✓'; setTimeout(() => { btn.textContent = original; }, 1400); })
+                .then(() => { btn.textContent = 'Kopyalandı'; setTimeout(() => { btn.textContent = original; }, 1400); })
                 .catch(() => {});
             },
             style: { background: 'none', border: 0, fontFamily: "'Space Mono',monospace", fontSize: '10px', color: 'var(--accent-hover)', cursor: 'pointer', padding: 0 },
@@ -1940,8 +1971,8 @@ class Component extends DCLogic {
         el('pre', {
           style: {
             margin: 0, fontFamily: "'Space Mono',monospace", fontSize: '11.5px', lineHeight: 1.65,
-            color: 'var(--text-2)', background: 'var(--surface-3)', border: '1px solid rgba(var(--accent-rgb),.16)',
-            borderRadius: '9px', padding: '11px', maxHeight: '220px', overflow: 'auto',
+            color: 'var(--text-2)', background: 'var(--surface-3)', border: '1px solid var(--border)',
+            borderRadius: '6px', padding: '11px', maxHeight: '220px', overflow: 'auto',
             whiteSpace: 'pre-wrap', wordBreak: 'break-word',
           },
         }, highlightSql(tc.sql)),
@@ -1953,7 +1984,6 @@ class Component extends DCLogic {
         roundLabel: `r${tc.round}`,
         durationLabel: fmtMs(tc.durationMs),
         sharePct: `${Math.max(2, (tc.durationMs / maxCall) * 100)}%`,
-        border: tc.error ? 'rgba(var(--error-rgb),.30)' : 'rgba(var(--accent-rgb),.13)',
         args: tc.args, result: tc.result, sqlSection,
         resultColor: tc.error ? ERR : 'var(--text-2)',
         open, caret: open ? 'rotate(180deg)' : 'none',
@@ -2002,7 +2032,8 @@ class Component extends DCLogic {
       // computing the real inverse here is the correct fix.
       sessionsEmpty: sessionsView.length === 0,
       toggleTheme: this.toggleTheme,
-      themeIcon: this.isDarkNow() ? '☀️' : '🌙',
+      isDark: this.isDarkNow(),
+      isLight: !this.isDarkNow(),
       fileInputRef: this.fileInputRef,
       triggerUpload: this.triggerUpload,
       onFileSelected: this.onFileSelected,
@@ -2013,13 +2044,15 @@ class Component extends DCLogic {
       onDropFile: this.onDropFile,
       uploading: s.uploading,
       uploadIdle: !s.uploading,
-      uploadLabel: '+',
       uploadCursor: s.uploading ? 'default' : 'pointer',
       isEmpty: s.messages.length === 0 && !thinking,
+      // Empty chat: shrink the message list to its content and let the
+      // auto margins centre heading + composer as one group.
+      listFlex: s.messages.length === 0 && !thinking ? '0 0 auto' : '1',
+      listMarginTop: s.messages.length === 0 && !thinking ? 'auto' : '0',
+      composerMarginBottom: s.messages.length === 0 && !thinking ? 'auto' : '0',
       examples: EXAMPLES.map(ex => ({
-        label: ex.label, tag: ex.tag,
-        tagFg: (TAG_COLOR[ex.tag] || {}).fg || 'var(--accent)',
-        tagBg: (TAG_COLOR[ex.tag] || {}).bg || 'var(--bg-grad)',
+        label: ex.label, title: ex.title,
         // Fills the composer, does NOT send - a real URL/CSV example
         // cannot be sent as-is (it has a bracketed placeholder the user
         // must replace first), and even a self-contained example should
@@ -2039,10 +2072,9 @@ class Component extends DCLogic {
       onFocus: this.onFocus, onBlur: this.onBlur,
       send: () => this.send(),
       sendDisabled: !canSend,
-      sendBg: canSend ? 'linear-gradient(160deg, var(--blue-muted), var(--blue-dark))' : 'var(--blue-pale)',
+      sendBg: canSend ? 'var(--accent)' : 'var(--blue-pale)',
       sendCursor: canSend ? 'pointer' : 'default',
       composerBorder: s.focused ? 'rgba(var(--accent-rgb),.35)' : 'var(--border)',
-      composerShadow: s.focused ? '0 0 0 3px rgba(var(--accent-rgb),.08)' : 'none',
       charLabel: `${s.input.length}/2000`,
       // Recomputed on every render from the current input, not driven by
       // a ref/scrollHeight timing trick - so it grows correctly whether
