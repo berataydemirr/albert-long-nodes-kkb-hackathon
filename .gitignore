@@ -12,6 +12,9 @@ data/bronze/
 data/debug/
 data/gold/*.duckdb
 data/gold/evidence.sqlite3*
+# Local safety copies taken before a gold rebuild - same 33MB binary as
+# the database itself, and regenerable, so never committed.
+data/gold/_backup/
 .playtest/
 data/uploads/
 

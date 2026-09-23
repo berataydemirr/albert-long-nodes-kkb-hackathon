@@ -45,7 +45,13 @@ def test_a_lookup_sends_only_core_tools_plus_the_escape_hatch(monkeypatch):
 
     orchestrator.ask("Konut kredisi faizinin son değeri nedir?")
 
-    assert _tool_names(client.requests[0]) == {"lakehouse_schema", "lakehouse_query", "request_tools", "evidence_query", "recall_turn"}
+    # search_bddk_items is core on purpose, not by accident: the full BDDK
+    # bulletin archive (gold_bddk_*_long, ~416k cells) is NOT in the prompt
+    # catalogue, so without a discovery tool on every route it is invisible
+    # - which is exactly how a live deposit-maturity question got answered
+    # "lakehouse'da yok" while the data sat in tablo_10.
+    assert _tool_names(client.requests[0]) == {"lakehouse_schema", "lakehouse_query", "request_tools",
+                                               "evidence_query", "recall_turn", "search_bddk_items"}
     assert client.requests[0]["reasoning_effort"] == "low"
     assert "ROTA" in client.requests[0]["messages"][0]["content"]
 

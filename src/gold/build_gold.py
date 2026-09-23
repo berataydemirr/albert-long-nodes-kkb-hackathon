@@ -44,6 +44,7 @@ from config.settings import (
     EVDS_SILVER_DIR, TUIK_SILVER_DIR, LAKEHOUSE_DB_PATH, BDDK_MONTHLY_TABLES,
 )
 from src.gold.align import donem_id_to_date, downsample_to_monthly, to_period, upsample_quarterly_to_monthly
+from src.gold.build_bddk_full import write_bddk_full_tables
 from src.gold.cumulative import decumulate
 from src.gold.scan_cumulative import load_table_long
 from src.common.logging_setup import get_logger
@@ -795,6 +796,13 @@ def run(db_path=GOLD_DB_PATH) -> None:
         con.register("regional_long_df", regional_long)
         con.execute("CREATE OR REPLACE TABLE gold_regional_long AS SELECT * FROM regional_long_df")
 
+    # The curated tables above are a ~24-series selection; this promotes
+    # the REST of the BDDK archive (every bulletin row x column, ~416k
+    # cells) into its own three tables. Additive by construction - see
+    # src/gold/build_bddk_full.py for why it cannot share gold_fact_long's
+    # one-series-per-row shape.
+    bddk_full_counts = write_bddk_full_tables(con)
+
     add_period_date_columns(con)
     create_gold_indexes(con)
     assert_gold_integrity(con)
@@ -810,6 +818,8 @@ def run(db_path=GOLD_DB_PATH) -> None:
         f"{regional_long['Metrik'].nunique() if not regional_long.empty else 0} metrics, "
         f"{regional_long['Bolge'].nunique() if not regional_long.empty else 0} bolge"
     )
+    for table_name, row_count in bddk_full_counts.items():
+        logger.info(f"{table_name:31}: {row_count} rows")
     logger.info(f"gold_konut_demo                : {len(konut_demo)} rows, {konut_demo['Period'].min()}..{konut_demo['Period'].max()}")
     logger.info(f"gold_finturk_regional_quarterly: {len(finturk_regional)} rows, {finturk_regional['Bolge'].nunique() if not finturk_regional.empty else 0} bolge")
     logger.info(f"Written to                     : {db_path}")

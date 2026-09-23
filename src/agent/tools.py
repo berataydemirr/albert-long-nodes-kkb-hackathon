@@ -149,6 +149,81 @@ def lakehouse_query(sql: str) -> dict:
         con.close()
 
 
+# The full BDDK archive's three gold tables, with the column that holds
+# a human-readable row label in each. Kept here rather than imported from
+# src.gold so a missing/not-yet-built table degrades to "no results"
+# instead of an import error on an unbuilt lakehouse.
+_BDDK_FULL_TABLES = {
+    "aylik": ("gold_bddk_monthly_long", "Satir"),
+    "haftalik": ("gold_bddk_weekly_long", "Satir"),
+    "finturk": ("gold_bddk_finturk_long", "Kolon"),
+}
+_BDDK_SEARCH_MAX_ROWS = 40
+
+
+def search_bddk_items(query: str = "", kaynak: str | None = None) -> dict:
+    """Find the exact row/column labels to use in a lakehouse_query against
+    the full BDDK bulletin archive.
+
+    WHY THIS EXISTS: the archive is ~2,000 distinct (table, row, column)
+    combinations - far too many to inline in the prompt catalogue the way
+    gold_fact_long's 24 series are. This is the same "search, don't
+    enumerate" step already required for EVDS (search_evds_series), and
+    the labels it returns are meant to be copied verbatim into a WHERE
+    clause: they are long Turkish strings ("TP Mevduat / Katilim Fonlari
+    - Yurt Ici Yerlesik") that will not match if retyped from memory.
+
+    Matching folds Turkish case (İ/I/ı) - a keyword typed lowercase must
+    still match a label the bulletin wrote in title case."""
+    needle = _fold_tr(query or "")
+    sources = {kaynak: _BDDK_FULL_TABLES[kaynak]} if kaynak in _BDDK_FULL_TABLES else _BDDK_FULL_TABLES
+    logger.info(f"search_bddk_items: start (query={query!r}, kaynak={kaynak!r})")
+
+    con = _db()
+    matches: list[dict] = []
+    searched: list[str] = []
+    try:
+        known = {row[0] for row in con.execute("SHOW TABLES").fetchall()}
+        for source_name, (table, label_col) in sources.items():
+            if table not in known:
+                logger.warning(f"search_bddk_items: {table} not built yet, skipped")
+                continue
+            searched.append(table)
+            rows = con.execute(f"""
+                SELECT Tablo, any_value(Tablo_Adi) AS Tablo_Adi, {label_col} AS Etiket,
+                       list_distinct(list(Kolon)) AS Kolonlar,
+                       min(Period) AS ilk_donem, max(Period) AS son_donem, count(*) AS gozlem
+                FROM {table} GROUP BY Tablo, {label_col}
+            """).fetchall()
+            for tablo, tablo_adi, etiket, kolonlar, ilk, son, gozlem in rows:
+                haystack = _fold_tr(f"{tablo_adi} {etiket} {' '.join(map(str, kolonlar))}")
+                if needle and needle not in haystack:
+                    continue
+                matches.append({
+                    "kaynak": source_name, "tablo_adi": tablo_adi, "tablo": table,
+                    "filtre": {"Tablo": tablo, label_col: etiket},
+                    "kolonlar": sorted(map(str, kolonlar)),
+                    "donem": f"{ilk}..{son}", "gozlem": gozlem,
+                })
+    finally:
+        con.close()
+
+    truncated = len(matches) > _BDDK_SEARCH_MAX_ROWS
+    matches.sort(key=lambda m: (m["kaynak"], m["tablo"], str(m["filtre"])))
+    logger.info(f"search_bddk_items: {len(matches)} match(es) across {searched}, truncated={truncated}")
+    if not matches:
+        return {"row_count": 0, "results": [], "searched_tables": searched,
+                "next_step": "Eşleşme yok. Daha genel/tek bir anahtar kelime dene (ör. 'mevduat', "
+                             "'kredi', 'vade'); yine boşsa bu veri BDDK bültenlerinde olmayabilir."}
+    return {
+        "row_count": len(matches), "truncated": truncated,
+        "results": matches[:_BDDK_SEARCH_MAX_ROWS], "searched_tables": searched,
+        "next_step": "filtre alanındaki değerleri lakehouse_query'de AYNEN kullan (ör. WHERE Tablo='tablo_10' "
+                     "AND Satir='...'); kolonlar listesinden istediklerini SUM ile grupla. Aylık tabloda "
+                     "Seviye='bold' ana kalem, 'italic' onun alt kırılımıdır - ikisini birlikte toplama.",
+    }
+
+
 def _series_input(label: str, seri_kod: str | None, periods: list[str] | None,
                   values: list[float] | None, bolge: str | None = None,
                   start_period: str | None = None, end_period: str | None = None) -> tuple[list[str], list[float], dict]:
@@ -732,6 +807,7 @@ _SCHEMAS = [
     {"type": "function", "function": {"name": "fetch_evds_series", "description": "Grubunda doğrulanan EVDS serisini canlı çek, ham veriyi ve aylık veriyi DuckDB'ye kaydet. Oranlar için mean, stok/endeks için last, gerçek akış için sum seç. TÜFE endeksinden aylık enflasyon türetmek için önceki ayı da çek ve SQL ile 100*(endeks/önceki_endeks-1) hesapla; eksik ay üzerinden fark alma.", "parameters": {"type": "object", "properties": {"datagroup": {"type": "string"}, "seri_kod": {"type": "string"}, "start_period": {"type": "string"}, "end_period": {"type": "string"}, "aggregation": {"type": "string", "enum": ["mean", "last", "sum"]}}, "required": ["datagroup", "seri_kod", "start_period", "end_period"], "additionalProperties": False}}},
     {"type": "function", "function": {"name": "lakehouse_schema", "description": "List tables/columns and (for gold_fact_long) the real Seri_Kod/Seri_Adi/Kaynak/Birim catalog in the local DuckDB gold layer. The Seri_Kod catalog is already in the system prompt, so do not call this just to find a series code - only when you need the column structure of a table the prompt does not describe. Seri_Kod values must never be guessed. ALWAYS pass 'konu' with the keywords you care about (e.g. 'kredi mevduat'): the unfiltered dump is larger than the tool-output limit and gets TRUNCATED, so the table you need may be silently cut off.", "parameters": {"type": "object", "properties": {"konu": {"type": "string", "description": "Anahtar kelimeler (ör. 'kredi', 'konut faiz', 'mevduat'). Sadece adı veya kolonları eşleşen tablolar döner; eşleşme yoksa tam liste döner."}}, "additionalProperties": False}}},
     {"type": "function", "function": {"name": "lakehouse_query", "description": "Run a single read-only SELECT query against the local DuckDB gold layer. Only tables returned by lakehouse_schema may be referenced. Results are limited to 200 rows.", "parameters": {"type": "object", "properties": {"sql": {"type": "string"}}, "required": ["sql"], "additionalProperties": False}}},
+    {"type": "function", "function": {"name": "search_bddk_items", "description": "BDDK bültenlerinin tam arşivinde (gold_bddk_monthly_long / _weekly_long / _finturk_long) satır ve kolon etiketi ara. Bilanço, kar-zarar, mevduat tür/vade kırılımı, krediler, sektörel dağılım, likidite, sermaye yeterliliği gibi bülten kalemleri katalogda YOKTUR, bu tablolardadır. Dönen 'filtre' değerlerini lakehouse_query'de aynen kullan - etiketler hafızadan yazılamaz.", "parameters": {"type": "object", "properties": {"query": {"type": "string", "description": "Anahtar kelime, ör. 'mevduat vade', 'sermaye yeterliliği'. Boş = tüm kalemler."}, "kaynak": {"type": "string", "enum": ["aylik", "haftalik", "finturk"]}}, "required": [], "additionalProperties": False}}},
     {"type": "function", "function": {"name": "anomaly_analysis", "description": "Find robust outliers in a time series. PREFERRED: pass seri_kod and the series is read straight from the lakehouse - do NOT run lakehouse_query first and retype the numbers. Pass periods/values only for data that is not in the lakehouse.", "parameters": {"type": "object", "properties": {"seri_kod": {"type": "string", "description": "Seri_Kod from lakehouse_schema. Cheapest and most accurate input."}, "start_period": {"type": "string", "description": "Optional 'YYYY-MM' lower bound."}, "end_period": {"type": "string", "description": "Optional 'YYYY-MM' upper bound."}, "bolge": {"type": "string", "description": "Optional region filter; defaults to every region."}, "periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}, "threshold": {"type": "number", "default": 3.0}}, "additionalProperties": False}}},
     {"type": "function", "function": {"name": "change_detection", "description": "Find the largest period-over-period percentage changes. PREFERRED: pass seri_kod so the series is read from the lakehouse instead of being retyped.", "parameters": {"type": "object", "properties": {"seri_kod": {"type": "string", "description": "Seri_Kod from lakehouse_schema. Cheapest and most accurate input."}, "start_period": {"type": "string"}, "end_period": {"type": "string"}, "bolge": {"type": "string"}, "periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}}, "additionalProperties": False}}},
     {"type": "function", "function": {"name": "correlation_analysis", "description": "Aligned Pearson correlation between two series; never call it causation. PREFERRED: pass x_seri_kod and y_seri_kod - both series are read from the lakehouse, no need to query and retype them.", "parameters": {"type": "object", "properties": {"x_seri_kod": {"type": "string", "description": "Seri_Kod of the first series."}, "y_seri_kod": {"type": "string", "description": "Seri_Kod of the second series."}, "start_period": {"type": "string"}, "end_period": {"type": "string"}, "x_periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "x_values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}, "y_periods": {"type": "array", "items": {"type": "string"}, "description": "Only when the data is not in the lakehouse."}, "y_values": {"type": "array", "items": {"type": "number"}, "description": "Only when the data is not in the lakehouse."}}, "additionalProperties": False}}},
@@ -801,6 +877,12 @@ _SPEC_TABLE = {
     # the old global limit of three blocked the fourth query in the very
     # first round before the model had seen all required inputs.
     "lakehouse_query": (lakehouse_query, "core", 8, 60.0, True),
+    # "core", not a group the router has to predict: the BDDK bulletin is
+    # the lakehouse's own data, and a question that needs it ("mevduatin
+    # vade yapisi") routes to local_analytics/imports just as easily as
+    # anywhere else. Discovery has to be reachable from all of them or the
+    # data is invisible again.
+    "search_bddk_items": (search_bddk_items, "core", 4, 30.0, True),
     "anomaly_analysis": (anomaly_analysis, "analysis", 20, 60.0, True),
     "change_detection": (change_detection, "analysis", 20, 60.0, True),
     "correlation_analysis": (correlation_analysis, "analysis", 20, 60.0, True),
