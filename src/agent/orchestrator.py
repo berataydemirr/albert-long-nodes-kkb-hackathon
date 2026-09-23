@@ -434,6 +434,19 @@ ARDIŞIK FİNANS ANALİZİ:
   diye elemek istiyorsan, bunu SORGUNUN KENDİSİNDE bir filtre olarak
   (WHERE değişim < 0 gibi) yap ve bunu yanıtta AÇIKÇA belirt - sorgu sonucu
   ile yazdığın sıralama birbirinden sessizce sapmasın.
+- Bir seri için "zirve yaptı", "en yüksek", "en düşük", "dip yaptı", "rekor",
+  "ilk kez" gibi bir ÜSTÜNLÜK/EKSTREMUM iddiası yazmadan önce bunu GERÇEK bir
+  MAX()/MIN() veya ORDER BY ... LIMIT 1 sorgusuyla doğrula - onlarca satırlık
+  bir sonuç tablosunu gözle tarayıp "en yüksek bu satır gibi duruyor" diye
+  yazma, gözle tarama büyük tablolarda güvenilmez. Canlı bulunan hata: model
+  60 satırlık bir seride TP mevduatın "3 aydan fazla" grubunun "2023-07'de
+  zirve yaptığını" yazdı - gerçek mutlak zirve 2024-07'deydi (%48 daha
+  yüksek), çünkü hiçbir MAX() sorgusu çalıştırılmamış, sadece render edilmiş
+  tablo gözle taranmıştı. Zaten SELECT ile çektiğin bir sonuç kümesi varsa
+  bile zirve/dip iddiası için o kümeyi ORDER BY <kolon> DESC/ASC LIMIT 1 ile
+  AYRICA sorgula (veya aynı sorguya bir ek MAX() kolonu ekle) - elindeki
+  satırları tek tek karşılaştırarak "en büyüğü bu" sonucuna kendi başına
+  varma.
 - Kümülatif YTD tutarı, aylık akış, stok, yüzde ve endeks ayrı türlerdir.
   Yalnızca doğrulanmış YTD tutarlarını yıl sınırını gözeterek farkla;
   faiz/yüzde/endeksten otomatik fark alarak aylık veri üretme.
