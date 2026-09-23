@@ -43,7 +43,7 @@ from src.agent.context_compactor import compact_context, estimate_tokens
 from src.agent.evidence import snapshot_result
 from src.agent.db_utils import connect_with_retry
 from src.agent.grounding import _numeric_grounding
-from src.agent.hallucination_guard import find_hallucinated_codes
+from src.agent.hallucination_guard import extract_cited_series_codes, find_hallucinated_codes
 from src.agent.series_resolver import catalog_block, known_series_codes, regional_catalog_block
 from src.agent.mia_client import get_client
 from src.agent.router import REQUEST_TOOLS_NAME, REQUEST_TOOLS_SCHEMA, TOOL_GROUPS, Route, route_question
@@ -640,6 +640,32 @@ def _codes_seen_in_trace(trace: list[dict]) -> set[str]:
     for entry in trace:
         if not entry.get("error"):
             _walk(entry.get("output_json"))
+    return codes
+
+
+def _codes_seen_in_history(history: list[dict] | None) -> set[str]:
+    """Same gap as _codes_seen_in_trace(), one turn wider: a code fetched
+    live in turn N (never gold-built, so not in _valid_codes_for_check())
+    has no trace entry in turn N+1's ask() call at all - trace is a fresh
+    `[]` created at the top of every ask() (this function is stateless
+    across requests, same as ask() itself), so _codes_seen_in_trace(trace)
+    alone cannot see it once the turn that fetched it is over. Confirmed
+    live via test_turn1_fetches_a_live_code_turn2_cites_it_again_from_history:
+    the client resends exactly `history[i]["note"]` (summarize_turn()'s own
+    one-liner, already carrying "seriler: <code>" for a seri_kod tool arg -
+    see summarize_turn()) and `history[i]["answer"]` (that turn's own,
+    already-verified answer text) every turn regardless of this function;
+    reading them here adds no new state, no new request/response field, no
+    extra tokens sent to the model, and does not touch context_compactor
+    (which decides what stays in the MESSAGE list sent to the model - this
+    only widens what the hallucination check trusts, using text the
+    request already carries). A hallucinated code cannot be smuggled in
+    this way either: only a PAST turn's own already-passed answer/note is
+    read, never the CURRENT question or the current turn's own draft."""
+    codes: set[str] = set()
+    for turn in history or []:
+        codes |= extract_cited_series_codes(str(turn.get("note") or ""))
+        codes |= extract_cited_series_codes(str(turn.get("answer") or ""))
     return codes
 
 
@@ -1753,7 +1779,7 @@ def ask(question: str, history: list[dict] | None = None, history_digest: str | 
             if not message.content:
                 return _finish("Model boş yanıt döndürdü.")
             content = message.content
-            hallucinated = find_hallucinated_codes(content, _valid_codes_for_check() | _codes_seen_in_trace(trace))
+            hallucinated = find_hallucinated_codes(content, _valid_codes_for_check() | _codes_seen_in_trace(trace) | _codes_seen_in_history(history))
             if hallucinated and not hallucination_retry_used:
                 hallucination_retry_used = True
                 logger.warning(
@@ -1956,7 +1982,7 @@ def ask(question: str, history: list[dict] | None = None, history_digest: str | 
         })
         content = response.choices[0].message.content
         if content:
-            hallucinated = find_hallucinated_codes(content, _valid_codes_for_check() | _codes_seen_in_trace(trace))
+            hallucinated = find_hallucinated_codes(content, _valid_codes_for_check() | _codes_seen_in_trace(trace) | _codes_seen_in_history(history))
             if hallucinated:
                 logger.error(
                     f"ask: forced final answer cites unknown Seri_Kod(s) {sorted(hallucinated)}; "

@@ -11,6 +11,8 @@ fallback are proven against the real control flow, not just the helper
 functions in isolation.
 """
 
+import logging
+
 from src.agent import orchestrator
 
 
@@ -253,3 +255,112 @@ def test_a_code_fetched_live_this_run_is_not_treated_as_hallucinated(monkeypatch
     assert answer == "TP.BKR.TRY.KTF10'a göre ihtiyaç kredisi faizi %45.2."
     assert not answer.startswith("⚠️")
     assert client.chat.completions.call_count == 2  # tool round + final answer, no correction round spent
+
+
+# ---------------------------------------------------------------------
+# CROSS-TURN case: the code above (test_a_code_fetched_live_this_run_is_
+# not_treated_as_hallucinated) only proves same-turn safety, because
+# _codes_seen_in_trace(trace) reads THIS ask() call's own trace list -
+# trace is a local variable created fresh inside ask() (see
+# `trace: list[dict] = []` near the top of the function body) and is
+# never persisted anywhere. web_app.py is stateless per request (see
+# ask()'s own docstring on `history`): the ONLY thing that survives
+# between turns is whatever the CLIENT resends as `history`, which is
+# plain question/answer prose plus a short `note` string
+# (summarize_turn()'s one-liner). A series code fetched in turn 1 and
+# cited again - honestly, from that same note - in turn 2 has NO trace
+# entry in turn 2's ask() call at all, so
+# _valid_codes_for_check() | _codes_seen_in_trace(trace) does not
+# contain it, and find_hallucinated_codes flags it as invented. This
+# reproduces that exact scenario end to end, across two real ask() calls.
+# ---------------------------------------------------------------------
+
+def test_turn1_fetches_a_live_code_turn2_cites_it_again_from_history(monkeypatch, caplog):
+    """THE BUG: reproduces a dynamically-fetched EVDS code (never in the
+    static gold_fact_long catalog) being cited again one turn later, using
+    only the conversation history a real browser tab would resend - no
+    tool call happens in turn 2 at all. Heavy logging throughout so the
+    exact point where the code "disappears" from the trust set is visible
+    in the test output (run with `pytest -s -log-cli-level=DEBUG` to see
+    it live)."""
+    caplog.set_level(logging.DEBUG, logger="orchestrator")
+    log = logging.getLogger("test_cross_turn_repro")
+
+    LIVE_CODE = "TP.BKR.TRY.1"
+    STATIC_CATALOG = {"TP.BKR.TRY.18"}  # LIVE_CODE deliberately absent - it was never gold-built
+
+    # --- Turn 1: model calls fetch_evds_series, then answers citing the code ---
+    log.debug("TURN 1: scripting fetch_evds_series(seri_kod=%r) + an answer citing it", LIVE_CODE)
+    tool_call = _FakeToolCall(
+        "fetch_evds_series",
+        f'{{"datagroup": "bie_kt210a", "seri_kod": "{LIVE_CODE}", '
+        f'"start_period": "2024-09", "end_period": "2026-08"}}',
+    )
+    client_1 = _install(
+        monkeypatch,
+        messages=[
+            _FakeMessage(content=None, tool_calls=[tool_call]),
+            _FakeMessage(content=f"{LIVE_CODE}'e göre ticari kredi faizi %38.4."),
+        ],
+        valid_codes=STATIC_CATALOG,
+    )
+    monkeypatch.setattr(
+        orchestrator, "execute_tool",
+        lambda name, args: f'{{"seri_kod": "{LIVE_CODE}", "rows": [{{"Period": "2026-06", "Value": 38.4}}]}}',
+    )
+
+    turn1_trace: list[dict] = []
+    answer_1 = orchestrator.ask("Ticari kredi faizini EVDS'ten çek", return_trace=True, deadline_sec=None)
+    # ask() with return_trace=True returns (answer, trace, ...) - unpack defensively
+    # since the exact tuple shape has changed before; only answer and trace matter here.
+    if isinstance(answer_1, tuple):
+        answer_1, turn1_trace, *_rest = answer_1
+    log.debug("TURN 1 raw trace entries: %s", turn1_trace)
+    log.debug("TURN 1 answer: %r", answer_1)
+    assert client_1.chat.completions.call_count == 2, "turn 1 must not itself trigger a false-positive correction round"
+    assert LIVE_CODE in answer_1
+
+    # This is EXACTLY what web_app.py does server-side and returns to the
+    # browser as `turn_note` - and exactly what the browser resends next
+    # turn as history[i]["note"] (see web_app.py's HistoryTurn.note).
+    turn1_note = orchestrator.summarize_turn(turn1_trace)
+    log.debug("TURN 1 summarize_turn() note that the client will resend next turn: %r", turn1_note)
+    assert LIVE_CODE in turn1_note, (
+        "sanity check: summarize_turn must have captured the live code in its note, "
+        "otherwise this test would not be reproducing the real client round-trip"
+    )
+
+    # --- Turn 2: NO tool call at all - the model just answers directly,
+    # citing the SAME code, which it legitimately knows about only because
+    # turn 1's note is sitting in the conversation history right in front
+    # of it (see _history_messages: "[Bu yanıtta kullanılan - {note}]"). ---
+    log.debug("TURN 2: model answers directly (NO tool call), citing %r again from memory of turn 1", LIVE_CODE)
+    client_2 = _install(
+        monkeypatch,
+        messages=[_FakeMessage(content=f"Evet, {LIVE_CODE} serisine göre faiz aynı kalmış, hâlâ %38.4.")],
+        valid_codes=STATIC_CATALOG,  # same static catalog - LIVE_CODE still not gold-built
+    )
+
+    history = [{"question": "Ticari kredi faizini EVDS'ten çek", "answer": answer_1, "note": turn1_note}]
+    log.debug("TURN 2 history being resent to ask(): %s", history)
+
+    answer_2 = orchestrator.ask("Aynı seri hâlâ geçerli mi, kontrol eder misin?", history=history)
+    log.debug("TURN 2 final answer: %r", answer_2)
+    log.debug("TURN 2 model call count: %s (2 calls means a spurious correction round fired)",
+              client_2.chat.completions.call_count)
+
+    # THE ASSERTION THAT MATTERS: a code the model only knows about
+    # because it legitimately appears in the resent history/note must NOT
+    # be treated as invented. If this fails, `answer_2` starts with
+    # HALLUCINATION_CAVEAT_PREFIX and/or call_count == 2 (an unnecessary,
+    # confusing "Özür dilerim..." self-correction over a REAL code).
+    assert client_2.chat.completions.call_count == 1, (
+        f"turn 2 spent a correction round on a code ({LIVE_CODE}) that was legitimately "
+        f"fetched live in turn 1 - _codes_seen_in_trace(trace) cannot see it because trace "
+        f"is reset empty at the top of every ask() call and turn 1's trace is gone; "
+        f"_valid_codes_for_check() cannot see it either because it was never gold-built. "
+        f"See orchestrator.py's `trace: list[dict] = []` and _codes_seen_in_trace()'s own "
+        f"docstring, which already documents the SAME-turn version of this gap."
+    )
+    assert not answer_2.startswith("⚠️"), f"got a false-positive hallucination caveat: {answer_2!r}"
+    assert answer_2 == f"Evet, {LIVE_CODE} serisine göre faiz aynı kalmış, hâlâ %38.4."
