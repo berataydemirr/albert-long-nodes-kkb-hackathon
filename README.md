@@ -2,7 +2,6 @@
 
 **An autonomous lakehouse and reasoning agent for Turkish financial public data**
 
-[![Tests](https://github.com/berataydemirr/albert-long-nodes-kkb-hackathon/actions/workflows/tests.yml/badge.svg)](https://github.com/berataydemirr/albert-long-nodes-kkb-hackathon/actions/workflows/tests.yml)
 ![Python](https://img.shields.io/badge/python-3.11-3776AB?logo=python&logoColor=white)
 ![DuckDB](https://img.shields.io/badge/lakehouse-DuckDB-FFF000?logo=duckdb&logoColor=black)
 ![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white)
