@@ -111,6 +111,9 @@ def _download(url: str) -> tuple[str, str, bytes]:
             response = requests.get(
                 current, headers=BROWSER_HEADERS, timeout=REQUEST_TIMEOUT_SECONDS,
                 stream=True, allow_redirects=False,
+                # BDDK's public site serves an incomplete certificate chain;
+                # its existing official-data collector uses the same exception.
+                verify=urlparse(current).hostname not in {"bddk.org.tr", "www.bddk.org.tr"},
             )
         except requests.RequestException as exc:
             raise RuntimeError("Could not download the supplied URL.") from exc
@@ -145,6 +148,41 @@ def _html(content: bytes) -> dict:
         node.decompose()
     return {"kind": "html", "title": _compact(soup.title.get_text(" ") if soup.title else "", 300),
             "text": _compact(soup.get_text(" "))}
+
+
+def _render_public_page(url: str) -> dict:
+    """Render known public data portals whose initial HTML is an empty JS shell."""
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        try:
+            page = browser.new_page(service_workers="block", accept_downloads=False)
+
+            def guard(route):
+                try:
+                    _validate_public_url(route.request.url)
+                except ValueError:
+                    route.abort()
+                    return
+                if route.request.resource_type in {"image", "media", "font"}:
+                    route.abort()
+                else:
+                    route.continue_()
+
+            page.route("**/*", guard)
+            response = page.goto(url, wait_until="domcontentloaded", timeout=15_000)
+            page.wait_for_timeout(2_000)
+            final_url = _validate_public_url(page.url)
+            result = {"kind": "html", "title": _compact(page.title(), 300),
+                      "text": _compact(page.locator("body").inner_text(timeout=5_000)),
+                      "rendered_with_browser": True, "source_url": final_url,
+                      "http_status": response.status if response else None}
+            if "Bu haber bülteni şu anda görüntülenememektedir" in result["text"]:
+                result["source_status"] = "official_page_unavailable"
+            return result
+        finally:
+            browser.close()
 
 
 def _pdf(content: bytes) -> dict:
@@ -212,6 +250,10 @@ def web_url_extract(url: str) -> dict:
         extracted = _image(content, content_type)
     elif "html" in content_type or path.endswith((".html", ".htm")):
         extracted = _html(content)
+        if len(extracted["text"]) < 50 and urlparse(final_url).hostname in {
+            "evds3.tcmb.gov.tr", "data.tuik.gov.tr", "veriportali.tuik.gov.tr",
+        }:
+            extracted = _render_public_page(final_url)
     elif path.endswith(".csv") or "csv" in content_type:
         try:
             frame = pd.read_csv(BytesIO(content)).iloc[:MAX_ROWS_PER_SHEET, :MAX_COLUMNS_PER_SHEET]

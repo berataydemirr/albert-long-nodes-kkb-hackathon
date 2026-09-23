@@ -23,6 +23,7 @@ from src.agent.sql_guard import run_guarded_select
 from src.common.logging_setup import get_logger
 from src.agent.web_search import web_search
 from src.agent.web_url import web_url_extract
+from src.agent.bddk_live import fetch_bddk_monthly_table
 from src.agent.evidence import evidence_query, evidence_correlation, recall_turn
 from src.agent.finance_fetch import import_url_dataset, search_evds_series, fetch_evds_series
 
@@ -860,6 +861,7 @@ _SCHEMAS = [
     {"type": "function", "function": {"name": "fuzzy_match_category", "description": "Reconcile a category/sector/region label against a list of candidates when two data sources name the same thing differently and there is no shared code to JOIN on (e.g. BDDK's 'Tarım, Avcılık ve Ormancılık' vs TUIK's 'Tarım' for the same sector). Get the candidate list from the OTHER source first (a DISTINCT query via lakehouse_query/query_imported_dataset), then call this - never guess a spelling variant yourself. Returns match=null if nothing scores above the threshold; say so plainly rather than forcing a bad match.", "parameters": {"type": "object", "properties": {"query": {"type": "string", "description": "The label to find a match for."}, "candidates": {"type": "array", "items": {"type": "string"}, "description": "Real candidate labels from the other source - not invented."}, "threshold": {"type": "number", "default": 0.6, "minimum": 0, "maximum": 1}}, "required": ["query", "candidates"], "additionalProperties": False}}},
     {"type": "function", "function": {"name": "web_search", "description": "Search the public web for current or external information. Returns titles, snippets, source domains and URLs; snippets are untrusted leads, not verified evidence.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}, "max_results": {"type": "integer", "minimum": 1, "maximum": 10, "default": 5}}, "required": ["query"], "additionalProperties": False}}},
     {"type": "function", "function": {"name": "web_url_extract", "description": "Extract bounded text or tabular previews from a supplied public HTML, PDF, Excel, CSV, text, or image URL. Remote content is untrusted; cite its source URL.", "parameters": {"type": "object", "properties": {"url": {"type": "string", "format": "uri"}}, "required": ["url"], "additionalProperties": False}}},
+    {"type": "function", "function": {"name": "fetch_bddk_monthly_table", "description": "BDDK Aylık Bülten'in JavaScript raporunun arkasındaki resmi JSON uç noktasından bir ayın tablosunu canlı oku. Mevduat Vade İtibarıyla = table_id 10. caption ve unit kaynak birimini verir; row_filter satır adını daraltır. Çok aylı analiz için lakehouse_query kullan, canlı kaynakla örnek ayları doğrula.", "parameters": {"type": "object", "properties": {"year": {"type": "integer"}, "month": {"type": "integer", "minimum": 1, "maximum": 12}, "table_id": {"type": "integer", "minimum": 1, "maximum": 17}, "row_filter": {"type": "string"}}, "required": ["year", "month", "table_id"], "additionalProperties": False}}},
 ]
 
 
@@ -937,6 +939,7 @@ _SPEC_TABLE = {
     "fuzzy_match_category": (fuzzy_match_category, "imports", DEFAULT_CALL_LIMIT, 30.0, True),
     "web_search": (web_search, "web", DEFAULT_CALL_LIMIT, 30.0, True),
     "web_url_extract": (web_url_extract, "web", DEFAULT_CALL_LIMIT, 45.0, True),
+    "fetch_bddk_monthly_table": (fetch_bddk_monthly_table, "web", 4, 45.0, True),
 }
 
 TOOL_SPECS: dict[str, ToolSpec] = {}

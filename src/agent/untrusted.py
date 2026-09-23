@@ -26,6 +26,7 @@ UNTRUSTED_TOOLS = frozenset({
     "fetch_evds_series",
     "web_search",
     "web_url_extract",
+    "fetch_bddk_monthly_table",
     "list_imported_datasets",
     "query_imported_dataset",
 })

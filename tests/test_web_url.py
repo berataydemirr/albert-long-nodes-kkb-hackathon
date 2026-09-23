@@ -67,3 +67,24 @@ def test_blocks_private_network_target():
 def test_tool_is_registered():
     assert TOOL_FUNCTIONS["web_url_extract"] is web_url.web_url_extract
     assert "web_url_extract" in {schema["function"]["name"] for schema in TOOL_SCHEMAS}
+
+
+def test_bddk_site_uses_known_certificate_exception(monkeypatch):
+    _public_url(monkeypatch)
+    calls = []
+    def get(url, **kwargs):
+        calls.append(kwargs)
+        return FakeResponse(b"<title>BDDK</title><p>Mevduat Vade Itibariyla</p>", "text/html")
+    monkeypatch.setattr(web_url.requests, "get", get)
+    result = web_url.web_url_extract("https://www.bddk.org.tr/bultenaylik")
+    assert result["kind"] == "html"
+    assert calls[0]["verify"] is False
+
+
+def test_empty_evds_shell_uses_browser_result(monkeypatch):
+    _public_url(monkeypatch)
+    monkeypatch.setattr(web_url.requests, "get", lambda *args, **kwargs: FakeResponse(b"<title>EVDS</title>", "text/html"))
+    monkeypatch.setattr(web_url, "_render_public_page", lambda url: {"kind": "html", "text": "Gercek seri listesi", "rendered_with_browser": True})
+    result = web_url.web_url_extract("https://evds3.tcmb.gov.tr/tumSeriler/example")
+    assert result["rendered_with_browser"] is True
+    assert result["text"] == "Gercek seri listesi"
