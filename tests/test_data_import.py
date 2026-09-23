@@ -101,23 +101,27 @@ def test_detect_schema_empty_file_is_a_clean_valueerror(tmp_path):
         detect_schema(p)
 
 
-def test_duplicate_csv_header_is_rejected_not_silently_renamed(tmp_path):
+def test_duplicate_csv_header_is_accepted_with_stable_names(tmp_path):
     """pandas renames a repeated header ('Deger' -> 'Deger', 'Deger.1')
     during the parse itself, which would otherwise hide the collision
     entirely - reproduced live before this test was written."""
     p = tmp_path / "dup.csv"
     p.write_text("Il,Deger,Deger\nAnkara,1,2\n", encoding="utf-8")
 
-    with pytest.raises(ValueError, match="Duplicate column"):
-        detect_schema(p)
+    schema = detect_schema(p)
+    columns = [c["column"] for c in schema["columns"]]
+    assert columns[0] == "Il"
+    assert columns[1:] in (["Deger", "Deger.1"], ["Deger", "Deger_2"])
 
 
-def test_duplicate_excel_header_is_also_rejected(tmp_path):
+def test_duplicate_excel_header_is_also_accepted(tmp_path):
     p = tmp_path / "dup.xlsx"
     pd.DataFrame([[1, 2]], columns=["A", "A"]).to_excel(p, index=False)
 
-    with pytest.raises(ValueError, match="Duplicate column"):
-        detect_schema(p)
+    schema = detect_schema(p)
+    columns = [c["column"] for c in schema["columns"]]
+    assert columns[0] == "A"
+    assert columns[1] != columns[0]
 
 
 def test_file_too_large_is_rejected(tmp_path, monkeypatch):

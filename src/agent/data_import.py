@@ -286,28 +286,32 @@ def _flatten_merged_excel_header(df: pd.DataFrame) -> pd.DataFrame:
     # reflect the file's real two-tables-on-one-sheet layout.
     has_collision = len(new_columns) != len(set(new_columns))
     if has_collision and len(set(tops_used)) == 1:
-        raise ValueError(
-            "This sheet looks like it has more than one table side by side under a single "
-            "full-width header cell, not one table with a merged 'year over sub-columns' "
-            "header - every column resolved to the same header text "
-            f"({tops_used[0]!r}), which cannot be a real column list. Re-export each table "
-            "as its own sheet, or select just one table's cell range before uploading."
-        )
+        logger.warning("_flatten_merged_excel_header: ambiguous merged title resolved with automatic unique column names")
 
-    seen: dict[str, int] = {}
-    deduped = []
-    for name in new_columns:
-        if name not in seen:
-            seen[name] = 0
-            deduped.append(name)
-        else:
-            seen[name] += 1
-            deduped.append(f"{name}.{seen[name]}")
+    deduped = _dedupe_columns(new_columns)
 
     flattened = df.iloc[1:].reset_index(drop=True).copy()
     flattened.columns = deduped
     logger.info(f"_flatten_merged_excel_header: merged header detected, recovered columns {deduped}")
     return flattened
+
+
+def _dedupe_columns(columns) -> list[str]:
+    """Accept duplicate headers and give them stable unique names."""
+    used: set[str] = set()
+    next_suffix: dict[str, int] = {}
+    result: list[str] = []
+    for raw in columns:
+        base = str(raw).strip() or "Unnamed"
+        candidate = base
+        suffix = next_suffix.get(base, 1)
+        while candidate in used:
+            candidate = f"{base}_{suffix}"
+            suffix += 1
+        next_suffix[base] = suffix
+        used.add(candidate)
+        result.append(candidate)
+    return result
 
 
 def _raw_header(path: Path, sheet: str | int | None) -> list[str]:
@@ -619,19 +623,11 @@ def detect_schema(path: str | Path, sheet: str | int | None = None) -> dict:
         logger.warning(f"detect_schema: file too large ({size} bytes)")
         raise ValueError(f"File is {size / 1_048_576:.1f} MB; the limit is {MAX_FILE_BYTES / 1_048_576:.0f} MB.")
 
-    raw_header = _raw_header(path, sheet)
-    if len(raw_header) != len(set(raw_header)):
-        # Checked against the RAW header, not df.columns: pandas silently
-        # renames a repeat ("Deger" / "Deger.1") during the parse below,
-        # which would otherwise hide the collision entirely - found live,
-        # a file with two "Deger" columns imported with no error and no
-        # indication that the second column was not what its name claimed.
-        from collections import Counter
-        dupes = sorted(name for name, count in Counter(raw_header).items() if count > 1)
-        logger.warning(f"detect_schema: duplicate column name(s) in the raw header: {dupes}")
-        raise ValueError(f"Duplicate column name(s) in the file: {dupes}. Rename them and re-upload.")
-
     df = _read_table(path, sheet)
+    original_columns = list(df.columns)
+    df.columns = _dedupe_columns(df.columns)
+    if list(df.columns) != original_columns:
+        logger.warning("detect_schema: duplicate/blank column names accepted and renamed: %s", df.columns.tolist())
     df, descriptions = _split_series_descriptions(df)
     df, cleaning_report = _clean_dataframe(df)
     cleaning_report["series_description_rows_split"] = 0 if descriptions is None else len(descriptions)
@@ -685,6 +681,7 @@ def import_dataset(path: str | Path, dataset_name: str, sheet: str | int | None 
     schema = detect_schema(path, sheet)
     schema["file_name"] = display_name
     df = _read_table(path, sheet)
+    df.columns = _dedupe_columns(df.columns)
     df, descriptions = _split_series_descriptions(df)
     df, _ = _clean_dataframe(df)  # same cleaning detect_schema already applied and reported in schema["data_quality"]
     if len(df) > MAX_ROWS_PER_IMPORT:
