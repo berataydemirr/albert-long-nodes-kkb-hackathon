@@ -29,10 +29,23 @@ _SQL_COMMENT_RE = re.compile(r"--[^\n]*|/\*.*?\*/", re.DOTALL)
 _SQL_STRING_LITERAL_RE = re.compile(r"'(?:[^']|'')*'")
 
 
+# EXTRACT(YEAR FROM Period_Date) uses FROM as part of the function's own
+# syntax. Left alone, the table scan below read "Period_Date" as a table
+# name and rejected the query - found live: an EXTRACT(YEAR FROM ...)
+# aggregate was refused with "Unknown table(s) referenced: ['Period_Date']"
+# and the model wrongly concluded the column itself was missing.
+# Only EXTRACT's OWN keyword is removed: a subquery nested inside the call
+# keeps its FROM, so EXTRACT(year FROM (SELECT * FROM read_csv(...))) is
+# still caught as an unknown table - that is the file-read path this
+# guard exists to close.
+_EXTRACT_FROM_RE = re.compile(r"\bextract\s*\(\s*([a-z_]+)\s+from\b", re.IGNORECASE)
+
+
 def referenced_tables(sql: str) -> set[str]:
     """Best-effort extraction of table names after FROM/JOIN, for the
     known-table guardrail below - not a full SQL parser, just enough to
     catch a query aimed at a table that was never in SHOW TABLES."""
+    sql = _EXTRACT_FROM_RE.sub(r"extract(\1 ", sql)
     return {m.group(1).strip('"') for m in re.finditer(r"\b(?:from|join)\s+([a-zA-Z_][a-zA-Z0-9_\"]*)", sql, re.IGNORECASE)}
 
 

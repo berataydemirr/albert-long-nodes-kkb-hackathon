@@ -253,6 +253,88 @@ def test_written_tables_answer_the_deposit_question_in_plain_sql(con):
     assert all(short > 0 and long > 0 for _, short, long in rows)
 
 
+# --- schema-resolution fixes ---------------------------------------------
+
+def test_every_bddk_table_has_period_date_like_every_other_gold_table(con):
+    """Live failure: the prompt tells the model every gold_* table carries
+    a real DATE Period_Date for date arithmetic; a run wrote
+    "WHERE Period_Date BETWEEN DATE '2021-01-01' ..." against
+    gold_bddk_monthly_long and died with a Binder Error because this table
+    lacked the column."""
+    for table in (bf.MONTHLY_TABLE, bf.WEEKLY_TABLE, bf.FINTURK_TABLE):
+        cols = {row[0] for row in con.execute(f"DESCRIBE {table}").fetchall()}
+        assert "Period_Date" in cols, table
+        nulls = con.execute(f"SELECT count(*) FROM {table} WHERE Period_Date IS NULL").fetchone()[0]
+        assert nulls == 0, table
+
+    # The exact failing query shape now runs.
+    rows = con.execute(f"""
+        SELECT count(*) FROM {bf.MONTHLY_TABLE}
+        WHERE Tablo = 'tablo_4' AND Period_Date BETWEEN DATE '2021-01-01' AND DATE '2026-01-01'
+    """).fetchone()[0]
+    assert rows > 0
+
+
+def test_a_repeated_sub_item_label_is_unique_once_its_parent_is_known(con):
+    """"a) Gerçek Kişiler" sits under six different parents in tablo_9.
+    Filtering by the label alone silently sums six different figures;
+    (Ust_Kalem, Satir) must identify exactly one row per period/column."""
+    dupes = con.execute(f"""
+        SELECT count(*) FROM (
+            SELECT Tablo, Period, Ust_Kalem, Satir, Kolon, count(*) AS n
+            FROM {bf.MONTHLY_TABLE}
+            GROUP BY ALL HAVING count(*) > 1
+        )
+    """).fetchone()[0]
+    assert dupes == 0
+
+    parents = {row[0] for row in con.execute(f"""
+        SELECT DISTINCT Ust_Kalem FROM {bf.MONTHLY_TABLE}
+        WHERE Tablo = 'tablo_9' AND Satir = 'a) Gerçek Kişiler'
+    """).fetchall()}
+    assert TP_DEPOSIT_ROW in parents and FX_DEPOSIT_ROW in parents
+    assert len(parents) == 6
+
+
+def test_parent_tagged_children_reconcile_to_their_own_parent(con):
+    """The tagging must point at the RIGHT parent, not just any parent:
+    the three children of the TP deposit row add back up to that row."""
+    children = con.execute(f"""
+        SELECT SUM(Deger) FROM {bf.MONTHLY_TABLE}
+        WHERE Tablo = 'tablo_9' AND Period = '2021-01' AND Kolon = 'Toplam' AND Ust_Kalem = ?
+    """, [TP_DEPOSIT_ROW]).fetchone()[0]
+    parent = con.execute(f"""
+        SELECT Deger FROM {bf.MONTHLY_TABLE}
+        WHERE Tablo = 'tablo_9' AND Period = '2021-01' AND Kolon = 'Toplam'
+          AND Satir = ? AND Ust_Kalem IS NULL
+    """, [TP_DEPOSIT_ROW]).fetchone()[0]
+
+    assert children == pytest.approx(parent, rel=0.001)
+
+
+def test_weekly_repeated_labels_are_disambiguated_by_parent_too(con):
+    """Weekly has no styling at all; "a) Vadesiz" repeats under three
+    depositor groups in the deposits table and must still resolve."""
+    rows = con.execute(f"""
+        SELECT DISTINCT Ust_Kalem FROM {bf.WEEKLY_TABLE}
+        WHERE Tablo = 'tablo_292' AND Satir = 'a) Vadesiz'
+    """).fetchall()
+    assert len(rows) == 3 and all(r[0] for r in rows)
+
+    # The one thing a parent cannot resolve: the custody tables print the
+    # info row "Döv. End. KBS (Bilgi)" once per resident/non-resident
+    # section with no sub-item marker. That residue must stay exactly that
+    # (search_bddk_items adds Satir_No for it) - anything else repeating
+    # would be a new, unhandled ambiguity.
+    residue = {row[0] for row in con.execute(f"""
+        SELECT DISTINCT Satir FROM (
+            SELECT Tablo, Donem_Id, Ust_Kalem, Satir, Kolon FROM {bf.WEEKLY_TABLE}
+            GROUP BY ALL HAVING count(*) > 1
+        )
+    """).fetchall()}
+    assert residue <= {"Döv. End..KBS (Bilgi)", "Döv. End. KBS (Bilgi)"}
+
+
 # --- the discovery tool -------------------------------------------------
 # These hit the REAL lakehouse (search_bddk_items opens it through
 # tools._db), so they skip when it has not been built, same as the rest of
@@ -292,6 +374,45 @@ def test_search_returns_filters_that_can_be_used_verbatim_in_sql():
 
     assert count > 0
     assert "Toplam" in match["kolonlar"]
+
+
+@needs_db
+def test_search_hands_back_the_parent_so_the_filter_selects_one_row():
+    """A filter the tool returns must select one row per period/column -
+    for a repeated sub-item that is only true with Ust_Kalem in it."""
+    result = search_bddk_items(query="gerçek kişiler", kaynak="aylik")
+    subs = [r for r in result["results"]
+            if r["filtre"].get("Satir") == "a) Gerçek Kişiler" and r["filtre"]["Tablo"] == "tablo_9"]
+
+    assert len(subs) == 6
+    assert all("Ust_Kalem" in r["filtre"] and r["filtre"]["Ust_Kalem"] for r in subs)
+
+
+@needs_db
+def test_search_separates_a_label_that_truly_repeats_within_one_week():
+    """Weekly custody info row, same label twice per week: each result
+    must carry Satir_No, and each filter must select one row per week."""
+    result = search_bddk_items(query="KBS", kaynak="haftalik")
+    kbs = [r for r in result["results"] if r["filtre"]["Tablo"] == "tablo_295"]
+
+    assert len(kbs) == 2
+    assert all("Satir_No" in r["filtre"] for r in kbs)
+    assert len({r["filtre"]["Satir_No"] for r in kbs}) == 2
+
+
+@needs_db
+def test_search_never_splits_a_row_whose_number_changed_over_time():
+    """Ten monthly rows changed row number when the bulletin's layout
+    changed. Splitting them by row number would hand back filters that
+    each cover only part of the period range - silent data loss. They must
+    come back as ONE result, with no Satir_No, spanning the full range."""
+    result = search_bddk_items(query="toplam krediler", kaynak="aylik")
+    hits = [r for r in result["results"]
+            if r["filtre"]["Tablo"] == "tablo_3" and r["filtre"]["Satir"] == "Toplam Krediler"]
+
+    assert len(hits) == 1
+    assert "Satir_No" not in hits[0]["filtre"]
+    assert hits[0]["donem"].startswith("2021-01..")
 
 
 @needs_db

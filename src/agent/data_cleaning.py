@@ -112,6 +112,30 @@ _TR_MONTHS = {
     "haziran": 6, "temmuz": 7, "ağustos": 8, "agustos": 8, "eylül": 9, "eylul": 9,
     "ekim": 10, "kasım": 11, "kasim": 11, "aralık": 12, "aralik": 12,
 }
+# Abbreviations and English names, for external data. Turkish Excel's
+# default month format is "Oca.24" / "Şub-24" (mmm.yy), which is how TCMB
+# and many Turkish-sourced sheets arrive; GitHub-hosted datasets use
+# English ("Jan 2024"). Both used to parse to None, so the >90% rule in
+# data_import left the whole column as raw text and a Period JOIN against
+# gold_fact_long silently matched nothing. "mar" and "may" coincide in
+# both languages with the same month, so the two maps merge cleanly.
+_MONTH_ABBREVIATIONS = {
+    "oca": 1, "şub": 2, "sub": 2, "mar": 3, "nis": 4, "may": 5, "haz": 6,
+    "tem": 7, "ağu": 8, "agu": 8, "eyl": 9, "eki": 10, "kas": 11, "ara": 12,
+    "january": 1, "february": 2, "march": 3, "april": 4, "june": 6, "july": 7,
+    "august": 8, "september": 9, "october": 10, "november": 11, "december": 12,
+    "jan": 1, "feb": 2, "apr": 4, "jun": 6, "jul": 7, "aug": 8, "sep": 9,
+    "sept": 9, "oct": 10, "nov": 11, "dec": 12,
+}
+_ALL_MONTH_NAMES = {**_TR_MONTHS, **_MONTH_ABBREVIATIONS}
+
+
+def _month_number(name: str) -> int | None:
+    """Month name/abbreviation -> 1..12. Folds the Turkish dotted capital
+    I ("EKİ".lower() is "eki" + a combining dot, which no dict key
+    matches) and a trailing abbreviation dot ("Şub." -> "şub")."""
+    key = name.lower().replace("i̇", "i").rstrip(".")
+    return _ALL_MONTH_NAMES.get(key)
 _QUARTER_END_MONTH = {1: "03", 2: "06", 3: "09", 4: "12"}
 
 _ISO_DATE_RE = re.compile(r"^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?$")
@@ -124,6 +148,17 @@ _MONTHNAME_YEAR_RE = re.compile(r"^([A-Za-zçğıöşüÇĞİÖŞÜ]+)\s+(\d{4})
 _QUARTER_RE = re.compile(r"^(\d{4})\s*[-/ ]?\s*([1-4])\s*\.?\s*(?:Ç|Çeyrek|Ceyrek|çeyrek|ceyrek|quarter)", re.IGNORECASE)
 _QUARTER_RE_MARKER_FIRST = re.compile(r"^(\d{4})\s*[-/ ]?\s*Q\s*([1-4])$", re.IGNORECASE)
 _DMY_SLASH_RE = re.compile(r"^(\d{1,2})[./](\d{1,2})[./](\d{4})$")
+# Added for external data - each of these parsed to None before:
+_DMY_DASH_RE = re.compile(r"^(\d{1,2})-(\d{1,2})-(\d{4})$")          # '15-03-2024' (TR day-first)
+_MONTH_YEAR_NUM_RE = re.compile(r"^(\d{1,2})[./-](\d{4})$")           # '03.2024', '3/2024'
+_YEAR_M_MONTH_RE = re.compile(r"^(\d{4})-?M(\d{1,2})$", re.IGNORECASE)  # '2024M03' (TUIK/Eurostat)
+_NAME_YEAR_ANY_SEP_RE = re.compile(                                   # 'Oca-24', 'Şub.24', 'Mart-2024', 'Jan 2024'
+    r"^([A-Za-zçğıöşüÇĞİÖŞÜ]+\.?)[\s./-]*(\d{4}|\d{2})$"
+)
+
+
+def _valid_month(month: int) -> bool:
+    return 1 <= month <= 12
 
 
 def parse_flexible_date(raw: str) -> str | None:
@@ -178,6 +213,62 @@ def parse_flexible_date(raw: str) -> str | None:
         if month_no:
             return f"{year}-{month_no:02d}"
 
+    # Everything below only ever turns a former None into a Period - the
+    # formats above are matched first and keep their exact behavior.
+    m = _DMY_DASH_RE.match(s)
+    if m:
+        _, month, year = m.groups()
+        if _valid_month(int(month)):
+            return f"{year}-{int(month):02d}"
+
+    m = _MONTH_YEAR_NUM_RE.match(s)
+    if m:
+        month, year = m.groups()
+        if _valid_month(int(month)):
+            return f"{year}-{int(month):02d}"
+
+    m = _YEAR_M_MONTH_RE.match(s)
+    if m:
+        year, month = m.groups()
+        if _valid_month(int(month)):
+            return f"{year}-{int(month):02d}"
+
+    m = _NAME_YEAR_ANY_SEP_RE.match(s)
+    if m:
+        month_name, year = m.groups()
+        month_no = _month_number(month_name)
+        if month_no:
+            # Two-digit years are what Excel's mmm.yy format emits; every
+            # series in this lakehouse is post-2000.
+            full_year = year if len(year) == 4 else f"20{year}"
+            return f"{full_year}-{month_no:02d}"
+
+    return None
+
+
+def parse_flexible_day(raw) -> str | None:
+    """'YYYY-MM-DD' for a value that names an actual calendar DAY, else
+    None. Used only to tell sub-monthly data (a weekly export: 09-07-2021,
+    16-07-2021, ...) apart from monthly data written in mixed notations
+    ('2023 1. Çeyrek' and 'Mart 2023' are the same month, not two days),
+    so the importer knows whether rewriting a date column to 'YYYY-MM'
+    would erase information."""
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    m = _ISO_DATE_RE.match(s) or _ISO_DATE_SLASH_RE.match(s)
+    if m and m.group(3):
+        return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+    m = _DMY_SLASH_RE.match(s) or _DMY_DASH_RE.match(s)
+    if m:
+        day, month, year = m.groups()
+        return f"{year}-{int(month):02d}-{int(day):02d}"
+    m = _DAY_MONTHNAME_YEAR_RE.match(s)
+    if m:
+        day, name, year = m.groups()
+        month = _TR_MONTHS.get(name.lower())
+        if month:
+            return f"{year}-{month:02d}-{int(day):02d}"
     return None
 
 

@@ -65,6 +65,30 @@ _MONTHLY_FILENAME_RE = re.compile(r"^(\d{4})_(\d{2})\.csv$")
 _WEEKLY_FILENAME_RE = re.compile(r"^donem_(\d+)\.csv$")
 _FINTURK_FILENAME_RE = re.compile(r"^(\d{4})-(\d{1,2})\.csv$")
 
+# A sub-item label in both bulletins: "a) Gerçek Kişiler", "b) Vadeli",
+# "- Devlet Tahvilleri (Bilgi için)". These labels REPEAT under different
+# parents - tablo_9/tablo_10 carry "a) Gerçek Kişiler" under six parents
+# (TP / DTH / precious metals x resident / non-resident), weekly tablo_292
+# carries "a) Vadesiz" under three - so on its own the label does not
+# identify a row, and WHERE Satir='a) Gerçek Kişiler' silently sums six
+# different figures. Ust_Kalem (the parent label) is what disambiguates.
+_SUB_ITEM_RE = re.compile(r"^\s*([a-zçğıöşü]\)|-)\s")
+
+
+def _attach_parent(raw: pd.DataFrame, label_col: str, rowno_col: str,
+                   is_sub: pd.Series) -> pd.Series:
+    """Ust_Kalem per source row: the nearest preceding NON-sub-item label
+    in the same file (period), or None for a row that is itself top-level.
+
+    "Nearest preceding non-sub-item" rather than "nearest bold": monthly
+    tables mark sub-items italic but their parents are either bold or
+    plain (tablo_1's "Beklenen Zarar Karşılıkları (-)" is plain, its
+    "a) 12 Ay..." children italic), and weekly has no styling at all."""
+    order = raw.sort_values([_PERIOD_COL, rowno_col]).index
+    parent = raw[label_col].where(~is_sub)
+    parent = parent.loc[order].groupby(raw.loc[order, _PERIOD_COL]).ffill()
+    return parent.where(is_sub.loc[parent.index]).reindex(raw.index)
+
 def _cumulative_flags() -> dict[tuple[str, str], bool | None]:
     """(tablo, item) -> is_cumulative, from the scan report build_gold
     already produces. Carried into the gold table because it changes what
@@ -153,7 +177,12 @@ def build_monthly_long() -> pd.DataFrame:
         )
         if raw.empty:
             continue
-        melted = _melt(raw, _MONTHLY_META_COLS + (_PERIOD_COL,))
+        # The source's italic styling is the primary sub-item marker; the
+        # label pattern backs it up for a row whose styling was lost.
+        is_sub = raw.get("BasitFont", pd.Series(index=raw.index, dtype=object)).eq("italic") \
+            | raw["Column_2"].astype(str).str.match(_SUB_ITEM_RE)
+        raw["Ust_Kalem"] = _attach_parent(raw, "Column_2", "Column_1", is_sub)
+        melted = _melt(raw, _MONTHLY_META_COLS + ("Ust_Kalem", _PERIOD_COL))
         if melted.empty:
             continue
         melted = melted.rename(columns={
@@ -171,9 +200,10 @@ def build_monthly_long() -> pd.DataFrame:
     if not frames:
         return pd.DataFrame()
     out = pd.concat(frames, ignore_index=True)
-    out = out[["Period", "Tablo", "Tablo_Adi", "Satir_No", "Satir", "Seviye",
+    out = out[["Period", "Tablo", "Tablo_Adi", "Satir_No", "Ust_Kalem", "Satir", "Seviye",
                "Kolon", "Deger", "Birim", "Kumulatif"]]
-    logger.info(f"build_monthly_long: {len(out)} rows across {out.Tablo.nunique()} table(s)")
+    logger.info(f"build_monthly_long: {len(out)} rows across {out.Tablo.nunique()} table(s), "
+                f"{out['Ust_Kalem'].notna().sum()} cell(s) tagged with a parent row")
     return out
 
 
@@ -201,7 +231,11 @@ def build_weekly_long() -> pd.DataFrame:
         raw = _stack_dir(tablo_dir, _WEEKLY_FILENAME_RE, _weekly_period, required_col="Item")
         if raw.empty:
             continue
-        melted = _melt(raw, ("Sequence", "Item", "Donem_Id", "Tarih", _PERIOD_COL))
+        # The weekly bulletin carries no styling, so the label pattern is
+        # the only sub-item marker ("a) Vadesiz" under "Gerçek Kişiler (3+4)").
+        is_sub = raw["Item"].astype(str).str.match(_SUB_ITEM_RE)
+        raw["Ust_Kalem"] = _attach_parent(raw, "Item", "Sequence", is_sub)
+        melted = _melt(raw, ("Sequence", "Item", "Ust_Kalem", "Donem_Id", "Tarih", _PERIOD_COL))
         if melted.empty:
             continue
         melted = melted.rename(columns={
@@ -215,7 +249,7 @@ def build_weekly_long() -> pd.DataFrame:
         return pd.DataFrame()
     out = pd.concat(frames, ignore_index=True)
     out = out[["Period", "Tarih", "Donem_Id", "Tablo", "Tablo_Adi",
-               "Satir_No", "Satir", "Kolon", "Deger"]]
+               "Satir_No", "Ust_Kalem", "Satir", "Kolon", "Deger"]]
     logger.info(f"build_weekly_long: {len(out)} rows across {out.Tablo.nunique()} table(s)")
     return out
 
@@ -274,10 +308,21 @@ def write_bddk_full_tables(con) -> dict[str, int]:
             written[table] = 0
             continue
         con.register("_bddk_full_tmp", frame)
-        con.execute(f"CREATE OR REPLACE TABLE {table} AS SELECT * FROM _bddk_full_tmp")
+        # Period_Date is added here, not left to build_gold's
+        # add_period_date_columns: that one walks an explicit registry
+        # (GOLD_PERIOD_TABLES) these tables are not in. The system prompt
+        # tells the model every gold_* table has a real DATE Period_Date
+        # for date arithmetic - a live run did exactly that against
+        # gold_bddk_monthly_long ("Period_Date BETWEEN DATE '2021-01-01'
+        # ...") and died with a Binder Error, because this table lacked it.
+        con.execute(f"""
+            CREATE OR REPLACE TABLE {table} AS
+            SELECT *, strptime(Period || '-01', '%Y-%m-%d')::DATE AS Period_Date
+            FROM _bddk_full_tmp
+        """)
         con.unregister("_bddk_full_tmp")
         written[table] = len(frame)
-        logger.info(f"write_bddk_full_tables: wrote {table} ({len(frame)} rows)")
+        logger.info(f"write_bddk_full_tables: wrote {table} ({len(frame)} rows, Period_Date added)")
     return written
 
 

@@ -384,6 +384,73 @@ def list_sheets(path: str | Path) -> list[str]:
     return sheets
 
 
+_SERIES_DESCRIPTION_MARKERS = {"seri açıklamaları", "seri aciklamalari"}
+SERIES_DESCRIPTION_SUFFIX = "_seri_aciklama"
+
+
+def _split_series_descriptions(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame | None]:
+    """Cut a TCMB EVDS export's metadata footer off its data block.
+
+    WHY: an EVDS Excel export is a fixed layout - the data rows, a few
+    blank rows, a "Seri Açıklamaları" line, then one (series code,
+    description) row per series. In the repo's real export
+    (test_excels/tcmb_kredi_ve_mevduat_faiz_oranlari.xlsx) that footer is
+    ~600 rows under ~270 data rows, with the DESCRIPTION TEXT sitting in
+    the second column. Imported as one table, the >90% type rules in
+    _clean_dataframe could never fire: the date column stayed raw text (a
+    Period JOIN against gold_fact_long silently matched nothing) and the
+    first value column was stored as TEXT, not numbers.
+
+    The footer is not thrown away - the model is told to read a file's own
+    series descriptions before explaining a code - it is returned as its
+    own (Seri_Kod, Aciklama) frame for import_dataset to store alongside.
+    A frame with no marker comes back unchanged, with None."""
+    if df.empty or len(df.columns) < 2:
+        return df, None
+    first = df.iloc[:, 0].astype(str).str.strip().str.casefold()
+    hits = df.index[first.isin(_SERIES_DESCRIPTION_MARKERS)]
+    if len(hits) == 0:
+        return df, None
+
+    marker = df.index.get_loc(hits[0])
+    data = df.iloc[:marker]
+    # The blank separator rows between the data and the marker carry no
+    # value at all; trimming only TRAILING all-empty rows keeps any blank
+    # row that sits inside the data untouched.
+    while len(data) and data.iloc[-1].isna().all():
+        data = data.iloc[:-1]
+
+    # The footer has two shapes, both confirmed in the real export:
+    #   (code, description)             - the "Seri Açıklamaları" list
+    #   (code|blank, field, value)      - per-series metadata blocks
+    #                                     ("Veri Kaynağı", "Notlar", ...),
+    #                                     code written only on the first row
+    # so the code is forward-filled and a 2-cell row is labelled Açıklama.
+    raw = df.iloc[marker + 1:, :3].copy()
+    while raw.shape[1] < 3:
+        raw[f"_pad{raw.shape[1]}"] = None
+    raw.columns = ["c0", "c1", "c2"]
+    raw = raw.dropna(how="all")
+    raw = raw[raw["c1"].notna() | raw["c2"].notna()]
+    two_cell = raw["c2"].isna()
+    code = raw["c0"].where(raw["c0"].notna()).ffill()
+    footer = pd.DataFrame({
+        "Seri_Kod": code.astype(object).where(code.notna(), None),
+        "Alan": raw["c1"].where(~two_cell, "Açıklama"),
+        "Bilgi": raw["c1"].where(two_cell, raw["c2"]),
+    })
+    footer["Seri_Kod"] = footer["Seri_Kod"].map(lambda v: str(v).strip() if v is not None else None)
+    # EVDS writes a code dotted in this footer (TP.KTF10) but underscored as
+    # the data column's header (TP_KTF10). Kolon is that bridge, so "what
+    # is the column TP_KTF10?" is one equality lookup, not a guess.
+    footer["Kolon"] = footer["Seri_Kod"].map(lambda v: v.replace(".", "_") if v else None)
+    footer = footer[["Seri_Kod", "Kolon", "Alan", "Bilgi"]]
+    logger.info(f"_split_series_descriptions: {len(data)} data row(s) kept, "
+                f"{len(footer)} series-description row(s) split off "
+                f"({int(two_cell.sum())} description, {int((~two_cell).sum())} metadata)")
+    return data.reset_index(drop=True), footer.reset_index(drop=True)
+
+
 def _clean_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     """Runs every src/agent/data_cleaning.py normalization over a
     freshly-read DataFrame, BEFORE schema detection or writing - so
@@ -392,13 +459,14 @@ def _clean_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     dropped subtotal row or a column recovered from Turkish/abbreviated
     number text is exactly the kind of thing a caller needs to see, the
     same discipline as the pre-existing row-truncation report."""
-    from src.agent.data_cleaning import is_null_token, is_subtotal_label, normalize_numeric_text, parse_flexible_date, repair_mojibake
+    from src.agent.data_cleaning import is_null_token, is_subtotal_label, normalize_numeric_text, parse_flexible_date, parse_flexible_day, repair_mojibake
 
     df = df.copy()
     report = {
         "null_tokens_normalized": 0,
         "numeric_columns_recovered": [],
         "date_columns_normalized": [],
+        "period_column_added_from": [],
         "subtotal_rows_excluded": 0,
         "mojibake_repaired_columns": [],
     }
@@ -408,7 +476,7 @@ def _clean_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
         report["mojibake_repaired_columns"].append("(column headers)")
     df.columns = repaired_columns
 
-    for col in df.columns:
+    for col in list(df.columns):  # a snapshot: the date step below may add a Period column
         # NOT "dtype == object": pandas 3.x defaults a plain text column
         # to its own dedicated 'str' dtype, not legacy 'object' - found
         # live, this check silently skipped every text column in this
@@ -461,8 +529,29 @@ def _clean_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
         # values parse, same discipline as the numeric recovery above.
         date_converted = non_null.apply(parse_flexible_date)
         if date_converted.notna().mean() > 0.9:
-            report["date_columns_normalized"].append(str(col))
-            df[col] = df[col].apply(lambda v: parse_flexible_date(v) if v is not None and not (isinstance(v, float) and pd.isna(v)) else None)
+            to_period = lambda v: parse_flexible_date(v) if v is not None and not (isinstance(v, float) and pd.isna(v)) else None  # noqa: E731
+            # Distinct calendar DAYS per month, not distinct raw strings:
+            # 'Mart 2023' and '2023 1. Çeyrek' are one month written two
+            # ways, 09-07-2021 and 16-07-2021 are two weeks.
+            days = non_null.apply(parse_flexible_day).dropna()
+            days_per_month = days.groupby(days.str[:7]).nunique()
+            raw_dates = len(days)
+            periods = date_converted.dropna().nunique()
+            if len(days_per_month) and days_per_month.max() > 1:
+                # Sub-monthly data (a weekly EVDS export: 09-07-2021,
+                # 16-07-2021, ...): rewriting the column in place to
+                # 'YYYY-MM' would erase which week each row is, leaving four
+                # or five rows per month with identical labels. The original
+                # dates stay; a separate Period column is added for the JOIN.
+                added = "Period" not in df.columns
+                if added:
+                    df["Period"] = df[col].apply(to_period)
+                    report["period_column_added_from"].append(str(col))
+                logger.info(f"_clean_dataframe: {col!r} is sub-monthly ({raw_dates} dates -> {periods} months); "
+                            f"original kept, Period column {'added' if added else 'already present, left as is'}")
+            else:
+                report["date_columns_normalized"].append(str(col))
+                df[col] = df[col].apply(to_period)
 
     # Subtotal-row exclusion, checked against the FIRST column only - the
     # conventional label/category position in a BDDK/TUIK-style table. A
@@ -543,7 +632,9 @@ def detect_schema(path: str | Path, sheet: str | int | None = None) -> dict:
         raise ValueError(f"Duplicate column name(s) in the file: {dupes}. Rename them and re-upload.")
 
     df = _read_table(path, sheet)
+    df, descriptions = _split_series_descriptions(df)
     df, cleaning_report = _clean_dataframe(df)
+    cleaning_report["series_description_rows_split"] = 0 if descriptions is None else len(descriptions)
     if path.suffix.lower() in (".xlsx", ".xls"):
         # _read_table already excluded these before this point - a second,
         # cheap (dimensions only, not the data grid) call just for the
@@ -594,6 +685,7 @@ def import_dataset(path: str | Path, dataset_name: str, sheet: str | int | None 
     schema = detect_schema(path, sheet)
     schema["file_name"] = display_name
     df = _read_table(path, sheet)
+    df, descriptions = _split_series_descriptions(df)
     df, _ = _clean_dataframe(df)  # same cleaning detect_schema already applied and reported in schema["data_quality"]
     if len(df) > MAX_ROWS_PER_IMPORT:
         logger.warning(f"import_dataset: {len(df)} rows exceeds cap {MAX_ROWS_PER_IMPORT}, truncating")
@@ -606,7 +698,16 @@ def import_dataset(path: str | Path, dataset_name: str, sheet: str | int | None 
         schema["row_count"] = len(df)
 
     imported_at = _write_dataset(dataset_name, display_name, df)
-    return {"dataset_name": dataset_name, "imported_at": imported_at, **schema}
+    result = {"dataset_name": dataset_name, "imported_at": imported_at, **schema}
+    if descriptions is not None and not descriptions.empty:
+        # Kept next to the data, not dropped: "what does TP.KTF10 mean?" is
+        # answered from here. Name truncated so the pair always fits the
+        # 64-char identifier limit.
+        companion = dataset_name[:64 - len(SERIES_DESCRIPTION_SUFFIX)] + SERIES_DESCRIPTION_SUFFIX
+        _write_dataset(companion, f"{display_name} (Seri Açıklamaları)", descriptions)
+        result["series_descriptions_table"] = companion
+        logger.info(f"import_dataset: {len(descriptions)} series description(s) -> {companion!r}")
+    return result
 
 
 def _write_dataset(dataset_name: str, display_name: str, df: pd.DataFrame) -> str:

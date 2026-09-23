@@ -29,6 +29,31 @@ def test_plain_select_works(con):
     assert result["columns"] == ["id", "name", "amount"]
 
 
+def test_extract_from_a_column_is_not_mistaken_for_a_table():
+    """Live failure: EXTRACT(YEAR FROM Period_Date) was refused with
+    "Unknown table(s) referenced: ['Period_Date']", and the model then
+    wrongly told the user the Period_Date column did not exist."""
+    c = duckdb.connect(":memory:")
+    c.execute("CREATE TABLE g AS SELECT DATE '2024-03-01' AS Period_Date, 5.0 AS Deger")
+    try:
+        result = run_guarded_select(c, "SELECT EXTRACT(YEAR FROM Period_Date) AS yil, AVG(Deger) FROM g GROUP BY 1")
+    finally:
+        c.close()
+    assert result["rows"][0]["yil"] == 2024
+    assert referenced_tables("SELECT extract ( month FROM d ) FROM g") == {"g"}
+
+
+@pytest.mark.parametrize("sql", [
+    # The subquery inside EXTRACT keeps its own FROM - still a table read.
+    "SELECT EXTRACT(year FROM (SELECT * FROM read_csv('/etc/passwd')))",
+    # An alias that happens to be an EXTRACT field name changes nothing.
+    "SELECT 1 AS year FROM read_csv('/etc/passwd')",
+])
+def test_the_extract_fix_opens_no_path_to_reading_files(con, sql):
+    with pytest.raises(ValueError, match="Unknown table"):
+        run_guarded_select(con, sql)
+
+
 def test_null_becomes_json_null_not_nan(con):
     """The exact bug found live in the two real callers of this function:
     astype(object) before .where(...) is required, or a float64 column's

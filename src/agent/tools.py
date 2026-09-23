@@ -158,6 +158,11 @@ _BDDK_FULL_TABLES = {
     "haftalik": ("gold_bddk_weekly_long", "Satir"),
     "finturk": ("gold_bddk_finturk_long", "Kolon"),
 }
+# Tables whose row labels repeat under different parents ("a) Gerçek
+# Kişiler" sits under six parents in tablo_9) and therefore carry an
+# Ust_Kalem column - search results must include it or the filter they
+# hand back selects several different rows at once.
+_BDDK_TABLES_WITH_PARENT = {"gold_bddk_monthly_long", "gold_bddk_weekly_long"}
 _BDDK_SEARCH_MAX_ROWS = 40
 
 
@@ -189,19 +194,49 @@ def search_bddk_items(query: str = "", kaynak: str | None = None) -> dict:
                 logger.warning(f"search_bddk_items: {table} not built yet, skipped")
                 continue
             searched.append(table)
+            has_parent = table in _BDDK_TABLES_WITH_PARENT
+            parent_sql = "Ust_Kalem" if has_parent else "NULL"
+            # A label can still repeat inside one table even with its parent
+            # known - weekly tablo_295/296 print "Döv. End. KBS (Bilgi)" once
+            # per resident/non-resident section, with no sub-item marker.
+            # For THOSE rows the row number joins the filter. It is added only
+            # when the label repeats within a single period: ten monthly rows
+            # changed row number when the bulletin's layout changed, and
+            # splitting them by row number would hand back filters that each
+            # cover only part of the period range - silent data loss.
+            rowno_sql = "Satir_No" if has_parent else "NULL"
             rows = con.execute(f"""
-                SELECT Tablo, any_value(Tablo_Adi) AS Tablo_Adi, {label_col} AS Etiket,
-                       list_distinct(list(Kolon)) AS Kolonlar,
-                       min(Period) AS ilk_donem, max(Period) AS son_donem, count(*) AS gozlem
-                FROM {table} GROUP BY Tablo, {label_col}
+                WITH base AS (
+                    SELECT Tablo, Tablo_Adi, {parent_sql} AS Ust, {label_col} AS Etiket,
+                           {rowno_sql} AS No, Period, Kolon
+                    FROM {table}
+                ),
+                tagged AS (
+                    SELECT *, max(n) OVER (PARTITION BY Tablo, Ust, Etiket) AS dup FROM (
+                        SELECT *, count(DISTINCT No) OVER (PARTITION BY Tablo, Ust, Etiket, Period) AS n
+                        FROM base
+                    )
+                )
+                SELECT Tablo, any_value(Tablo_Adi), Ust, Etiket,
+                       CASE WHEN dup > 1 THEN No END AS No,
+                       list_distinct(list(Kolon)), min(Period), max(Period), count(*), any_value(dup)
+                FROM tagged
+                GROUP BY Tablo, Ust, Etiket, CASE WHEN dup > 1 THEN No END, dup
             """).fetchall()
-            for tablo, tablo_adi, etiket, kolonlar, ilk, son, gozlem in rows:
-                haystack = _fold_tr(f"{tablo_adi} {etiket} {' '.join(map(str, kolonlar))}")
+            for tablo, tablo_adi, ust, etiket, no, kolonlar, ilk, son, gozlem, dup in rows:
+                haystack = _fold_tr(f"{tablo_adi} {ust or ''} {etiket} {' '.join(map(str, kolonlar))}")
                 if needle and needle not in haystack:
                     continue
+                filtre = {"Tablo": tablo, label_col: etiket}
+                if has_parent:
+                    # IS NULL is part of the filter too: a top-level row and
+                    # a same-named sub-row are different rows.
+                    filtre["Ust_Kalem"] = ust
+                    if dup and dup > 1:
+                        filtre["Satir_No"] = no
                 matches.append({
                     "kaynak": source_name, "tablo_adi": tablo_adi, "tablo": table,
-                    "filtre": {"Tablo": tablo, label_col: etiket},
+                    "filtre": filtre,
                     "kolonlar": sorted(map(str, kolonlar)),
                     "donem": f"{ilk}..{son}", "gozlem": gozlem,
                 })
@@ -218,9 +253,11 @@ def search_bddk_items(query: str = "", kaynak: str | None = None) -> dict:
     return {
         "row_count": len(matches), "truncated": truncated,
         "results": matches[:_BDDK_SEARCH_MAX_ROWS], "searched_tables": searched,
-        "next_step": "filtre alanındaki değerleri lakehouse_query'de AYNEN kullan (ör. WHERE Tablo='tablo_10' "
-                     "AND Satir='...'); kolonlar listesinden istediklerini SUM ile grupla. Aylık tabloda "
-                     "Seviye='bold' ana kalem, 'italic' onun alt kırılımıdır - ikisini birlikte toplama.",
+        "next_step": "filtre alanındaki değerlerin HEPSİNİ lakehouse_query'de AYNEN kullan (ör. WHERE "
+                     "Tablo='tablo_10' AND Satir='...' AND Ust_Kalem='...'; Ust_Kalem null ise "
+                     "Ust_Kalem IS NULL). 'a) Gerçek Kişiler' gibi alt kalemler birden çok ana kalem "
+                     "altında tekrarlar - Ust_Kalem olmadan filtrelersen farklı satırları toplarsın. "
+                     "Ana kalem ile alt kırılımını birlikte toplama (çift sayım).",
     }
 
 
