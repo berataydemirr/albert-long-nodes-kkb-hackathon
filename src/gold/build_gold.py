@@ -60,8 +60,10 @@ EVDS_SERIES_LABELS = {
     "TP.BKR.TRY.18": ("Konut Kredisi Faiz Orani (TL, Stok, %)", "%"),
     "TP.BISPOLFAIZ.TUR": ("TCMB Politika Faizi (%)", "%"),
     "TP.GENENDEKS.T1": ("TUFE Genel Endeks (2003=100)", "Endeks (2003=100)"),
+    "TP.TUKFIY2025.GENEL": ("TUFE Genel Endeks (2025=100)", "Endeks (2025=100)"),
     "TP.TSANAYMT2021.BCD": ("Sanayi Uretim Endeksi (Mevsim/Takvim Etkisinden Arindirilmis)", "Endeks"),
     "TP.MT210AGS.TRY.MT06": ("TL Mevduat Faiz Orani (Vadesiz Haric, Stok, %)", "%"),
+    "TP.MT210AGS.TRY.MT02": ("3 Aya Kadar Vadeli TL Mevduat Faiz Orani (Stok, %)", "%"),
     "TP.GY1.N2": ("Reel Kesim Guven Endeksi", "Endeks"),
     "TP.BKR.TRY.KTFTUK": ("Tuketici Kredisi Faiz Orani, Ihtiyac+Tasit+Konut Birlikte (TL, Stok, %)", "%"),
     # TP.ALTINPIYASA.KAP05 (gold price) deliberately NOT included here -
@@ -808,6 +810,17 @@ def run(db_path=GOLD_DB_PATH) -> None:
     assert_gold_integrity(con)
 
     con.close()
+
+    # Keep the deposit/CPI presentation table synchronized with every gold
+    # rebuild. A fresh checkout without the optional EVDS CPI file can
+    # still build the remaining gold tables.
+    if "TP.TUKFIY2025.GENEL" in set(fact_long["Seri_Kod"]):
+        from src.gold.build_deposit_cpi import build_deposit_cpi_monthly
+        build_deposit_cpi_monthly()
+        from src.agent.tefas_volume import load_tefas_snapshot
+        if load_tefas_snapshot():
+            from src.gold.build_savings_tefas import build_savings_tefas_monthly
+            build_savings_tefas_monthly()
 
     logger.info("=" * 50)
     logger.info("GOLD BUILD SUMMARY")

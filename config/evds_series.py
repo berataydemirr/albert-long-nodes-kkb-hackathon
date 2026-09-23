@@ -35,6 +35,11 @@ SERIES: list[dict] = [
         "category": "inflation",
     },
     {
+        "code": "TP.TUKFIY2025.GENEL",
+        "label": "CPI General Index (2025=100)",
+        "category": "inflation",
+    },
+    {
         "code": "TP.DK.USD.A.YTL",
         "label": "USD Buying Rate",
         "category": "fx",
@@ -56,6 +61,11 @@ SERIES: list[dict] = [
     {
         "code": "TP.MT210AGS.TRY.MT06",
         "label": "TRY Deposit Interest Rate (Stock, Total excl. Demand Deposits, %)",
+        "category": "interest_rate",
+    },
+    {
+        "code": "TP.MT210AGS.TRY.MT02",
+        "label": "TRY Deposit Interest Rate (Stock, Up to 3 Months, %)",
         "category": "interest_rate",
     },
     {

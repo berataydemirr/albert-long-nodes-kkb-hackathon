@@ -66,6 +66,16 @@ def test_system_prompt_falls_back_cleanly_without_a_database(monkeypatch):
     assert prompt == orchestrator.SYSTEM_PROMPT_BASE
 
 
+def test_deposit_cpi_followup_preserves_monthly_change_measure():
+    history = [{"question": "TP ve YP mevduatın aylık değişim serisini getir.",
+                "answer": "Aylık değişimler."}]
+    question = "Mevcut veri setini TÜFE ile reel hale getir."
+    note = orchestrator._deposit_measure_followup(question, history)
+    assert "gold_deposit_real_monthly_change" in note
+    assert "gold_deposit_real_monthly_stock" in note
+    assert orchestrator._deposit_measure_followup(question + " Stok bakiyelerini kullan.", history) == ""
+
+
 class _FakeCompletions:
     """Records the kwargs it was called with and fails the first call the
     way an endpoint that rejects reasoning_effort does."""

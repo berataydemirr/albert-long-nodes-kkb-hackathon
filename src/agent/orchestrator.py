@@ -71,6 +71,12 @@ _KNOWN_TABLE_PURPOSES = {
     "gold_finturk_regional_quarterly": "il bazli toplam kredi + takipteki alacak, native ceyreklik",
     "gold_health_life_expectancy": "TUIK dogusta beklenen yasam suresi, yillik",
     "gold_regional_long": "il bazli ~35 metrik, uzun format - compare_regions tool'unun kendi kaynagi",
+    "gold_tefas_monthly_volume": "TEFAS Toplam Islem Hacmi Raporu, aylik TL akislari: Toplam_Islem_Hacmi_TL ve Net_Takas_Tutari_TL",
+    "gold_savings_tefas_monthly": "2021-01..2025-12 BDDK mevduat stoklari + EVDS 2025=100 TUFE, 3 aya kadar TL faizi, ay sonu USD/TL + TEFAS aylik akislari; 2025-12 reel ve 2021-01=100 reel endeks kolonlari",
+    "gold_deposit_cpi_monthly": "BDDK TP/YP ve TL vade kirilimlari: nominal donem sonu stok, nominal aylik degisim, 2025-12 fiyatlariyla reel stok ve reel aylik degisim + EVDS TUFE 2025=100; milyon TL",
+    "gold_bddk_deposit_baseline": "resmi BDDK 2020-12 tablo_10 TP/YP donem sonu stoklari; 2021-01 aylik degisimi icin onceki ay bazi",
+    "gold_deposit_real_monthly_change": "Tablo 1: Tarih YYYYMM, TUFE 2025=100, TP/YP ve TL vade aylik degisimlerinin 2025-12 fiyatlarindaki reel tutarlari (milyon TL); gosterilen 2 ondalikli TUFE ile hesap",
+    "gold_deposit_real_monthly_stock": "Tablo 2: Tarih YYYYMM, TUFE 2025=100, TP/YP ve TL vade donem sonu stoklarinin 2025-12 fiyatlarindaki reel tutarlari (milyon TL); gosterilen 2 ondalikli TUFE ile hesap",
 }
 
 
@@ -268,6 +274,79 @@ TOOL DİSİPLİNİ (doğruluk hızdan önemli - süre kısıtı yok):
   toplamak çift sayımdır. Bu tablolarda da Period_Date (DATE) vardır;
   Kumulatif=true olan satır (tüm tablo_2/Kar Zarar) yıl içi kümülatiftir,
   aylık değer için ardışık ayların FARKI alınır.
+- MEVDUAT STOKU / AYLIK DEĞİŞİM: tablo_10'daki Toplam ve vade hücreleri
+  dönem sonu STOKTUR; Kumulatif=false olması onları aylık akış yapmaz.
+  Kullanıcının verdiği örnek değerleri stoklarla karşılaştır: örneğin
+  2025-12 TP Toplam 16.067.817 iken 687.299 değeri ancak bir önceki
+  ayın stokuyla FARK alınarak bulunur. Aylık değişim istenirse LAG ile
+  önceki ayın aynı Satir/Kolon değerini çıkar; 2021-01 için resmî
+  2020-12 stokları gold_bddk_deposit_baseline tablosunda bulunduğundan
+  Ocak değişimini de hesapla. Gerçekten önceki dönem yoksa NULL bırak.
+  Kaynağın yuvarlanmış milyon TL
+  hücrelerinde toplam ve alt kalem farkları 1 birim ayrışabilir.
+- MEVDUAT + TÜFE İKİ TABLO: "mevcut veri setini reel hale getir" isteğinde
+  iki FARKLI veri setini ayrı göster. Tablo 1 = reel AYLIK DEĞİŞİMLER,
+  Tablo 2 = reel DÖNEM SONU STOKLAR. İkisi de yalnızca şu 6 sütunu taşır:
+  Tarih (YYYYMM), TÜFE (2025=100), TP Mevduat, YP Mevduat, 3 Aya Kadar
+  TP Mevduat, 3 Aydan Fazla TP Mevduat. Sırasıyla
+  gold_deposit_real_monthly_change ve gold_deposit_real_monthly_stock
+  görünümlerini sorgula. İki tabloyu AYNI YANITTA ARKA ARKAYA yaz:
+  "# Mevduat Verileri", "## Tablo 1", birinci tablo, "## Tablo 2",
+  ikinci tablo. Aralarına kaynak/yöntem/açıklama paragrafı veya başka
+  görsel koyma; gerekli yöntemi iki tablodan SONRA tek kısa notta belirt.
+  Nominal ve reel kolonları aynı tabloda tekrarlama.
+  2021-01 Tablo 1 değerleri 2020-12 BDDK bazı sayesinde
+  DOLUDUR. Görünümler kullanıcı örneğiyle uyum için iki ondalığa
+  yuvarlanmış GÖSTERİLEN TÜFE değerleriyle hesaplanır; kanonik
+  gold_deposit_cpi_monthly ayrıca tam hassasiyetli TÜFE ile hesaplanmış
+  alanları saklar. Hesap tabanı ve olası 1-4 milyon TL kaynak yuvarlama
+  farkını açıkça belirt.
+- TÜFE BAZI / REEL HESAP: gold_fact_long içindeki TP.GENENDEKS.T1
+  2003=100 bazlı endeks seviyesidir; TP.TUKFIY2025.GENEL ise
+  2025=100 bazlı Genel Endekstir. Kullanıcı 2025=100 değerleri bekliyorsa
+  veya baz belirtmeden güncel TÜFE Genel Endeks istiyorsa ikincisini seç.
+  16,13 / 42,46 / 110,39 gibi 2025=100 bazlı TÜFE değerlerini
+  2003=100 serisiyle aynı sütunda gösterme. Kullanıcı
+  belirli bir baz bekliyorsa gerçek seriyi doğrula ve gerekirse getir;
+  yalnızca sütun adını değiştirerek eski seriyi yeni bazlı gösterme.
+  Reel hesabın referans ayı ile TÜFE'nin endeks baz yılı ayrı şeylerdir:
+  aynı endeks serisinin baz ay/ilgili ay oranı kullanıldığında 2003=100
+  serisi de 2025-12 fiyatlarına çevirmeye uygundur; "baz uyuşmazlığı
+  yüzünden reel hesap yapılamaz" deme. 2025=100 serisini beklenen TÜFE
+  değerlerini ve aynı seriyle hesaplanan sonucu göstermek için seç.
+  Reel stok = nominal stok * (baz ay TÜFE / ilgili ay TÜFE).
+  Hesapta TÜFE'nin tam saklanan hassasiyetini kullan; 16,13 gibi iki
+  ondalıklı gösterim değerleriyle yeniden hesaplama yapma, çünkü reel
+  tutarda yapay fark doğurur. Yuvarlamayı yalnızca son tabloda uygula.
+  Reel aylık değişim = (nominal stok_t - nominal stok_t-1) *
+  (TÜFE_2025-12 / TÜFE_t). Bu, reel stokların aylık farkı
+  (reel stok_t - reel stok_t-1) ile aynı değildir; bu iki ölçüyü ayrı
+  adlandır ve karıştırma. Reel aylık değişimi açıklarken "nominal stok
+  farkının TÜFE ile çevrilmesi değildir" gibi yanlış bir cümle kurma.
+  Bir tabloda
+  TP/YP toplamları ile vade kırılımlarını farklı fiyat bazlarında sunma.
+- FAİZ / FON KAPSAMI: TP.MT210AGS.TRY.MT06, vadesiz hariç TOPLAM stok
+  TL mevduat faizidir; 3 aya kadar vadeli faiz olarak etiketleme.
+  3 aya kadar vade için TP.MT210AGS.TRY.MT02 serisini kullan.
+  TEFAS Toplam İşlem Hacmi ve Net Takas Tutarı AYLIK AKIŞTIR;
+  BDDK mevduatları dönem sonu STOKTUR. Ortak 202101=100 reel endeksi
+  büyüme yollarını karşılaştırır, iki tutarın ekonomik anlamını eşitlemez.
+  Net Takas Tutarı'nı fonlara net para girişi diye adlandırma.
+  TEFAS işlem hacmindeki artışı tek başına mevduattan fonlara para
+  geçtiğinin kanıtı sayma; bunu göstermek için fon stoku/net abonelik
+  gibi ayrıca doğrulanmış bir seri gerekir. YP mevduat TL karşılığından
+  döviz cinsinden tutarın yönünü kesin çıkarma; YP farklı para birimleri
+  içerir. Korelasyonda NULL dönemleri çıkarıp her ilişki için gerçek
+  ortak gözlem sayısını yaz (yıllık enflasyon ilk 12 ayda NULL olabilir).
+  TEFAS verisi lakehouse'da yoksa fetch_tefas_volume ile resmî JSON
+  raporunu çek; HTML sayfasının Request Rejected dönmesi API'nin
+  kullanılamadığı anlamına gelmez. Sonra gold_tefas_monthly_volume ve
+  gold_savings_tefas_monthly tablolarını lakehouse_query ile sorgula.
+  Resmî veri çekimi başarısızsa birleşik analiz tamamlanmış gibi sunma.
+- KULLANICI LAKEHOUSE VERİSİ İSTİYORSA: gold_fact_long'da istenen seri
+  ve dönem zaten varsa fetch_evds_series ile tekrar canlı çekme;
+  lakehouse_query sonucunu kullan ve kaynağı "önceden lakehouse'a alınmış
+  EVDS" diye belirt, "bu yanıtta canlı çekildi" deme.
 - Yukarıdaki katalogu YENİDEN ÖĞRENMEK için ne lakehouse_schema
   ÇAĞIR, ne de lakehouse_query ile "SELECT DISTINCT Seri_Kod..." /
   "SELECT DISTINCT Metrik..." gibi bir keşif sorgusu yaz - katalog zaten
@@ -1443,6 +1522,28 @@ def _history_messages(history: list[dict] | None, digest: str | None = None) -> 
     return messages
 
 
+def _deposit_measure_followup(question: str, history: list[dict] | None) -> str:
+    """Preserve the last requested deposit measure in a CPI follow-up."""
+    current = question.casefold()
+    if not history or "reel" not in current or "mevcut veri set" not in current:
+        return ""
+    if "stok" in current or "bakiye" in current:
+        return ""  # an explicit new measure wins over conversation context
+    prior = str(history[-1].get("question") or "").casefold()
+    if "aylık değişim" not in prior and "aylik degisim" not in prior:
+        return ""
+    return (
+        "\nBU TURUN ÖLÇÜSÜ: Önceki kullanıcı sorusu mevduatın AYLIK DEĞİŞİMİNİ "
+        "istemişti. 'Mevcut veri setini reel hale getir' ifadesinde mevcut "
+        "mevcut aylık değişimleri Tablo 1 olarak, dönem sonu stokları "
+        "Tablo 2 olarak AYRI göster. gold_deposit_real_monthly_change "
+        "ve gold_deposit_real_monthly_stock görünümlerini kullan. Her "
+        "tabloda Tarih, TÜFE ve dört REEL mevduat sütunu olsun; nominal "
+        "ve reel sütunları tek tabloda karıştırma. 2021-01 aylık değişimi "
+        "resmî 2020-12 BDDK bazıyla hesaplandığı için NULL değildir."
+    )
+
+
 def _grant_tool_group(arguments: str, routed_tool_schemas: list[dict]) -> str:
     """Handle the router's request_tools escape hatch in place: add the
     group's schemas for the following rounds. Not a registered tool, so it
@@ -1709,6 +1810,7 @@ def ask(question: str, history: list[dict] | None = None, history_digest: str | 
     ]
     client = get_client()
     messages = [{"role": "system", "content": _system_prompt(settings.prompt_addon if settings else "")
+                 + _deposit_measure_followup(question, history)
                  + f"\nBugünün tarihi: {date.today().isoformat()}"}]
     messages.extend(_history_messages(history, history_digest))
     if evidence_context:
