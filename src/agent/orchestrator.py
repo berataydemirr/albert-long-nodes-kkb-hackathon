@@ -294,6 +294,10 @@ TOOL DİSİPLİNİ (doğruluk hızdan önemli - süre kısıtı yok):
   "# Mevduat Verileri", "## Tablo 1", birinci tablo, "## Tablo 2",
   ikinci tablo. Aralarına kaynak/yöntem/açıklama paragrafı veya başka
   görsel koyma; gerekli yöntemi iki tablodan SONRA tek kısa notta belirt.
+  Kullanıcı dönem aralığı verdiğinde iki tabloda da o aralığın TÜM aylarını
+  göster; Tablo 2'yi yalnızca örnek tarihlere (202101/202306/202512) kısaltma.
+  Sonuç 60 aylık ise Tablo 2 de 60 satır olmalı. Yalnızca kullanıcı açıkça
+  örnek/özet isterse seçili dönemleri göster.
   Nominal ve reel kolonları aynı tabloda tekrarlama.
   2021-01 Tablo 1 değerleri 2020-12 BDDK bazı sayesinde
   DOLUDUR. Görünümler kullanıcı örneğiyle uyum için iki ondalığa
